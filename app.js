@@ -37,7 +37,6 @@ const state = {
     students: {},
     slots: [],
     loading: false,
-    lastMessage: null
 };
 
 const $ = (id) => document.getElementById(id);
@@ -173,17 +172,26 @@ function updateWeekLabel() {
 }
 
 // ============================================================
-// ОБРАБОТКА ОТВЕТОВ - ГЛАВНОЕ!
+// ОБРАБОТКА ОТВЕТОВ ОТ БОТА
 // ============================================================
 
-function processBotResponse(parsed) {
-    console.log('📥 Обработка ответа:', parsed);
+function processBotResponse(data) {
+    console.log('📥 Обработка ответа:', data);
     
-    if (parsed.action === 'get_schedule') {
-        renderSchedule(parsed);
-    } else if (parsed.action === 'get_students') {
-        state.students = parsed.students || {};
-        console.log('👥 Учеников:', Object.keys(state.students).length);
+    // Бот теперь отправляет чистый JSON через web_app_data
+    try {
+        const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+        
+        if (parsed.action === 'get_schedule') {
+            renderSchedule(parsed);
+        } else if (parsed.action === 'get_students') {
+            state.students = parsed.students || {};
+            console.log('👥 Учеников:', Object.keys(state.students).length);
+        } else if (parsed.action === 'get_slots') {
+            state.slots = parsed.slots || [];
+        }
+    } catch (e) {
+        console.error('❌ Ошибка парсинга:', e);
     }
 }
 
@@ -193,33 +201,30 @@ function processBotResponse(parsed) {
 
 console.log('🔄 Устанавливаю перехватчик...');
 
-// СПОСОБ 1: Через глобальную функцию
+// Глобальный обработчик для ответов
 window.handleBotResponse = function(data) {
-    console.log('📥 handleBotResponse:', data);
-    try {
-        if (typeof data === 'string' && data.includes('__MINIAPP_RESPONSE__')) {
-            const jsonStr = data.replace('__MINIAPP_RESPONSE__', '');
-            const parsed = JSON.parse(jsonStr);
-            processBotResponse(parsed);
-        }
-    } catch(e) {
-        console.error('❌ Ошибка:', e);
-    }
+    console.log('📥 handleBotResponse получил:', data);
+    processBotResponse(data);
 };
 
-// СПОСОБ 2: Перехват сообщений через WebApp
-// В Telegram Mini App ответы приходят как текстовые сообщения
-// Мы будем проверять их через интервал
+// Telegram WebApp автоматически передаёт ответы через web_app_data
+// Используем onEvent для получения данных
+tg.onEvent('web_app_data', function(data) {
+    console.log('📥 web_app_data событие:', data);
+    processBotResponse(data);
+});
 
-let lastCheck = '';
+// Также проверяем через initData (на случай, если ответ пришёл туда)
 setInterval(() => {
     try {
-        // Пытаемся получить данные из WebApp
         const data = window.Telegram.WebApp.initData;
-        if (data && data !== lastCheck && data.includes('__MINIAPP_RESPONSE__')) {
-            lastCheck = data;
-            console.log('📩 Найдены новые данные!');
-            window.handleBotResponse(data);
+        if (data && data !== state.lastData) {
+            state.lastData = data;
+            // Проверяем, похоже на JSON
+            if (data.startsWith('{') || data.startsWith('[')) {
+                console.log('📩 Найдены данные в initData');
+                processBotResponse(data);
+            }
         }
     } catch(e) {}
 }, 1000);

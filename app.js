@@ -27,6 +27,13 @@ if (!user || !user.id) {
 console.log('✅ Пользователь:', user);
 
 // ============================================================
+// НАСТРОЙКА API
+// ============================================================
+
+// ⚠️ ЗАМЕНИ НА РЕАЛЬНЫЙ URL ТВОЕГО API
+const API_URL = 'https://bot-1787954043-4984-solo1986.bothost.tech/api';
+
+// ============================================================
 // СОСТОЯНИЕ
 // ============================================================
 
@@ -74,10 +81,12 @@ function formatDateDisplay(date) {
 }
 
 // ============================================================
-// ЗАГРУЗКА ДАННЫХ
+// ЗАГРУЗКА ДАННЫХ ЧЕРЕЗ API
 // ============================================================
 
-function loadSchedule() {
+async function loadSchedule() {
+    state.loading = true;
+    
     let targetDate = state.selectedDate || getToday();
     state.selectedDate = targetDate;
     
@@ -94,18 +103,55 @@ function loadSchedule() {
     
     console.log('📅 Запрос для:', dateKey);
     
-    tg.sendData(JSON.stringify({
-        action: 'get_schedule',
-        user_id: user.id,
-        date: dateKey
-    }));
+    try {
+        const response = await fetch(`${API_URL}/get_schedule`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                date: dateKey,
+                user_id: user.id
+            })
+        });
+        
+        const data = await response.json();
+        console.log('📥 Ответ API:', data);
+        
+        if (data.status === 'ok') {
+            renderSchedule(data);
+        } else {
+            console.error('❌ Ошибка API:', data.message);
+            showError(data.message || 'Ошибка загрузки');
+        }
+    } catch (error) {
+        console.error('❌ Ошибка сети:', error);
+        showError('Не удалось загрузить расписание');
+    }
+    
+    state.loading = false;
 }
 
-function loadStudents() {
-    tg.sendData(JSON.stringify({
-        action: 'get_students',
-        user_id: user.id
-    }));
+async function loadStudents() {
+    try {
+        const response = await fetch(`${API_URL}/get_students`);
+        const data = await response.json();
+        if (data.status === 'ok') {
+            state.students = data.students || {};
+            console.log('👥 Учеников:', Object.keys(state.students).length);
+        }
+    } catch (error) {
+        console.error('❌ Ошибка загрузки учеников:', error);
+    }
+}
+
+function showError(message) {
+    scheduleContainer.innerHTML = `
+        <div class="empty-state">
+            <div class="big-icon">❌</div>
+            <p>${message}</p>
+        </div>
+    `;
 }
 
 // ============================================================
@@ -172,66 +218,6 @@ function updateWeekLabel() {
 }
 
 // ============================================================
-// ОБРАБОТКА ОТВЕТОВ ОТ БОТА
-// ============================================================
-
-function processBotResponse(data) {
-    console.log('📥 Обработка ответа:', data);
-    
-    // Бот теперь отправляет чистый JSON через web_app_data
-    try {
-        const parsed = typeof data === 'string' ? JSON.parse(data) : data;
-        
-        if (parsed.action === 'get_schedule') {
-            renderSchedule(parsed);
-        } else if (parsed.action === 'get_students') {
-            state.students = parsed.students || {};
-            console.log('👥 Учеников:', Object.keys(state.students).length);
-        } else if (parsed.action === 'get_slots') {
-            state.slots = parsed.slots || [];
-        }
-    } catch (e) {
-        console.error('❌ Ошибка парсинга:', e);
-    }
-}
-
-// ============================================================
-// ПЕРЕХВАТ ОТВЕТОВ ОТ БОТА
-// ============================================================
-
-console.log('🔄 Устанавливаю перехватчик...');
-
-// Глобальный обработчик для ответов
-window.handleBotResponse = function(data) {
-    console.log('📥 handleBotResponse получил:', data);
-    processBotResponse(data);
-};
-
-// Telegram WebApp автоматически передаёт ответы через web_app_data
-// Используем onEvent для получения данных
-tg.onEvent('web_app_data', function(data) {
-    console.log('📥 web_app_data событие:', data);
-    processBotResponse(data);
-});
-
-// Также проверяем через initData (на случай, если ответ пришёл туда)
-setInterval(() => {
-    try {
-        const data = window.Telegram.WebApp.initData;
-        if (data && data !== state.lastData) {
-            state.lastData = data;
-            // Проверяем, похоже на JSON
-            if (data.startsWith('{') || data.startsWith('[')) {
-                console.log('📩 Найдены данные в initData');
-                processBotResponse(data);
-            }
-        }
-    } catch(e) {}
-}, 1000);
-
-console.log('✅ Перехватчик установлен');
-
-// ============================================================
 // НАВИГАЦИЯ
 // ============================================================
 
@@ -265,3 +251,4 @@ loadStudents();
 
 console.log('📱 App запущен');
 console.log('👤 ID:', user.id);
+console.log('🌐 API:', API_URL);

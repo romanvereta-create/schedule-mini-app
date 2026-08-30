@@ -30,7 +30,6 @@ console.log('✅ Пользователь:', user);
 // НАСТРОЙКА API
 // ============================================================
 
-// ⚠️ ЗАМЕНИ НА РЕАЛЬНЫЙ URL ТВОЕГО API
 const API_URL = 'https://bot-1787954043-4984-solo1986.bothost.tech/api';
 
 // ============================================================
@@ -44,6 +43,7 @@ const state = {
     students: {},
     slots: [],
     loading: false,
+    currentDateKey: null
 };
 
 const $ = (id) => document.getElementById(id);
@@ -81,7 +81,7 @@ function formatDateDisplay(date) {
 }
 
 // ============================================================
-// ЗАГРУЗКА ДАННЫХ ЧЕРЕЗ API
+// ЗАГРУЗКА И МОДИФИКАЦИЯ ДАННЫХ ЧЕРЕЗ API
 // ============================================================
 
 async function loadSchedule() {
@@ -145,6 +145,59 @@ async function loadStudents() {
     }
 }
 
+async function addLesson(time, studentName) {
+    if (!time || !studentName) return;
+    
+    try {
+        const response = await fetch(`${API_URL}/add_lesson`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                date: state.currentDateKey,
+                time: time,
+                student: studentName,
+                user_id: user.id
+            })
+        });
+        
+        const data = await response.json();
+        if (data.status === 'ok') {
+            await loadSchedule();
+        } else {
+            alert(data.message || 'Ошибка добавления');
+        }
+    } catch (error) {
+        console.error('❌ Ошибка добавления занятия:', error);
+        alert('Не удалось добавить занятие');
+    }
+}
+
+async function deleteLesson(time) {
+    if (!confirm(`Удалить занятие на ${time}?`)) return;
+    
+    try {
+        const response = await fetch(`${API_URL}/delete_lesson`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                date: state.currentDateKey,
+                time: time,
+                user_id: user.id
+            })
+        });
+        
+        const data = await response.json();
+        if (data.status === 'ok') {
+            await loadSchedule();
+        } else {
+            alert(data.message || 'Ошибка удаления');
+        }
+    } catch (error) {
+        console.error('❌ Ошибка удаления занятия:', error);
+        alert('Не удалось удалить занятие');
+    }
+}
+
 function showError(message) {
     scheduleContainer.innerHTML = `
         <div class="empty-state">
@@ -167,41 +220,36 @@ function renderSchedule(data) {
     }
 
     const { slots, lessons } = data;
+    state.slots = slots;
     const busyTimes = lessons.map(l => l.time);
 
     let html = '';
-    let hasLessons = false;
 
     slots.forEach(slot => {
         const isBusy = busyTimes.includes(slot);
         const lesson = lessons.find(l => l.time === slot);
 
         if (isBusy && lesson) {
-            hasLessons = true;
             const student = lesson.student || 'Неизвестно';
             html += `
                 <div class="slot-row" data-time="${slot}">
                     <span class="slot-time">${slot}</span>
                     <span class="slot-student">${student}</span>
                     <span class="slot-bell">🔔</span>
-                    <span class="slot-delete">🗑</span>
+                    <span class="slot-delete" data-action="delete" data-time="${slot}">🗑</span>
                 </div>
             `;
         } else {
             html += `
                 <div class="slot-row" data-time="${slot}">
                     <span class="slot-time">${slot}</span>
-                    <span class="slot-empty">➕</span>
+                    <span class="slot-empty" data-action="add" data-time="${slot}">➕</span>
                     <span class="slot-bell"></span>
                     <span class="slot-delete"></span>
                 </div>
             `;
         }
     });
-
-    if (!hasLessons) {
-        html += `<div class="empty-state"><p>Нет занятий</p></div>`;
-    }
 
     scheduleContainer.innerHTML = html;
     updateWeekLabel();
@@ -218,8 +266,27 @@ function updateWeekLabel() {
 }
 
 // ============================================================
-// НАВИГАЦИЯ
+// СОБЫТИЯ И НАВИГАЦИЯ
 // ============================================================
+
+scheduleContainer.addEventListener('click', (e) => {
+    const deleteBtn = e.target.closest('[data-action="delete"]');
+    if (deleteBtn) {
+        const time = deleteBtn.getAttribute('data-time');
+        deleteLesson(time);
+        return;
+    }
+
+    const addBtn = e.target.closest('[data-action="add"]');
+    const slotRow = e.target.closest('.slot-row');
+    if (addBtn || (slotRow && slotRow.querySelector('.slot-empty'))) {
+        const time = (addBtn || slotRow).getAttribute('data-time');
+        const studentName = prompt(`Введите имя ученика на ${time}:`);
+        if (studentName && studentName.trim()) {
+            addLesson(time.trim(), studentName.trim());
+        }
+    }
+});
 
 btnPrev.addEventListener('click', () => {
     state.weekOffset--;
@@ -238,7 +305,12 @@ btnToday.addEventListener('click', () => {
 });
 
 btnAdd.addEventListener('click', () => {
-    alert('Добавьте занятие через бота Telegram');
+    const time = prompt('Введите время слота (например, 10:00 или 14:00):');
+    if (!time) return;
+    const studentName = prompt(`Введите имя ученика на ${time}:`);
+    if (studentName && studentName.trim()) {
+        addLesson(time.trim(), studentName.trim());
+    }
 });
 
 // ============================================================

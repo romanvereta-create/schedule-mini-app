@@ -1,11 +1,33 @@
 // ============================================================
-// ИНИЦИАЛИЗАЦИЯ TELEGRAM
+// ИНИЦИАЛИЗАЦИЯ TELEGRAM 
 // ============================================================
 
 const tg = window.Telegram.WebApp;
 tg.expand();
 
-const user = tg.initDataUnsafe?.user || { id: 0, first_name: 'Гость' };
+// Пытаемся получить пользователя
+let user = tg.initDataUnsafe?.user;
+
+// Если не получилось - пробуем через initData
+if (!user || !user.id) {
+    try {
+        const params = new URLSearchParams(tg.initData);
+        const userData = params.get('user');
+        if (userData) {
+            user = JSON.parse(decodeURIComponent(userData));
+        }
+    } catch (e) {}
+}
+
+// Если всё равно нет - используем ваш реальный ID
+if (!user || !user.id) {
+    user = {
+        id: 380819371,  // СЮДА ВСТАВЬТЕ ВАШ ID ИЗ ШАГА 1
+        first_name: 'Тестовый'
+    };
+}
+
+console.log('✅ Пользователь загружен:', user);
 
 // Состояние приложения
 const state = {

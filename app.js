@@ -3,17 +3,17 @@
 // ============================================================
 
 const tg = window.Telegram.WebApp;
-tg.expand(); // Растягиваем на весь экран
+tg.expand();
 
 const user = tg.initDataUnsafe?.user || { id: 0, first_name: 'Гость' };
 
 // Состояние приложения
 const state = {
-    selectedDay: 0,      // индекс дня (0 = ПН)
-    weekOffset: 0,       // смещение недели (0 = текущая)
-    schedule: {},        // данные расписания с сервера
-    students: {},        // список учеников
-    slots: [],           // слоты (временные интервалы)
+    selectedDate: null,   // выбранная дата (объект Date)
+    weekOffset: 0,
+    schedule: {},
+    students: {},
+    slots: [],
     loading: false,
 };
 
@@ -31,16 +31,74 @@ const modalBody = $('modal-body');
 const modalClose = $('modal-close');
 
 // ============================================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// ============================================================
+
+function getDateKey(date) {
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function getToday() {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function getMonday(date) {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    return new Date(d.setDate(diff));
+}
+
+function formatDateDisplay(date) {
+    const d = new Date(date);
+    return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function getDayName(index) {
+    const days = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'];
+    return days[index];
+}
+
+// ============================================================
 // ЗАГРУЗКА ДАННЫХ ОТ БОТА
 // ============================================================
 
 function loadSchedule() {
     state.loading = true;
+    
+    // Получаем дату для запроса
+    let targetDate;
+    if (state.selectedDate) {
+        targetDate = new Date(state.selectedDate);
+    } else {
+        targetDate = getToday();
+        state.selectedDate = targetDate;
+    }
+    
+    // Добавляем смещение недели
+    const monday = getMonday(targetDate);
+    const offsetDate = new Date(monday);
+    offsetDate.setDate(monday.getDate() + state.weekOffset * 7);
+    
+    // Получаем день недели (0 = ПН)
+    const dayIndex = targetDate.getDay() === 0 ? 6 : targetDate.getDay() - 1;
+    const finalDate = new Date(offsetDate);
+    finalDate.setDate(offsetDate.getDate() + dayIndex);
+    
+    const dateKey = getDateKey(finalDate);
+    state.currentDateKey = dateKey;
+    
+    console.log('📅 Запрос расписания для:', dateKey);
+    
     tg.sendData(JSON.stringify({
         action: 'get_schedule',
         user_id: user.id,
-        day_index: state.selectedDay,
-        week_offset: state.weekOffset
+        date: dateKey  // Передаем конкретную дату
     }));
 }
 
@@ -63,6 +121,8 @@ function loadSlots() {
 // ============================================================
 
 function renderSchedule(data) {
+    console.log('📊 Рендеринг расписания:', data);
+    
     if (!data || !data.slots) {
         scheduleContainer.innerHTML = `
             <div class="empty-state">
@@ -84,11 +144,6 @@ function renderSchedule(data) {
         const isBusy = busyTimes.includes(slot);
         const lesson = lessons.find(l => l.time === slot);
 
-        const timeClass = 'slot-time';
-        const studentClass = 'slot-student';
-        const bellClass = 'slot-bell';
-        const deleteClass = 'slot-delete';
-
         if (isBusy && lesson) {
             hasLessons = true;
             const student = lesson.student || 'Неизвестно';
@@ -97,19 +152,19 @@ function renderSchedule(data) {
 
             html += `
                 <div class="slot-row" data-action="edit_lesson" data-time="${slot}">
-                    <span class="${timeClass}">${slot}</span>
-                    <span class="${studentClass}">${student}</span>
-                    <span class="${bellClass}" data-action="edit_reminder" data-time="${slot}">${bellIcon}</span>
-                    <span class="${deleteClass}" data-action="delete_lesson" data-time="${slot}">🗑</span>
+                    <span class="slot-time">${slot}</span>
+                    <span class="slot-student">${student}</span>
+                    <span class="slot-bell" data-action="edit_reminder" data-time="${slot}">${bellIcon}</span>
+                    <span class="slot-delete" data-action="delete_lesson" data-time="${slot}">🗑</span>
                 </div>
             `;
         } else {
             html += `
                 <div class="slot-row" data-action="add_slot" data-time="${slot}">
-                    <span class="${timeClass}">${slot}</span>
+                    <span class="slot-time">${slot}</span>
                     <span class="slot-empty">➕</span>
-                    <span class="${bellClass}"></span>
-                    <span class="${deleteClass}"></span>
+                    <span class="slot-bell"></span>
+                    <span class="slot-delete"></span>
                 </div>
             `;
         }
@@ -131,60 +186,19 @@ function renderSchedule(data) {
 }
 
 function updateWeekLabel() {
-    const now = new Date();
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay() + 1 + state.weekOffset * 7);
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    const today = getToday();
+    const monday = getMonday(today);
+    const startDate = new Date(monday);
+    startDate.setDate(monday.getDate() + state.weekOffset * 7);
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 6);
 
-    const formatDate = (d) => `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth()+1).toString().padStart(2, '0')}`;
-    weekLabel.textContent = `${formatDate(startOfWeek)} – ${formatDate(endOfWeek)}`;
+    weekLabel.textContent = `${formatDateDisplay(startDate)} – ${formatDateDisplay(endDate)}`;
 }
 
 // ============================================================
-// ОБРАБОТКА СООБЩЕНИЙ ОТ БОТА (Web App Data)
+// ОБРАБОТКА ОТВЕТОВ ОТ БОТА
 // ============================================================
-
-// В Telegram Mini App ответы приходят как текстовые сообщения
-// Мы подписываемся на событие messageReceived
-tg.onEvent('viewportChanged', () => {});
-tg.onEvent('themeChanged', () => {});
-
-// Обработчик для ответов от бота
-// Используем WebApp событие для получения данных
-const originalSendData = tg.sendData;
-tg.sendData = function(data) {
-    console.log('📤 Отправка:', data);
-    originalSendData.call(this, data);
-};
-
-// Функция для обработки ответов от бота
-window.handleBotResponse = function(data) {
-    try {
-        // Проверяем, является ли data строкой
-        if (typeof data === 'string') {
-            // Проверяем, есть ли префикс от бота
-            if (data.startsWith('__MINIAPP_RESPONSE__')) {
-                const jsonStr = data.replace('__MINIAPP_RESPONSE__', '');
-                const parsed = JSON.parse(jsonStr);
-                processBotResponse(parsed);
-                return;
-            }
-            // Пытаемся парсить как JSON
-            try {
-                const parsed = JSON.parse(data);
-                processBotResponse(parsed);
-                return;
-            } catch (e) {
-                // Не JSON
-            }
-        } else if (typeof data === 'object') {
-            processBotResponse(data);
-        }
-    } catch (e) {
-        console.error('Ошибка обработки ответа:', e);
-    }
-};
 
 function processBotResponse(parsed) {
     console.log('📥 Ответ от бота:', parsed);
@@ -193,31 +207,59 @@ function processBotResponse(parsed) {
         renderSchedule(parsed);
     } else if (parsed.action === 'get_students') {
         state.students = parsed.students || {};
+        console.log('👥 Загружено учеников:', Object.keys(state.students).length);
     } else if (parsed.action === 'get_slots') {
         state.slots = parsed.slots || [];
+        console.log('🕐 Загружено слотов:', state.slots.length);
     } else if (parsed.action === 'add_lesson') {
         if (parsed.status === 'ok') {
-            renderSchedule({ slots: parsed.slots || state.slots, lessons: parsed.lessons || [] });
+            console.log('✅ Занятие добавлено!');
+            // Загружаем обновленное расписание
+            loadSchedule();
         } else {
             alert('Ошибка: ' + (parsed.message || 'Не удалось добавить занятие'));
         }
     } else if (parsed.action === 'delete_lesson') {
         if (parsed.status === 'ok') {
-            renderSchedule({ slots: parsed.slots || state.slots, lessons: parsed.lessons || [] });
+            console.log('✅ Занятие удалено!');
+            loadSchedule();
         }
     } else if (parsed.action === 'edit_time') {
         if (parsed.status === 'ok') {
+            console.log('✅ Время изменено!');
             state.slots = parsed.slots || state.slots;
             loadSchedule();
         }
     } else if (parsed.action === 'set_reminder') {
         if (parsed.status === 'ok') {
+            console.log('✅ Напоминание установлено!');
             loadSchedule();
         }
-    } else if (parsed.action === 'settings') {
-        // Настройки получены
     }
 }
+
+// Глобальный обработчик для ответов от бота
+window.handleBotResponse = function(data) {
+    try {
+        if (typeof data === 'string') {
+            if (data.startsWith('__MINIAPP_RESPONSE__')) {
+                const jsonStr = data.replace('__MINIAPP_RESPONSE__', '');
+                const parsed = JSON.parse(jsonStr);
+                processBotResponse(parsed);
+                return;
+            }
+            try {
+                const parsed = JSON.parse(data);
+                processBotResponse(parsed);
+                return;
+            } catch (e) {}
+        } else if (typeof data === 'object') {
+            processBotResponse(data);
+        }
+    } catch (e) {
+        console.error('Ошибка обработки ответа:', e);
+    }
+};
 
 // ============================================================
 // ОБРАБОТКА КЛИКОВ ПО СЛОТАМ
@@ -229,7 +271,6 @@ function attachSlotEvents() {
             const action = this.dataset.action;
             const time = this.dataset.time;
 
-            // Если клик по вложенной кнопке (колокольчик или удаление)
             if (e.target.dataset.action) {
                 const targetAction = e.target.dataset.action;
                 const targetTime = e.target.dataset.time || time;
@@ -245,7 +286,6 @@ function attachSlotEvents() {
             if (action === 'add_slot') {
                 openAddLessonModal(time);
             } else if (action === 'edit_lesson') {
-                // Показываем выбор времени
                 openTimePicker(time);
             }
         });
@@ -279,6 +319,10 @@ function openAddLessonModal(slotTime) {
         .map(([id, name]) => `<button class="student-chip" data-id="${id}" data-name="${name}">${name}</button>`)
         .join('');
 
+    // Используем текущую дату из состояния
+    const currentDate = state.selectedDate || getToday();
+    const dateStr = currentDate.toISOString().split('T')[0];
+
     const html = `
         <h2 style="margin-bottom:16px;">➕ Добавить занятие</h2>
         <div class="form-group">
@@ -290,7 +334,7 @@ function openAddLessonModal(slotTime) {
         </div>
         <div class="form-group">
             <label>Дата</label>
-            <input type="date" id="lesson-date" value="${new Date().toISOString().split('T')[0]}">
+            <input type="date" id="lesson-date" value="${dateStr}">
         </div>
         <div class="form-group">
             <label>Время</label>
@@ -324,7 +368,6 @@ function openAddLessonModal(slotTime) {
 
     openModal(html);
 
-    // Выбор ученика по клику
     document.querySelectorAll('.student-chip').forEach(chip => {
         chip.addEventListener('click', function() {
             document.querySelectorAll('.student-chip').forEach(c => c.classList.remove('selected'));
@@ -333,7 +376,6 @@ function openAddLessonModal(slotTime) {
         });
     });
 
-    // Выбор повтора
     document.querySelectorAll('.repeat-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             document.querySelectorAll('.repeat-btn').forEach(b => b.classList.remove('selected'));
@@ -341,7 +383,6 @@ function openAddLessonModal(slotTime) {
         });
     });
 
-    // Выбор напоминания
     document.querySelectorAll('.reminder-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             document.querySelectorAll('.reminder-btn').forEach(b => b.classList.remove('selected'));
@@ -350,7 +391,6 @@ function openAddLessonModal(slotTime) {
     });
 
     document.getElementById('submit-lesson').addEventListener('click', () => {
-        // Собираем данные
         const selectedStudent = document.querySelector('.student-chip.selected');
         const manualName = document.getElementById('manual-student').value.trim();
         const studentName = selectedStudent ? selectedStudent.dataset.name : (manualName || '');
@@ -372,15 +412,12 @@ function openAddLessonModal(slotTime) {
             return;
         }
 
-        // Формируем ключ даты для бота
-        const dateParts = date.split('-');
-        const dateKey = `${dateParts[0]}-${dateParts[1]}-${dateParts[2]}`;
+        console.log('📤 Добавление занятия:', { date, time, studentName, repeat });
 
-        // Отправляем боту
         tg.sendData(JSON.stringify({
             action: 'add_lesson',
             user_id: user.id,
-            date: dateKey,
+            date: date,
             time: time,
             student: studentName,
             student_id: studentId || `manual_${Date.now()}`,
@@ -390,14 +427,13 @@ function openAddLessonModal(slotTime) {
         }));
 
         closeModal();
-        // Не вызываем loadSchedule сразу, ждем ответ от бота
     });
 
     document.getElementById('cancel-lesson').addEventListener('click', closeModal);
 }
 
 // ============================================================
-// ВЫБОР ВРЕМЕНИ (редактирование слота)
+// ВЫБОР ВРЕМЕНИ
 // ============================================================
 
 function openTimePicker(oldTime) {
@@ -429,7 +465,6 @@ function openTimePicker(oldTime) {
         }));
 
         closeModal();
-        // Не вызываем loadSchedule сразу, ждем ответ от бота
     });
 
     document.getElementById('cancel-time').addEventListener('click', closeModal);
@@ -453,10 +488,10 @@ function confirmDeleteLesson(time) {
         tg.sendData(JSON.stringify({
             action: 'delete_lesson',
             user_id: user.id,
+            date: state.currentDateKey,
             time: time
         }));
         closeModal();
-        // Не вызываем loadSchedule сразу, ждем ответ от бота
     });
 
     document.getElementById('cancel-delete').addEventListener('click', closeModal);
@@ -498,18 +533,18 @@ function openReminderModal(time) {
         tg.sendData(JSON.stringify({
             action: 'set_reminder',
             user_id: user.id,
+            date: state.currentDateKey,
             time: time,
             minutes: parseInt(reminder)
         }));
         closeModal();
-        // Не вызываем loadSchedule сразу, ждем ответ от бота
     });
 
     document.getElementById('cancel-reminder').addEventListener('click', closeModal);
 }
 
 // ============================================================
-// НАСТРОЙКИ (вызов настроек бота)
+// НАСТРОЙКИ
 // ============================================================
 
 btnSettings.addEventListener('click', () => {
@@ -525,21 +560,36 @@ btnSettings.addEventListener('click', () => {
 
 btnPrev.addEventListener('click', () => {
     state.weekOffset--;
-    state.selectedDay = 0;
+    // Сохраняем выбранный день недели
     loadSchedule();
 });
 
 btnNext.addEventListener('click', () => {
     state.weekOffset++;
-    state.selectedDay = 0;
     loadSchedule();
 });
 
 btnToday.addEventListener('click', () => {
     state.weekOffset = 0;
-    const now = new Date();
-    state.selectedDay = now.getDay() === 0 ? 6 : now.getDay() - 1; // ПН = 0
+    state.selectedDate = getToday();
     loadSchedule();
+});
+
+// Добавляем клик по дням недели для переключения
+document.querySelectorAll('.days-header span').forEach((el, index) => {
+    el.addEventListener('click', () => {
+        const today = getToday();
+        const monday = getMonday(today);
+        const targetDate = new Date(monday);
+        targetDate.setDate(monday.getDate() + state.weekOffset * 7 + index);
+        state.selectedDate = targetDate;
+        loadSchedule();
+        
+        // Обновляем выделение
+        document.querySelectorAll('.days-header span').forEach(s => s.style.color = '');
+        el.style.color = 'var(--primary)';
+        el.style.fontWeight = 'bold';
+    });
 });
 
 btnAdd.addEventListener('click', () => {
@@ -547,43 +597,17 @@ btnAdd.addEventListener('click', () => {
 });
 
 // ============================================================
-// ПОЛУЧЕНИЕ ОТВЕТОВ ОТ БОТА (через WebApp)
+// ЗАПУСК
 // ============================================================
 
-// В Telegram Mini App ответы приходят как сообщения
-// Мы используем WebApp для получения данных
-// Переопределяем метод для обработки ответов
+// Инициализация
+state.selectedDate = getToday();
 
-// Функция для обработки входящих сообщений от бота
-// В Telegram WebApp данные приходят через событие messageReceived
-// Но его нет в стандартном API, поэтому используем polling
-
-// Создаем интервал для проверки новых сообщений (имитация)
-// В реальности бот отправляет ответы как текстовые сообщения,
-// и мы их получаем через Telegram WebApp
-
-// На самом деле, в Mini App нет прямого способа получить ответ от бота,
-// кроме как через текстовые сообщения. Но мы можем использовать
-// тот факт, что бот отвечает на WebAppData, и эти ответы
-// приходят как обычные сообщения.
-
-// Вместо этого, мы будем использовать глобальный обработчик,
-// который будет вызываться из вне (например, из бота через eval)
-
-// Для тестирования добавим обработчик для сообщений от бота
-// В реальности, нужно использовать Telegram API для получения сообщений
-
-// Используем метод для получения данных из WebApp
-// Это сработает, если бот отправляет ответ как текстовое сообщение
-// и мы его получаем через WebApp
-
-console.log('📱 Mini App запущен!');
-console.log('👤 Пользователь:', user);
-
-// Загружаем начальные данные
+// Загружаем данные
 loadSchedule();
 loadStudents();
 loadSlots();
 
-// Периодически проверяем наличие новых данных (для тестирования)
-// В реальном приложении используйте WebSocket или long polling
+console.log('📱 Mini App запущен!');
+console.log('👤 Пользователь:', user);
+console.log('📅 Сегодня:', getDateKey(state.selectedDate));

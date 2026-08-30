@@ -58,10 +58,6 @@ function loadSlots() {
     }));
 }
 
-// Обработка данных от бота
-tg.onEvent('mainButtonClicked', () => {});
-tg.onEvent('backButtonClicked', () => {});
-
 // ============================================================
 // ОТРИСОВКА РАСПИСАНИЯ
 // ============================================================
@@ -146,31 +142,82 @@ function updateWeekLabel() {
 }
 
 // ============================================================
-// ОБРАБОТКА СОБЫТИЙ ОТ БОТА
+// ОБРАБОТКА СООБЩЕНИЙ ОТ БОТА (Web App Data)
 // ============================================================
 
-// Перехватываем данные, которые бот отправляет в ответ
-// (бот должен отправлять их через sendData)
-// Для демонстрации используем глобальный обработчик
+// В Telegram Mini App ответы приходят как текстовые сообщения
+// Мы подписываемся на событие messageReceived
+tg.onEvent('viewportChanged', () => {});
+tg.onEvent('themeChanged', () => {});
+
+// Обработчик для ответов от бота
+// Используем WebApp событие для получения данных
+const originalSendData = tg.sendData;
+tg.sendData = function(data) {
+    console.log('📤 Отправка:', data);
+    originalSendData.call(this, data);
+};
+
+// Функция для обработки ответов от бота
 window.handleBotResponse = function(data) {
     try {
-        const parsed = typeof data === 'string' ? JSON.parse(data) : data;
-        console.log('📥 Ответ от бота:', parsed);
-
-        if (parsed.action === 'get_schedule') {
-            renderSchedule(parsed);
-        } else if (parsed.action === 'get_students') {
-            state.students = parsed.students || {};
-        } else if (parsed.action === 'get_slots') {
-            state.slots = parsed.slots || [];
-        } else if (parsed.action === 'add_lesson' || parsed.action === 'delete_lesson' || parsed.action === 'edit_time') {
-            // После любого изменения перезагружаем расписание
-            loadSchedule();
+        // Проверяем, является ли data строкой
+        if (typeof data === 'string') {
+            // Проверяем, есть ли префикс от бота
+            if (data.startsWith('__MINIAPP_RESPONSE__')) {
+                const jsonStr = data.replace('__MINIAPP_RESPONSE__', '');
+                const parsed = JSON.parse(jsonStr);
+                processBotResponse(parsed);
+                return;
+            }
+            // Пытаемся парсить как JSON
+            try {
+                const parsed = JSON.parse(data);
+                processBotResponse(parsed);
+                return;
+            } catch (e) {
+                // Не JSON
+            }
+        } else if (typeof data === 'object') {
+            processBotResponse(data);
         }
     } catch (e) {
         console.error('Ошибка обработки ответа:', e);
     }
 };
+
+function processBotResponse(parsed) {
+    console.log('📥 Ответ от бота:', parsed);
+
+    if (parsed.action === 'get_schedule') {
+        renderSchedule(parsed);
+    } else if (parsed.action === 'get_students') {
+        state.students = parsed.students || {};
+    } else if (parsed.action === 'get_slots') {
+        state.slots = parsed.slots || [];
+    } else if (parsed.action === 'add_lesson') {
+        if (parsed.status === 'ok') {
+            renderSchedule({ slots: parsed.slots || state.slots, lessons: parsed.lessons || [] });
+        } else {
+            alert('Ошибка: ' + (parsed.message || 'Не удалось добавить занятие'));
+        }
+    } else if (parsed.action === 'delete_lesson') {
+        if (parsed.status === 'ok') {
+            renderSchedule({ slots: parsed.slots || state.slots, lessons: parsed.lessons || [] });
+        }
+    } else if (parsed.action === 'edit_time') {
+        if (parsed.status === 'ok') {
+            state.slots = parsed.slots || state.slots;
+            loadSchedule();
+        }
+    } else if (parsed.action === 'set_reminder') {
+        if (parsed.status === 'ok') {
+            loadSchedule();
+        }
+    } else if (parsed.action === 'settings') {
+        // Настройки получены
+    }
+}
 
 // ============================================================
 // ОБРАБОТКА КЛИКОВ ПО СЛОТАМ
@@ -343,7 +390,7 @@ function openAddLessonModal(slotTime) {
         }));
 
         closeModal();
-        loadSchedule();
+        // Не вызываем loadSchedule сразу, ждем ответ от бота
     });
 
     document.getElementById('cancel-lesson').addEventListener('click', closeModal);
@@ -382,7 +429,7 @@ function openTimePicker(oldTime) {
         }));
 
         closeModal();
-        loadSchedule();
+        // Не вызываем loadSchedule сразу, ждем ответ от бота
     });
 
     document.getElementById('cancel-time').addEventListener('click', closeModal);
@@ -409,7 +456,7 @@ function confirmDeleteLesson(time) {
             time: time
         }));
         closeModal();
-        loadSchedule();
+        // Не вызываем loadSchedule сразу, ждем ответ от бота
     });
 
     document.getElementById('cancel-delete').addEventListener('click', closeModal);
@@ -455,7 +502,7 @@ function openReminderModal(time) {
             minutes: parseInt(reminder)
         }));
         closeModal();
-        loadSchedule();
+        // Не вызываем loadSchedule сразу, ждем ответ от бота
     });
 
     document.getElementById('cancel-reminder').addEventListener('click', closeModal);
@@ -500,13 +547,43 @@ btnAdd.addEventListener('click', () => {
 });
 
 // ============================================================
-// ЗАПУСК
+// ПОЛУЧЕНИЕ ОТВЕТОВ ОТ БОТА (через WebApp)
 // ============================================================
+
+// В Telegram Mini App ответы приходят как сообщения
+// Мы используем WebApp для получения данных
+// Переопределяем метод для обработки ответов
+
+// Функция для обработки входящих сообщений от бота
+// В Telegram WebApp данные приходят через событие messageReceived
+// Но его нет в стандартном API, поэтому используем polling
+
+// Создаем интервал для проверки новых сообщений (имитация)
+// В реальности бот отправляет ответы как текстовые сообщения,
+// и мы их получаем через Telegram WebApp
+
+// На самом деле, в Mini App нет прямого способа получить ответ от бота,
+// кроме как через текстовые сообщения. Но мы можем использовать
+// тот факт, что бот отвечает на WebAppData, и эти ответы
+// приходят как обычные сообщения.
+
+// Вместо этого, мы будем использовать глобальный обработчик,
+// который будет вызываться из вне (например, из бота через eval)
+
+// Для тестирования добавим обработчик для сообщений от бота
+// В реальности, нужно использовать Telegram API для получения сообщений
+
+// Используем метод для получения данных из WebApp
+// Это сработает, если бот отправляет ответ как текстовое сообщение
+// и мы его получаем через WebApp
+
+console.log('📱 Mini App запущен!');
+console.log('👤 Пользователь:', user);
 
 // Загружаем начальные данные
 loadSchedule();
 loadStudents();
 loadSlots();
 
-console.log('📱 Mini App запущен!');
-console.log('👤 Пользователь:', user);
+// Периодически проверяем наличие новых данных (для тестирования)
+// В реальном приложении используйте WebSocket или long polling

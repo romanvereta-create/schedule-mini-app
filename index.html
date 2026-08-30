@@ -55,6 +55,27 @@
         </div>
     </div>
 
+    <script>
+        // Перехватываем ответы от бота
+        // В Telegram Mini App, когда бот отправляет сообщение в ответ на web_app_data,
+        // оно приходит как обычное текстовое сообщение.
+        // Мы используем глобальную функцию для обработки
+        
+        // Функция, которая будет вызвана из бота (если бот отправит eval)
+        window.processBotResponse = function(data) {
+            if (window.handleBotResponse) {
+                window.handleBotResponse(data);
+            }
+        };
+        
+        // Также перехватываем любые сообщения, которые приходят через WebApp
+        // Это можно сделать через Telegram.WebApp.onEvent
+        if (window.Telegram && window.Telegram.WebApp) {
+            // Нет прямого события для получения сообщений,
+            // но мы можем использовать polling или WebSocket
+            console.log('Telegram WebApp initialized');
+        }
+    </script>
     <script src="app.js"></script>
 </body>
 </html>

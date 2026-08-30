@@ -1,73 +1,23 @@
 // ============================================================
-// ИНИЦИАЛИЗАЦИЯ TELEGRAM
+// TELEGRAM MINI APP INITIALIZATION
 // ============================================================
-
 const tg = window.Telegram.WebApp;
 tg.expand();
 
-let user = tg.initDataUnsafe?.user;
-
-if (!user || !user.id) {
-    try {
-        const params = new URLSearchParams(tg.initData);
-        const userData = params.get('user');
-        if (userData) {
-            user = JSON.parse(decodeURIComponent(userData));
-        }
-    } catch (e) {}
-}
-
-if (!user || !user.id) {
-    user = {
-        id: 380819371,
-        first_name: 'R'
-    };
-}
-
-console.log('✅ Пользователь:', user);
-
-// ============================================================
-// НАСТРОЙКА API
-// ============================================================
-
+let user = tg.initDataUnsafe?.user || { id: 380819371, first_name: 'Преподаватель' };
 const API_URL = 'https://bot-1787954043-4984-solo1986.bothost.tech/api';
 
-// ============================================================
-// СОСТОЯНИЕ
-// ============================================================
-
 const state = {
-    selectedDate: null,
-    weekOffset: 0,
+    currentMonday: getMonday(new Date()),
     schedule: {},
     students: {},
-    slots: [],
-    loading: false,
-    currentDateKey: null
+    selectedLesson: null,
+    isMoving: false
 };
 
-const $ = (id) => document.getElementById(id);
-const scheduleContainer = $('schedule-container');
-const weekLabel = $('week-label');
-const btnPrev = $('btn-prev-week');
-const btnNext = $('btn-next-week');
-const btnToday = $('btn-today');
-const btnAdd = $('btn-add-lesson');
-
 // ============================================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// HELPER FUNCTIONS
 // ============================================================
-
-function getDateKey(date) {
-    const d = new Date(date);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function getToday() {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-}
-
 function getMonday(date) {
     const d = new Date(date);
     const day = d.getDay();
@@ -75,252 +25,421 @@ function getMonday(date) {
     return new Date(d.setDate(diff));
 }
 
-function formatDateDisplay(date) {
+function formatDateKey(date) {
     const d = new Date(date);
-    return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-// ============================================================
-// ЗАГРУЗКА И МОДИФИКАЦИЯ ДАННЫХ ЧЕРЕЗ API
-// ============================================================
+const MONTH_NAMES = [
+    "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+    "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
+];
+const DAY_NAMES = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"];
 
-async function loadSchedule() {
-    state.loading = true;
-    
-    let targetDate = state.selectedDate || getToday();
-    state.selectedDate = targetDate;
-    
-    const monday = getMonday(targetDate);
-    const offsetDate = new Date(monday);
-    offsetDate.setDate(monday.getDate() + state.weekOffset * 7);
-    
-    const dayIndex = targetDate.getDay() === 0 ? 6 : targetDate.getDay() - 1;
-    const finalDate = new Date(offsetDate);
-    finalDate.setDate(offsetDate.getDate() + dayIndex);
-    
-    const dateKey = getDateKey(finalDate);
-    state.currentDateKey = dateKey;
-    
-    console.log('📅 Запрос для:', dateKey);
-    
+// ============================================================
+// API CALLS
+// ============================================================
+async function fetchWeekSchedule() {
+    const weekStartKey = formatDateKey(state.currentMonday);
     try {
-        const response = await fetch(`${API_URL}/get_schedule`, {
+        const res = await fetch(`${API_URL}/get_week_schedule`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                date: dateKey,
-                user_id: user.id
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ week_start: weekStartKey })
         });
-        
-        const data = await response.json();
-        console.log('📥 Ответ API:', data);
-        
+        const data = await res.json();
         if (data.status === 'ok') {
-            renderSchedule(data);
-        } else {
-            console.error('❌ Ошибка API:', data.message);
-            showError(data.message || 'Ошибка загрузки');
+            state.schedule = data.schedule || {};
+            renderCalendar();
         }
-    } catch (error) {
-        console.error('❌ Ошибка сети:', error);
-        showError('Не удалось загрузить расписание');
+    } catch (e) {
+        console.error('Ошибка сети:', e);
     }
-    
-    state.loading = false;
 }
 
-async function loadStudents() {
+async function fetchStudents() {
     try {
-        const response = await fetch(`${API_URL}/get_students`);
-        const data = await response.json();
+        const res = await fetch(`${API_URL}/get_students`);
+        const data = await res.json();
         if (data.status === 'ok') {
             state.students = data.students || {};
-            console.log('👥 Учеников:', Object.keys(state.students).length);
+            populateStudentSelect();
         }
-    } catch (error) {
-        console.error('❌ Ошибка загрузки учеников:', error);
+    } catch (e) {
+        console.error('Ошибка загрузки учеников:', e);
     }
 }
 
-async function addLesson(time, studentName) {
-    if (!time || !studentName) return;
+// ============================================================
+// RENDERING GOOGLE CALENDAR UI
+// ============================================================
+function renderHeader() {
+    const monthLabel = document.getElementById('month-label');
+    const daysHeader = document.getElementById('days-header');
     
-    try {
-        const response = await fetch(`${API_URL}/add_lesson`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                date: state.currentDateKey,
-                time: time,
-                student: studentName,
-                user_id: user.id
-            })
-        });
-        
-        const data = await response.json();
-        if (data.status === 'ok') {
-            await loadSchedule();
-        } else {
-            alert(data.message || 'Ошибка добавления');
-        }
-    } catch (error) {
-        console.error('❌ Ошибка добавления занятия:', error);
-        alert('Не удалось добавить занятие');
-    }
-}
-
-async function deleteLesson(time) {
-    if (!confirm(`Удалить занятие на ${time}?`)) return;
+    // Month label
+    const midWeek = new Date(state.currentMonday);
+    midWeek.setDate(midWeek.getDate() + 3);
+    monthLabel.textContent = `${MONTH_NAMES[midWeek.getMonth()]} ${midWeek.getFullYear()}`;
     
-    try {
-        const response = await fetch(`${API_URL}/delete_lesson`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                date: state.currentDateKey,
-                time: time,
-                user_id: user.id
-            })
-        });
-        
-        const data = await response.json();
-        if (data.status === 'ok') {
-            await loadSchedule();
-        } else {
-            alert(data.message || 'Ошибка удаления');
-        }
-    } catch (error) {
-        console.error('❌ Ошибка удаления занятия:', error);
-        alert('Не удалось удалить занятие');
+    // Days row
+    daysHeader.innerHTML = '';
+    const todayStr = formatDateKey(new Date());
+
+    for (let i = 0; i < 7; i++) {
+        const dayDate = new Date(state.currentMonday);
+        dayDate.setDate(dayDate.getDate() + i);
+        const dateKey = formatDateKey(dayDate);
+        const isToday = dateKey === todayStr;
+
+        const cell = document.createElement('div');
+        cell.className = `day-header-cell ${isToday ? 'today' : ''}`;
+        cell.innerHTML = `
+            <div>${DAY_NAMES[i]}</div>
+            <div class="day-num">${dayDate.getDate()}</div>
+        `;
+        daysHeader.appendChild(cell);
     }
 }
 
-function showError(message) {
-    scheduleContainer.innerHTML = `
-        <div class="empty-state">
-            <div class="big-icon">❌</div>
-            <p>${message}</p>
-        </div>
+function renderGrid() {
+    const timeLabels = document.getElementById('time-labels');
+    const weekGrid = document.getElementById('week-grid');
+    
+    timeLabels.innerHTML = '';
+    weekGrid.innerHTML = '';
+
+    // Render hours 08:00 - 22:00
+    for (let h = 8; h <= 22; h++) {
+        const timeStr = `${String(h).padStart(2, '0')}:00`;
+        const label = document.createElement('div');
+        label.className = 'time-label';
+        label.textContent = timeStr;
+        timeLabels.appendChild(label);
+    }
+
+    // Render 7 day columns
+    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+        const dayCol = document.createElement('div');
+        dayCol.className = 'day-column';
+        dayCol.dataset.dayIndex = dayIndex;
+
+        const dayDate = new Date(state.currentMonday);
+        dayDate.setDate(dayDate.getDate() + dayIndex);
+        const dateKey = formatDateKey(dayDate);
+
+        for (let h = 8; h <= 22; h++) {
+            const slot = document.createElement('div');
+            slot.className = 'time-slot';
+            slot.dataset.date = dateKey;
+            slot.dataset.hour = h;
+            
+            slot.addEventListener('click', () => {
+                const timeStr = `${String(h).padStart(2, '0')}:00`;
+                onSlotClick(dateKey, timeStr);
+            });
+            dayCol.appendChild(slot);
+        }
+        weekGrid.appendChild(dayCol);
+    }
+}
+
+function renderEvents() {
+    const layer = document.getElementById('events-layer');
+    layer.innerHTML = '';
+
+    const gridWidth = layer.clientWidth;
+    const colWidth = gridWidth / 7;
+
+    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+        const dayDate = new Date(state.currentMonday);
+        dayDate.setDate(dayDate.getDate() + dayIndex);
+        const dateKey = formatDateKey(dayDate);
+        const lessons = state.schedule[dateKey] || [];
+
+        lessons.forEach(lesson => {
+            if (!lesson.time) return;
+            const [h, m] = lesson.time.split(':').map(Number);
+            if (h < 8 || h > 22) return;
+
+            // Compute Y position (1 hour = 80px)
+            const minutesFrom8 = (h - 8) * 60 + m;
+            const topPx = (minutesFrom8 / 60) * 80;
+            const heightPx = 50; // default height for 45-60 min lesson
+
+            const card = document.createElement('div');
+            card.className = 'event-card color-1';
+            card.style.top = `${topPx}px`;
+            card.style.left = `${dayIndex * colWidth + 2}px`;
+            card.style.width = `${colWidth - 4}px`;
+            card.style.height = `${heightPx}px`;
+
+            card.innerHTML = `
+                <div class="event-title">${lesson.student}</div>
+                <div class="event-time">${lesson.time}</div>
+            `;
+
+            card.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openEditModal(dateKey, lesson);
+            });
+
+            layer.appendChild(card);
+        });
+    }
+}
+
+function renderCalendar() {
+    renderHeader();
+    renderGrid();
+    renderEvents();
+}
+
+// ============================================================
+// MODAL & INTERACTION
+// ============================================================
+const modalOverlay = document.getElementById('modal-overlay');
+const studentSelect = document.getElementById('student-select');
+const manualStudentInput = document.getElementById('manual-student-name');
+
+function populateStudentSelect() {
+    studentSelect.innerHTML = `
+        <option value="">-- Выбрать из списка --</option>
+        <option value="manual">Вписать вручную...</option>
     `;
+    Object.values(state.students).forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.user_id || s.name;
+        opt.textContent = s.name;
+        opt.dataset.username = s.username || '';
+        opt.dataset.name = s.name;
+        studentSelect.appendChild(opt);
+    });
 }
 
-// ============================================================
-// ОТРИСОВКА
-// ============================================================
+studentSelect.addEventListener('change', () => {
+    if (studentSelect.value === 'manual') {
+        manualStudentInput.classList.remove('hidden');
+    } else {
+        manualStudentInput.classList.add('hidden');
+    }
+});
 
-function renderSchedule(data) {
-    console.log('📊 Рендеринг:', data);
-    
-    if (!data || !data.slots) {
-        scheduleContainer.innerHTML = `<div class="empty-state"><p>Нет данных</p></div>`;
+function onSlotClick(dateKey, timeStr) {
+    if (state.isMoving && state.selectedLesson) {
+        // Move operation
+        moveLessonTo(dateKey, timeStr);
         return;
     }
 
-    const { slots, lessons } = data;
-    state.slots = slots;
-    const busyTimes = lessons.map(l => l.time);
+    // New Lesson Modal
+    state.selectedLesson = null;
+    document.getElementById('modal-title').textContent = 'Добавить занятие';
+    document.getElementById('lesson-date').value = dateKey;
+    document.getElementById('lesson-time').value = timeStr;
+    document.getElementById('repeat-group').classList.remove('hidden');
+    document.getElementById('edit-actions').classList.add('hidden');
+    
+    studentSelect.value = '';
+    manualStudentInput.value = '';
+    manualStudentInput.classList.add('hidden');
+    document.getElementById('zoom-link').value = '';
+    document.getElementById('lesson-text').value = '';
 
-    let html = '';
+    modalOverlay.classList.remove('hidden');
+}
 
-    slots.forEach(slot => {
-        const isBusy = busyTimes.includes(slot);
-        const lesson = lessons.find(l => l.time === slot);
+function openEditModal(dateKey, lesson) {
+    state.selectedLesson = { date: dateKey, ...lesson };
+    document.getElementById('modal-title').textContent = 'Редактировать занятие';
+    document.getElementById('lesson-date').value = dateKey;
+    document.getElementById('lesson-time').value = lesson.time;
+    document.getElementById('repeat-group').classList.add('hidden');
+    document.getElementById('edit-actions').classList.remove('hidden');
 
-        if (isBusy && lesson) {
-            const student = lesson.student || 'Неизвестно';
-            html += `
-                <div class="slot-row" data-time="${slot}">
-                    <span class="slot-time">${slot}</span>
-                    <span class="slot-student">${student}</span>
-                    <span class="slot-bell">🔔</span>
-                    <span class="slot-delete" data-action="delete" data-time="${slot}">🗑</span>
-                </div>
-            `;
-        } else {
-            html += `
-                <div class="slot-row" data-time="${slot}">
-                    <span class="slot-time">${slot}</span>
-                    <span class="slot-empty" data-action="add" data-time="${slot}">➕</span>
-                    <span class="slot-bell"></span>
-                    <span class="slot-delete"></span>
-                </div>
-            `;
+    // Find student in dropdown
+    let found = false;
+    for (let opt of studentSelect.options) {
+        if (opt.dataset.name === lesson.student || opt.value === lesson.student_id) {
+            studentSelect.value = opt.value;
+            found = true;
+            break;
         }
+    }
+    if (!found) {
+        studentSelect.value = 'manual';
+        manualStudentInput.value = lesson.student;
+        manualStudentInput.classList.remove('hidden');
+    } else {
+        manualStudentInput.classList.add('hidden');
+    }
+
+    document.getElementById('reminder-minutes').value = lesson.reminder_minutes || 60;
+    document.getElementById('zoom-link').value = lesson.zoom_link || '';
+    document.getElementById('lesson-text').value = lesson.reminder_text || '';
+
+    modalOverlay.classList.remove('hidden');
+}
+
+document.getElementById('close-modal').addEventListener('click', () => {
+    modalOverlay.classList.add('hidden');
+});
+
+document.getElementById('btn-save').addEventListener('click', async () => {
+    const date = document.getElementById('lesson-date').value;
+    const time = document.getElementById('lesson-time').value;
+    
+    let studentName = '';
+    let studentId = '';
+    
+    if (studentSelect.value === 'manual') {
+        studentName = manualStudentInput.value.trim();
+    } else if (studentSelect.value) {
+        const selectedOpt = studentSelect.options[studentSelect.selectedIndex];
+        studentName = selectedOpt.dataset.name || selectedOpt.textContent;
+        studentId = selectedOpt.value;
+    }
+
+    if (!studentName || !time) {
+        alert('Заполните имя и время');
+        return;
+    }
+
+    const payload = {
+        date,
+        time,
+        student: studentName,
+        student_id: studentId,
+        reminder_minutes: document.getElementById('reminder-minutes').value,
+        zoom_link: document.getElementById('zoom-link').value,
+        reminder_text: document.getElementById('lesson-text').value,
+        repeat: document.getElementById('lesson-repeat').value
+    };
+
+    const endpoint = state.selectedLesson ? '/update_lesson' : '/add_lesson';
+    if (state.selectedLesson) {
+        payload.old_time = state.selectedLesson.time;
+    }
+
+    try {
+        const res = await fetch(`${API_URL}${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+            modalOverlay.classList.add('hidden');
+            fetchWeekSchedule();
+        } else {
+            alert(data.message || 'Ошибка сохранения');
+        }
+    } catch (e) {
+        alert('Ошибка сети');
+    }
+});
+
+document.getElementById('btn-delete').addEventListener('click', async () => {
+    if (!state.selectedLesson) return;
+    if (!confirm('Удалить занятие?')) return;
+
+    try {
+        const res = await fetch(`${API_URL}/delete_lesson`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                date: state.selectedLesson.date,
+                time: state.selectedLesson.time
+            })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+            modalOverlay.classList.add('hidden');
+            fetchWeekSchedule();
+        }
+    } catch (e) {
+        alert('Ошибка удаления');
+    }
+});
+
+document.getElementById('btn-chat').addEventListener('click', () => {
+    if (!state.selectedLesson) return;
+    const studentId = state.selectedLesson.student_id;
+    
+    let studentObj = state.students[studentId];
+    if (studentObj && studentObj.username) {
+        tg.openTelegramLink(`https://t.me/${studentObj.username}`);
+    } else if (studentId && !studentId.startsWith('manual')) {
+        tg.openTelegramLink(`tg://user?id=${studentId}`);
+    } else {
+        alert('У этого ученика нет привязанного Telegram профиля.');
+    }
+});
+
+document.getElementById('btn-move').addEventListener('click', () => {
+    modalOverlay.classList.add('hidden');
+    state.isMoving = true;
+    alert('Кликните по новому слоту в календаре, чтобы перенести занятие туда.');
+});
+
+async function moveLessonTo(newDate, newTime) {
+    if (!state.selectedLesson) return;
+    
+    // Delete old
+    await fetch(`${API_URL}/delete_lesson`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            date: state.selectedLesson.date,
+            time: state.selectedLesson.time
+        })
     });
 
-    scheduleContainer.innerHTML = html;
-    updateWeekLabel();
+    // Add new
+    await fetch(`${API_URL}/add_lesson`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            date: newDate,
+            time: newTime,
+            student: state.selectedLesson.student,
+            student_id: state.selectedLesson.student_id,
+            reminder_minutes: state.selectedLesson.reminder_minutes,
+            zoom_link: state.selectedLesson.zoom_link,
+            reminder_text: state.selectedLesson.reminder_text
+        })
+    });
+
+    state.isMoving = false;
+    state.selectedLesson = null;
+    fetchWeekSchedule();
 }
 
-function updateWeekLabel() {
-    const today = getToday();
-    const monday = getMonday(today);
-    const startDate = new Date(monday);
-    startDate.setDate(monday.getDate() + state.weekOffset * 7);
-    const endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + 6);
-    weekLabel.textContent = `${formatDateDisplay(startDate)} – ${formatDateDisplay(endDate)}`;
-}
-
 // ============================================================
-// СОБЫТИЯ И НАВИГАЦИЯ
+// INITIALIZATION & LISTENERS
 // ============================================================
-
-scheduleContainer.addEventListener('click', (e) => {
-    const deleteBtn = e.target.closest('[data-action="delete"]');
-    if (deleteBtn) {
-        const time = deleteBtn.getAttribute('data-time');
-        deleteLesson(time);
-        return;
-    }
-
-    const addBtn = e.target.closest('[data-action="add"]');
-    const slotRow = e.target.closest('.slot-row');
-    if (addBtn || (slotRow && slotRow.querySelector('.slot-empty'))) {
-        const time = (addBtn || slotRow).getAttribute('data-time');
-        const studentName = prompt(`Введите имя ученика на ${time}:`);
-        if (studentName && studentName.trim()) {
-            addLesson(time.trim(), studentName.trim());
-        }
-    }
+document.getElementById('btn-prev-week').addEventListener('click', () => {
+    state.currentMonday.setDate(state.currentMonday.getDate() - 7);
+    fetchWeekSchedule();
 });
 
-btnPrev.addEventListener('click', () => {
-    state.weekOffset--;
-    loadSchedule();
+document.getElementById('btn-next-week').addEventListener('click', () => {
+    state.currentMonday.setDate(state.currentMonday.getDate() + 7);
+    fetchWeekSchedule();
 });
 
-btnNext.addEventListener('click', () => {
-    state.weekOffset++;
-    loadSchedule();
+document.getElementById('btn-today').addEventListener('click', () => {
+    state.currentMonday = getMonday(new Date());
+    fetchWeekSchedule();
 });
 
-btnToday.addEventListener('click', () => {
-    state.weekOffset = 0;
-    state.selectedDate = getToday();
-    loadSchedule();
+document.getElementById('btn-refresh').addEventListener('click', () => {
+    fetchWeekSchedule();
+    fetchStudents();
 });
 
-btnAdd.addEventListener('click', () => {
-    const time = prompt('Введите время слота (например, 10:00 или 14:00):');
-    if (!time) return;
-    const studentName = prompt(`Введите имя ученика на ${time}:`);
-    if (studentName && studentName.trim()) {
-        addLesson(time.trim(), studentName.trim());
-    }
-});
+window.addEventListener('resize', renderEvents);
 
-// ============================================================
-// ЗАПУСК
-// ============================================================
-
-state.selectedDate = getToday();
-loadSchedule();
-loadStudents();
-
-console.log('📱 App запущен');
-console.log('👤 ID:', user.id);
-console.log('🌐 API:', API_URL);
+// Boot
+fetchStudents();
+fetchWeekSchedule();

@@ -6,369 +6,316 @@
 }
 
 body {
-    background: var(--tg-theme-bg-color, #ffffff);
-    color: var(--tg-theme-text-color, #000000);
-    min-height: 100vh;
-    padding-bottom: 80px;
+    background: #ffffff;
+    color: #202124;
+    user-select: none;
+    overflow-x: hidden;
 }
 
-:root {
-    --primary: var(--tg-theme-button-color, #31b545);
-    --primary-text: var(--tg-theme-button-text-color, #ffffff);
-    --bg: var(--tg-theme-bg-color, #ffffff);
-    --text: var(--tg-theme-text-color, #000000);
-    --secondary: var(--tg-theme-secondary-bg-color, #f0f0f0);
-    --border: #e0e0e0;
+/* Header */
+.main-header {
+    position: sticky;
+    top: 0;
+    background: #ffffff;
+    z-index: 100;
+    border-bottom: 1px solid #e0e0e0;
 }
 
-/* Шапка */
-header {
+.header-top {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 16px 16px 8px 16px;
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
+    justify-content: space-between;
+    padding: 10px 14px;
 }
 
-header h1 {
-    font-size: 20px;
-    font-weight: 600;
+.header-top h1 {
+    font-size: 18px;
+    font-weight: 500;
+    flex-grow: 1;
+    margin-left: 10px;
+    color: #3c4043;
+}
+
+.header-btn {
+    background: #f1f3f4;
+    border: none;
+    border-radius: 18px;
+    padding: 6px 14px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    color: #3c4043;
 }
 
 .icon-btn {
     background: none;
     border: none;
-    font-size: 22px;
-    cursor: pointer;
-    padding: 4px 8px;
-}
-
-/* Навигация по неделям */
-.week-nav {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    padding: 12px 16px;
-    background: var(--bg);
-}
-
-.week-nav button {
-    background: var(--secondary);
-    border: none;
-    border-radius: 8px;
-    padding: 6px 14px;
     font-size: 16px;
+    padding: 6px 10px;
     cursor: pointer;
-    color: var(--text);
+    color: #5f6368;
+    border-radius: 50%;
 }
 
-.week-nav #week-label {
-    font-weight: 500;
-    font-size: 15px;
-    min-width: 120px;
-    text-align: center;
+.nav-arrows {
+    display: flex;
+    gap: 4px;
 }
 
-.today-btn {
-    background: var(--primary) !important;
-    color: var(--primary-text) !important;
-    padding: 6px 16px !important;
-    border-radius: 8px !important;
-    font-weight: 500;
+/* Week Days Bar */
+.week-days-container {
+    display: flex;
+    border-top: 1px solid #f1f3f4;
+    background: #ffffff;
 }
 
-/* Дни недели (шапка) */
-.days-header {
+.time-spacer {
+    width: 45px;
+    flex-shrink: 0;
+    border-right: 1px solid #e0e0e0;
+}
+
+.days-row {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    text-align: center;
-    padding: 8px 0;
-    background: var(--secondary);
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text);
-}
-
-/* Контент */
-#content {
-    padding: 12px 16px;
-}
-
-/* Слоты расписания */
-.slot-row {
-    display: grid;
-    grid-template-columns: 70px 1fr 40px 40px;
-    gap: 6px;
-    align-items: center;
-    padding: 8px 10px;
-    background: var(--bg);
-    border-radius: 10px;
-    margin-bottom: 4px;
-    border: 1px solid var(--border);
-    cursor: pointer;
-    transition: background 0.15s;
-}
-
-.slot-row:active {
-    background: var(--secondary);
-}
-
-.slot-time {
-    font-weight: 600;
-    font-size: 14px;
-}
-
-.slot-student {
-    font-size: 14px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.slot-bell {
-    font-size: 16px;
+    flex-grow: 1;
     text-align: center;
 }
 
-.slot-delete {
-    font-size: 16px;
-    text-align: center;
-    color: #ff3b30;
+.day-header-cell {
+    padding: 6px 0;
+    font-size: 11px;
+    font-weight: 500;
+    color: #70757a;
+    border-right: 1px solid #f1f3f4;
 }
 
-.slot-empty {
-    color: var(--border);
+.day-header-cell .day-num {
+    display: inline-block;
+    margin-top: 2px;
     font-size: 14px;
-}
-
-/* Кнопка добавления */
-.bottom-actions {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 12px 16px 20px 16px;
-    background: var(--bg);
-    border-top: 1px solid var(--border);
-}
-
-.primary-btn {
-    width: 100%;
-    padding: 14px;
-    background: var(--primary);
-    color: var(--primary-text);
-    border: none;
-    border-radius: 12px;
-    font-size: 16px;
     font-weight: 600;
-    cursor: pointer;
+    width: 26px;
+    height: 26px;
+    line-height: 26px;
+    border-radius: 50%;
+    color: #3c4043;
 }
 
-.primary-btn:active {
-    opacity: 0.8;
+.day-header-cell.today .day-num {
+    background: #1a73e8;
+    color: #ffffff;
 }
 
-/* Модальное окно */
-#modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-}
-
-#modal-content {
-    background: var(--bg);
-    border-radius: 16px;
-    max-width: 420px;
-    width: 92%;
-    max-height: 90vh;
+/* Calendar Grid */
+#calendar-container {
+    height: calc(100vh - 85px);
     overflow-y: auto;
-    padding: 20px 20px 24px 20px;
     position: relative;
 }
 
-.close-btn {
+.calendar-grid {
+    display: flex;
+    position: relative;
+    min-height: 1200px; /* 15 часов * 80px */
+}
+
+.time-column {
+    width: 45px;
+    flex-shrink: 0;
+    border-right: 1px solid #e0e0e0;
+    background: #ffffff;
+}
+
+.time-label {
+    height: 80px;
+    font-size: 10px;
+    color: #70757a;
+    text-align: right;
+    padding-right: 6px;
+    transform: translateY(-6px);
+}
+
+.days-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    flex-grow: 1;
+    position: relative;
+}
+
+.day-column {
+    border-right: 1px solid #f1f3f4;
+    position: relative;
+}
+
+.time-slot {
+    height: 80px;
+    border-bottom: 1px solid #f1f3f4;
+    box-sizing: border-box;
+}
+
+.time-slot:hover {
+    background: #f8f9fa;
+}
+
+/* Events Layer */
+.events-layer {
     position: absolute;
-    top: 12px;
-    right: 16px;
+    top: 0;
+    left: 45px;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+}
+
+.event-card {
+    position: absolute;
+    pointer-events: auto;
+    background: #039be5;
+    color: #ffffff;
+    border-radius: 4px;
+    padding: 3px 6px;
+    font-size: 11px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    cursor: pointer;
+    transition: transform 0.1s;
+    word-break: break-word;
+}
+
+.event-card:active {
+    transform: scale(0.97);
+}
+
+.event-card.color-1 { background: #039be5; }
+.event-card.color-2 { background: #0b8043; }
+.event-card.color-3 { background: #8e24aa; }
+
+.event-title {
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.event-time {
+    font-size: 9px;
+    opacity: 0.9;
+}
+
+/* Modal */
+#modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#modal-overlay.hidden {
+    display: none;
+}
+
+.modal-content {
+    background: #ffffff;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 400px;
+    padding: 18px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.modal-header h2 {
+    font-size: 18px;
+    color: #202124;
+}
+
+.close-modal {
     font-size: 24px;
     cursor: pointer;
-    color: var(--text);
+    color: #5f6368;
 }
 
-#modal-body {
-    margin-top: 8px;
-}
-
-/* Формы в модалке */
 .form-group {
-    margin-bottom: 16px;
+    margin-bottom: 12px;
 }
 
 .form-group label {
     display: block;
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 500;
+    color: #5f6368;
     margin-bottom: 4px;
-    color: var(--text);
 }
 
-.form-group input, .form-group select {
+.form-group input, .form-group select, .form-group textarea {
     width: 100%;
-    padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    font-size: 15px;
-    background: var(--bg);
-    color: var(--text);
+    padding: 8px 10px;
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #202124;
 }
 
-.form-group input:focus, .form-group select:focus {
-    outline: 2px solid var(--primary);
-    outline-offset: -1px;
+.time-input-row, .reminder-row {
+    display: flex;
+    gap: 8px;
 }
 
-.form-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
+.modal-actions {
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
-.submit-btn {
-    width: 100%;
-    padding: 12px;
-    background: var(--primary);
-    color: var(--primary-text);
+.primary-btn {
+    background: #1a73e8;
+    color: white;
     border: none;
-    border-radius: 12px;
-    font-size: 16px;
+    padding: 10px;
+    border-radius: 8px;
     font-weight: 600;
     cursor: pointer;
-    margin-top: 8px;
 }
 
-.submit-btn:active {
-    opacity: 0.8;
-}
-
-.cancel-btn {
-    background: var(--secondary);
-    color: var(--text);
-    margin-top: 8px;
-}
-
-/* Ученики в модалке */
-.student-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin: 8px 0 12px 0;
-}
-
-.student-chip {
-    background: var(--secondary);
-    padding: 6px 14px;
-    border-radius: 20px;
-    font-size: 14px;
+.secondary-btn {
+    background: #f1f3f4;
+    color: #3c4043;
     border: none;
+    padding: 8px;
+    border-radius: 8px;
+    font-weight: 500;
     cursor: pointer;
-    color: var(--text);
 }
 
-.student-chip:active {
-    background: var(--border);
+.danger-btn {
+    background: #d93025;
+    color: white;
+    border: none;
+    padding: 8px;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
 }
 
-.student-chip.selected {
-    background: var(--primary);
-    color: var(--primary-text);
-}
-
-/* Повтор */
-.repeat-options {
+#edit-actions {
     display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin: 8px 0 12px 0;
+    gap: 6px;
+    justify-content: space-between;
 }
 
-.repeat-btn {
-    padding: 6px 14px;
-    border-radius: 20px;
-    border: 1px solid var(--border);
-    background: var(--bg);
-    cursor: pointer;
-    font-size: 13px;
-    color: var(--text);
+#edit-actions button {
+    flex: 1;
 }
 
-.repeat-btn:active {
-    background: var(--secondary);
-}
-
-.repeat-btn.selected {
-    background: var(--primary);
-    color: var(--primary-text);
-    border-color: var(--primary);
-}
-
-/* Напоминание в модалке */
-.reminder-options {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin: 8px 0 12px 0;
-}
-
-.reminder-btn {
-    padding: 6px 14px;
-    border-radius: 20px;
-    border: 1px solid var(--border);
-    background: var(--bg);
-    cursor: pointer;
-    font-size: 13px;
-    color: var(--text);
-}
-
-.reminder-btn:active {
-    background: var(--secondary);
-}
-
-.reminder-btn.selected {
-    background: var(--primary);
-    color: var(--primary-text);
-    border-color: var(--primary);
-}
-
-/* Пустое состояние */
-.empty-state {
-    text-align: center;
-    padding: 40px 20px;
-    color: var(--text);
-    opacity: 0.6;
-}
-
-.empty-state .big-icon {
-    font-size: 48px;
-    margin-bottom: 12px;
-}
-
-/* Адаптив */
-@media (max-width: 400px) {
-    .slot-row {
-        grid-template-columns: 60px 1fr 32px 32px;
-        font-size: 13px;
-    }
-    .week-nav #week-label {
-        min-width: 80px;
-        font-size: 13px;
-    }
+.hidden {
+    display: none !important;
 }

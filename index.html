@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Расписание Календарь</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
     <div id="app">
@@ -16,97 +16,32 @@
                     <button id="btn-prev-week" class="icon-btn">◀</button>
                     <button id="btn-next-week" class="icon-btn">▶</button>
                 </div>
-                <h1 id="month-label">Август</h1>
+                <h1 id="month-label">...</h1>
                 <button id="btn-refresh" class="icon-btn">🔄</button>
             </div>
             <div class="week-days-container">
                 <div class="time-spacer"></div>
-                <div class="days-row" id="days-header">
-                    <!-- Заполнится из JS: ПН 24, ВТ 25... -->
-                </div>
+                <div class="days-row" id="days-header"></div>
             </div>
         </header>
 
         <main id="calendar-container">
             <div class="calendar-grid">
-                <!-- Колонка времени -->
-                <div class="time-column" id="time-labels">
-                    <!-- 08:00, 09:00... -->
-                </div>
-                <!-- Сетка для дней -->
-                <div class="days-grid" id="week-grid">
-                    <!-- Вертикальные линии дней и слоты -->
-                </div>
-                <!-- Контейнер для карточек занятий (абсолютное позиционирование) -->
+                <div class="time-column" id="time-labels"></div>
+                <div class="days-grid" id="week-grid"></div>
                 <div class="events-layer" id="events-layer"></div>
             </div>
         </main>
     </div>
 
-    <!-- МОДАЛЬНОЕ ОКНО ДОБАВЛЕНИЯ/РЕДАКТИРОВАНИЯ -->
-    <div id="modal-overlay" class="hidden">
-        <div class="modal-content">
-            <header class="modal-header">
-                <h2 id="modal-title">Занятие</h2>
-                <span class="close-modal" id="close-modal">&times;</span>
-            </header>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label>Дата и время</label>
-                    <div class="time-input-row">
-                        <input type="date" id="lesson-date" readonly>
-                        <input type="time" id="lesson-time" step="300">
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Ученик</label>
-                    <select id="student-select">
-                        <option value="">-- Выбрать из списка --</option>
-                        <option value="manual">Вписать вручную...</option>
-                    </select>
-                    <input type="text" id="manual-student-name" class="hidden" placeholder="Имя ученика">
-                </div>
-
-                <div class="form-group" id="repeat-group">
-                    <label>Повтор</label>
-                    <select id="lesson-repeat">
-                        <option value="no">Только сегодня (разово)</option>
-                        <option value="month">Копировать на месяц</option>
-                        <option value="year">На учебный год (до 31 мая)</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Напоминание и ссылка</label>
-                    <div class="reminder-row">
-                        <select id="reminder-minutes">
-                            <option value="0">Без напоминания</option>
-                            <option value="15">За 15 минут</option>
-                            <option value="30">За 30 минут</option>
-                            <option value="60" selected>За 1 час</option>
-                            <option value="120">За 2 часа</option>
-                        </select>
-                        <input type="text" id="zoom-link" placeholder="Ссылка на Zoom">
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <textarea id="lesson-text" placeholder="Текст напоминания (необязательно)"></textarea>
-                </div>
-
-                <div class="modal-actions">
-                    <button id="btn-save" class="primary-btn">Сохранить</button>
-                    <div id="edit-actions" class="hidden">
-                        <button id="btn-chat" class="secondary-btn">💬 Написать</button>
-                        <button id="btn-move" class="secondary-btn">🔄 Перенести</button>
-                        <button id="btn-delete" class="danger-btn">🗑 Удалить</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div id="move-hint" class="move-hint-bar hidden">
+        <span>📍 Выберите новое время</span>
+        <button onclick="cancelMove()" style="background:none; border:1px solid white; color:white; border-radius:12px; padding:2px 8px; font-size:11px;">Отмена</button>
     </div>
 
-    <script src="app.js?v=4"></script>
+    <!-- Здесь модальное окно (оставьте как было в прошлом варианте) -->
+    <div id="modal-overlay" class="hidden">...</div> 
+
+    <script src="app.js?v=5"></script>
 </body>
 </html>

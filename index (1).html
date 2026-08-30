@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Расписание</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="styles.css?v=6">
+</head>
+<body>
+    <div id="app">
+        <header class="main-header">
+            <div class="header-top">
+                <button id="btn-today" class="header-btn">Сегодня</button>
+                <div class="nav-arrows">
+                    <button id="btn-prev-week" class="icon-btn">◀</button>
+                    <button id="btn-next-week" class="icon-btn">▶</button>
+                </div>
+                <h1 id="month-label">...</h1>
+            </div>
+            <div class="week-days-container">
+                <div class="time-spacer"></div>
+                <div class="days-row" id="days-header"></div>
+            </div>
+        </header>
+
+        <main id="calendar-container">
+            <div class="calendar-grid">
+                <div class="time-column" id="time-labels"></div>
+                <div class="days-grid" id="week-grid"></div>
+                <div class="events-layer" id="events-layer"></div>
+            </div>
+        </main>
+    </div>
+
+    <div id="move-hint" class="move-hint-bar hidden">
+        <span>📍 Выберите новое время для переноса</span>
+        <button onclick="cancelMove()" style="background:none; border:1px solid white; color:white; border-radius:12px; padding:2px 8px; font-size:11px; margin-left:10px;">Отмена</button>
+    </div>
+
+    <div id="modal-overlay" class="hidden">
+        <div class="modal-content">
+            <h2 id="modal-title">Занятие</h2>
+            <input type="date" id="lesson-date" class="hidden">
+            <input type="time" id="lesson-time" class="hidden">
+            <div class="form-group"><input type="text" id="student-name" placeholder="Имя ученика"></div>
+            <div class="modal-actions">
+                <button id="btn-save" class="primary-btn">Сохранить</button>
+                <div id="edit-actions" class="hidden">
+                    <button id="btn-chat" class="secondary-btn">💬 Написать</button>
+                    <button id="btn-delete" class="danger-btn">🗑 Удалить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="app.js?v=6"></script>
+</body>
+</html>

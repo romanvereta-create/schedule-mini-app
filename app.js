@@ -223,7 +223,7 @@ function updateWeekLabel() {
 // ============================================================
 
 function processBotResponse(parsed) {
-    console.log('📥 Ответ от бота:', parsed);
+    console.log('📥 Ответ от бота (processBotResponse):', parsed);
 
     if (parsed.action === 'get_schedule') {
         renderSchedule(parsed);
@@ -262,6 +262,7 @@ function processBotResponse(parsed) {
 
 // Глобальный обработчик для ответов от бота
 window.handleBotResponse = function(data) {
+    console.log('📥 handleBotResponse получил:', data);
     try {
         if (typeof data === 'string') {
             if (data.startsWith('__MINIAPP_RESPONSE__')) {

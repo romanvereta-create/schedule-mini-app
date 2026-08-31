@@ -3,107 +3,56 @@ tg.expand();
 const API_URL = 'https://bot-1787954043-4984-solo1986.bothost.tech/api';
 const START_HOUR = 6, END_HOUR = 23;
 let hourHeight = 80;
+const state = { currentMonday:getMonday(new Date()), schedule:{}, students:{}, selectedLesson:null, isMoving:false, pendingMove:null, editing:false };
 
-const state = { currentMonday: getMonday(new Date()), schedule: {}, students: {}, selectedLesson: null, isMoving: false, pendingMove: null };
+function getMonday(date){const d=new Date(date),day=d.getDay();d.setDate(d.getDate()-day+(day===0?-6:1));d.setHours(0,0,0,0);return d;}
+function dateKey(date){const d=new Date(date);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function haptic(type='light'){try{tg.HapticFeedback.impactOccurred(type);}catch(e){}}
+function colorOf(id,name){const s=state.students[id];if(s&&typeof s==='object'&&s.color!==undefined)return Number(s.color);let n=0;for(const c of String(name||''))n=((n<<5)-n)+c.charCodeAt(0);return Math.abs(n)%8;}
 
-function getMonday(date) { const d = new Date(date); const day = d.getDay(); d.setDate(d.getDate() - day + (day === 0 ? -6 : 1)); d.setHours(0,0,0,0); return d; }
-function dateKey(date) { const d = new Date(date); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
-function haptic(type='light') { try { tg.HapticFeedback.impactOccurred(type); } catch(e) {} }
+async function fetchData(){try{const r=await fetch(`${API_URL}/get_week_schedule`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({week_start:dateKey(state.currentMonday)})});const d=await r.json();if(d.status!=='ok')throw Error(d.message);state.schedule=d.schedule||{};const sr=await fetch(`${API_URL}/get_students`);state.students=(await sr.json()).students||{};fillStudents();renderCalendar();}catch(e){console.error(e);}}
+function fillStudents(){const s=document.getElementById('student-select');if(!s)return;s.innerHTML='<option value="">-- Выбрать ученика --</option><option value="manual">Вписать вручную...</option>';Object.entries(state.students).forEach(([id,v])=>{const x=typeof v==='string'?{name:v}:v,o=document.createElement('option');o.value=id;o.textContent=x.name||id;o.dataset.name=x.name||id;s.appendChild(o);});}
 
-async function fetchData() {
-    try {
-        const res = await fetch(`${API_URL}/get_week_schedule`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({week_start:dateKey(state.currentMonday)}) });
-        const data = await res.json();
-        state.schedule = data.schedule || {};
-        const sRes = await fetch(`${API_URL}/get_students`);
-        state.students = (await sRes.json()).students || {};
-        renderCalendar();
-    } catch(e) { console.error(e); }
-}
+function renderCalendar(){const labels=document.getElementById('time-labels'),grid=document.getElementById('week-grid'),layer=document.getElementById('events-layer');labels.innerHTML='';grid.innerHTML='';layer.innerHTML='<div id="current-time-line" class="current-time-line hidden"><div class="time-line-dot"></div></div>';document.documentElement.style.setProperty('--hour-height',`${hourHeight}px`);const mid=new Date(state.currentMonday);mid.setDate(mid.getDate()+3);document.getElementById('month-label').textContent=mid.toLocaleDateString('ru-RU',{month:'long',year:'numeric'});const today=dateKey(new Date()),header=document.getElementById('days-header');header.innerHTML='';for(let d=0;d<7;d++){const dt=new Date(state.currentMonday);dt.setDate(dt.getDate()+d);const c=document.createElement('div');c.className='day-header-cell '+(dateKey(dt)===today?'today':'');c.innerHTML=`<div>${['ПН','ВТ','СР','ЧТ','ПТ','СБ','ВС'][d]}</div><div class="day-num">${dt.getDate()}</div>`;header.appendChild(c);}for(let h=START_HOUR;h<=END_HOUR;h++){const l=document.createElement('div');l.className='time-label';l.style.height=hourHeight+'px';l.textContent=`${String(h).padStart(2,'0')}:00`;labels.appendChild(l);}for(let d=0;d<7;d++){const col=document.createElement('div');col.className='day-column';const dt=new Date(state.currentMonday);dt.setDate(dt.getDate()+d);const key=dateKey(dt);for(let h=START_HOUR;h<=END_HOUR;h++){const s=document.createElement('div');s.className='time-slot';s.style.height=hourHeight+'px';s.onclick=()=>state.isMoving?chooseMove(key,`${String(h).padStart(2,'0')}:00`):openAdd(key,`${String(h).padStart(2,'0')}:00`);col.appendChild(s);}grid.appendChild(col);}renderEvents();updateCurrentTimeLine();}
 
-function renderCalendar() {
-    const layer = document.getElementById('events-layer');
-    layer.innerHTML = '<div id="current-time-line" class="current-time-line hidden"><div class="time-line-dot"></div></div>';
-    
-    document.documentElement.style.setProperty('--hour-height', `${hourHeight}px`);
-    document.getElementById('month-label').textContent = state.currentMonday.toLocaleDateString('ru-RU', {month:'long', year:'numeric'});
-    
-    const labels=document.getElementById('time-labels'), grid=document.getElementById('week-grid'), header=document.getElementById('days-header');
-    labels.innerHTML=''; grid.innerHTML=''; header.innerHTML='';
-    const today = dateKey(new Date());
+function renderEvents(){const layer=document.getElementById('events-layer'),colWidth=layer.clientWidth/7;for(let d=0;d<7;d++){const dt=new Date(state.currentMonday);dt.setDate(dt.getDate()+d);const key=dateKey(dt);(state.schedule[key]||[]).forEach(l=>{const [h,m]=String(l.time||'00:00').split(':').map(Number);if(h<START_HOUR||h>END_HOUR)return;const duration=Math.max(5,parseInt(l.duration||60));const card=document.createElement('div');card.className=`event-card color-${colorOf(l.student_id,l.student)} ${l.paid?'paid-status':''}`;card.style.top=`${((h-START_HOUR)*60+m)*hourHeight/60}px`;card.style.left=`${d*colWidth+2}px`;card.style.width=`${Math.max(20,colWidth-4)}px`;card.style.height=`${Math.max(18,duration*hourHeight/60-2)}px`;card.innerHTML=`<div class="event-title"></div><div class="event-time"></div>`;card.querySelector('.event-title').textContent=l.student||'Ученик';card.querySelector('.event-time').textContent=`${l.time} (${duration}м)`;let timer=null,longPress=false;card.addEventListener('touchstart',()=>{longPress=false;timer=setTimeout(()=>{longPress=true;haptic('heavy');startMove(key,l);},550);},{passive:true});card.addEventListener('touchmove',()=>clearTimeout(timer),{passive:true});card.addEventListener('touchend',()=>clearTimeout(timer));card.addEventListener('contextmenu',e=>{e.preventDefault();openActionMenu(key,l);});card.addEventListener('click',e=>{e.stopPropagation();if(longPress||state.isMoving)return;openActionMenu(key,l);});layer.appendChild(card);});}}
 
-    for(let d=0;d<7;d++){const dt=new Date(state.currentMonday);dt.setDate(dt.getDate()+d);const c=document.createElement('div');c.className='day-header-cell '+(dateKey(dt)===today?'today':'');c.innerHTML=`<div>${['ПН','ВТ','СР','ЧТ','ПТ','СБ','ВС'][d]}</div><div class="day-num">${dt.getDate()}</div>`;header.appendChild(c);}
-    for(let h=START_HOUR;h<=END_HOUR;h++){const l=document.createElement('div');l.className='time-label';l.style.height=hourHeight+'px';l.textContent=String(h).padStart(2,'0')+':00';labels.appendChild(l);}
-    for(let d=0;d<7;d++){const col=document.createElement('div');col.className='day-column';const dt=new Date(state.currentMonday);dt.setDate(dt.getDate()+d);const key=dateKey(dt);for(let h=START_HOUR;h<=END_HOUR;h++){const s=document.createElement('div');s.className='time-slot';s.style.height=hourHeight+'px';s.onclick=()=>state.isMoving?moveAction(key,`${String(h).padStart(2,'0')}:00`):openAdd(key,`${String(h).padStart(2,'0')}:00`);col.appendChild(s);}grid.appendChild(col);}
-    renderEvents(); updateCurrentTimeLine();
-}
+function updateCurrentTimeLine(){const line=document.getElementById('current-time-line'),now=new Date(),today=dateKey(now);let col=-1;for(let d=0;d<7;d++){const x=new Date(state.currentMonday);x.setDate(x.getDate()+d);if(dateKey(x)===today)col=d;}if(col<0||now.getHours()<START_HOUR||now.getHours()>END_HOUR)return line.classList.add('hidden');const w=document.getElementById('events-layer').clientWidth/7;line.style.left=`${col*w}px`;line.style.width=`${w}px`;line.style.top=`${((now.getHours()-START_HOUR)*60+Math.floor(now.getMinutes()/10)*10)*hourHeight/60}px`;line.classList.remove('hidden');}
+setInterval(updateCurrentTimeLine,60000);
 
-function renderEvents() {
-    const layer = document.getElementById('events-layer'), colWidth = layer.clientWidth / 7;
-    for(let d=0;d<7;d++){const dt=new Date(state.currentMonday);dt.setDate(dt.getDate()+d);(state.schedule[dateKey(dt)]||[]).forEach(l=>{const [h,m]=String(l.time).split(':').map(Number);if(h<START_HOUR||h>END_HOUR)return;
-        const card=document.createElement('div');
-        card.className=`event-card color-${state.students[l.student_id]?.color || 0} ${l.paid?'paid-status':''}`;
-        card.style.top=`${((h-START_HOUR)*60+m)*hourHeight/60}px`; card.style.left=`${d*colWidth+2}px`; card.style.width=`${colWidth-4}px`; card.style.height=`${l.duration*hourHeight/60-2}px`;
-        card.innerHTML=`<div class="event-title">${l.student}</div><div class="event-time">${l.time}</div>`;
-        card.onclick=()=>{haptic('light'); openActionMenu(dateKey(dt), l);};
-        layer.appendChild(card);
-    });}
+function openActionMenu(date,lesson){state.selectedLesson={date,...lesson};document.getElementById('action-menu-title').textContent=lesson.student||'Ученик';document.getElementById('btn-action-paid').textContent=lesson.paid?'✅ Оплачено (снять)':'💳 Оплатил';document.getElementById('action-menu-overlay').classList.remove('hidden');}
+function closeAction(){document.getElementById('action-menu-overlay').classList.add('hidden');}
+function startMove(date,lesson){state.selectedLesson={date,...lesson};state.isMoving=true;document.getElementById('move-hint').classList.remove('hidden');renderCalendar();}
+function chooseMove(date,time){state.pendingMove={newDate:date,newTime:time};document.getElementById('move-modal-desc').textContent=`${state.selectedLesson.student}: ${date} ${time}`;document.getElementById('move-modal-overlay').classList.remove('hidden');}
+async function executeMove(type){const l=state.selectedLesson,p=state.pendingMove;if(!l||!p)return;await fetch(`${API_URL}/move_lesson`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_date:l.date,id:l.id,new_date:p.newDate,new_time:p.newTime,action_type:type})});cancelMove();fetchData();}
+function cancelMove(){state.isMoving=false;state.selectedLesson=null;state.pendingMove=null;document.getElementById('move-hint').classList.add('hidden');document.getElementById('move-modal-overlay').classList.add('hidden');renderCalendar();}
 
-function updateCurrentTimeLine() {
-    const line = document.getElementById('current-time-line');
-    const now = new Date(); const today = dateKey(now);
-    let col = -1; for(let i=0;i<7;i++){ const d=new Date(state.currentMonday); d.setDate(d.getDate()+i); if(dateKey(d)===today) col=i; }
-    if(col===-1) return line.classList.add('hidden');
-    const h=now.getHours(), m=now.getMinutes();
-    if(h<START_HOUR||h>END_HOUR) return line.classList.add('hidden');
-    line.style.top=`${((h-START_HOUR)*60+m)*hourHeight/60}px`; line.style.left=`${col*(document.getElementById('events-layer').clientWidth/7)}px`; line.style.width=`${document.getElementById('events-layer').clientWidth/7}px`; line.classList.remove('hidden');
-}
+function openAdd(date,time){state.selectedLesson=null;state.editing=false;document.getElementById('modal-title').textContent='Добавить занятие';document.getElementById('student-select-group').classList.remove('hidden');document.getElementById('student-fixed-group').classList.add('hidden');document.getElementById('time-duration-group').classList.remove('hidden');document.getElementById('repeat-group').classList.remove('hidden');document.getElementById('lesson-date').value=date;document.getElementById('lesson-time').value=time;document.getElementById('lesson-duration').value=60;document.getElementById('lesson-price').value='';document.getElementById('parent-contact').value='';document.getElementById('parent-contact-type').value='tg';document.getElementById('reminder-minutes').value=60;document.getElementById('reminder-text').value='';document.getElementById('zoom-link').value='';document.getElementById('lesson-repeat').value='no';document.getElementById('manual-student-name').classList.add('hidden');document.getElementById('student-select').value='';document.getElementById('modal-overlay').classList.remove('hidden');}
+function openEditModal(date,l){state.selectedLesson={date,...l};state.editing=true;document.getElementById('modal-title').textContent='Настройки ученика';document.getElementById('student-select-group').classList.add('hidden');document.getElementById('student-fixed-group').classList.remove('hidden');document.getElementById('fixed-student-name').value=l.student||'';document.getElementById('time-duration-group').classList.add('hidden');document.getElementById('repeat-group').classList.add('hidden');document.getElementById('lesson-date').value=date;document.getElementById('lesson-time').value=l.time;document.getElementById('lesson-duration').value=l.duration||60;document.getElementById('lesson-id').value=l.id;document.getElementById('lesson-price').value=l.price||'';document.getElementById('parent-contact').value=l.parent_contact||'';document.getElementById('parent-contact-type').value=l.parent_contact_type||'tg';document.getElementById('reminder-minutes').value=l.reminder_minutes??60;document.getElementById('reminder-text').value=l.reminder_text||'';document.getElementById('zoom-link').value=l.zoom_link||'';document.getElementById('modal-overlay').classList.remove('hidden');}
+async function saveLesson(){const l=state.selectedLesson,date=document.getElementById('lesson-date').value,time=document.getElementById('lesson-time').value,duration=parseInt(document.getElementById('lesson-duration').value||60),price=document.getElementById('lesson-price').value,contact=document.getElementById('parent-contact').value.trim(),type=document.getElementById('parent-contact-type').value;let student='',id='';if(state.editing){student=l.student;id=l.student_id;}else{const s=document.getElementById('student-select');if(s.value==='manual')student=document.getElementById('manual-student-name').value.trim();else if(s.value){student=s.options[s.selectedIndex].dataset.name;id=s.value;}}if(!student)return alert('Выберите ученика');const payload={date,time,duration,student,student_id:id,price,parent_contact:contact,parent_contact_type:type,reminder_minutes:document.getElementById('reminder-minutes').value,reminder_text:document.getElementById('reminder-text').value,zoom_link:document.getElementById('zoom-link').value,repeat:document.getElementById('lesson-repeat').value};const url=state.editing?'/update_lesson':'/add_lesson';if(state.editing)payload.id=l.id;const r=await fetch(API_URL+url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const d=await r.json();if(d.status!=='ok')return alert(d.message||'Ошибка');closeAll();fetchData();}
+function closeAll(){['modal-overlay','move-modal-overlay','action-menu-overlay','delete-modal-overlay','color-modal-overlay'].forEach(id=>document.getElementById(id)?.classList.add('hidden'));}
 
-// Меню действий
-function openActionMenu(date, lesson) {
-    state.selectedLesson={date,...lesson};
-    document.getElementById('action-menu-title').textContent=lesson.student;
-    document.getElementById('action-menu-overlay').classList.remove('hidden');
-}
+// Action buttons
+document.getElementById('btn-action-settings').onclick=()=>{closeAction();if(state.selectedLesson)openEditModal(state.selectedLesson.date,state.selectedLesson);};
+document.getElementById('btn-action-move-trigger').onclick=()=>{closeAction();if(state.selectedLesson)startMove(state.selectedLesson.date,state.selectedLesson);};
+document.getElementById('btn-action-paid').onclick=async()=>{const l=state.selectedLesson;await fetch(API_URL+'/mark_paid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:l.date,id:l.id,paid:!l.paid})});closeAction();fetchData();};
+document.getElementById('btn-action-color').onclick=()=>{closeAction();document.getElementById('color-modal-overlay').classList.remove('hidden');};
+document.querySelectorAll('.color-swatch').forEach(x=>x.onclick=async()=>{await fetch(API_URL+'/update_student_color',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:state.selectedLesson.student_id,color:x.dataset.color})});closeAll();fetchData();});
+document.getElementById('btn-action-delete').onclick=()=>{closeAction();document.getElementById('delete-modal-overlay').classList.remove('hidden');};
+document.getElementById('btn-delete-once').onclick=async()=>{const l=state.selectedLesson;await fetch(API_URL+'/delete_lesson',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:l.date,id:l.id,delete_all:false})});closeAll();fetchData();};
+document.getElementById('btn-delete-all').onclick=async()=>{const l=state.selectedLesson;await fetch(API_URL+'/delete_lesson',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:l.date,id:l.id,delete_all:true})});closeAll();fetchData();};
 
-document.getElementById('btn-action-settings').onclick = () => {
-    document.getElementById('action-menu-overlay').classList.add('hidden');
-    const l=state.selectedLesson;
-    document.getElementById('modal-title').textContent='Настройки';
-    document.getElementById('lesson-date').value=l.date;
-    document.getElementById('lesson-id').value=l.id;
-    document.getElementById('fixed-student-name').value=l.student;
-    document.getElementById('parent-contact').value=l.parent_contact||'';
-    document.getElementById('parent-contact-type').value=l.parent_contact_type||'tg';
-    document.getElementById('lesson-duration').value=l.duration||60;
-    document.getElementById('lesson-price').value=l.price||'';
-    document.getElementById('reminder-minutes').value=l.reminder_minutes||60;
-    document.getElementById('reminder-text').value=l.reminder_text||'';
-    document.getElementById('zoom-link').value=l.zoom_link||'';
-    document.getElementById('modal-overlay').classList.remove('hidden');
-};
+document.getElementById('btn-action-chat-student').onclick=()=>{const l=state.selectedLesson,id=l?.student_id,s=state.students[id];if(s?.username)tg.openTelegramLink(`https://t.me/${s.username}`);else if(id&&!String(id).startsWith('manual'))tg.openTelegramLink(`tg://user?id=${id}`);else alert('Нет Telegram-контакта');closeAction();};
+document.getElementById('btn-action-chat-parent').onclick=()=>{const l=state.selectedLesson,c=l?.parent_contact||state.students[l?.student_id]?.parent_contact;if(c)window.open(`https://wa.me/${String(c).replace(/\D/g,'')}`,'_blank');else alert('Контакт родителя не указан');closeAction();};
 
-document.getElementById('btn-action-move-trigger').onclick = () => {
-    document.getElementById('action-menu-overlay').classList.add('hidden');
-    state.isMoving=true; document.getElementById('move-hint').classList.remove('hidden'); haptic('medium');
-};
+document.getElementById('btn-action-close').onclick=closeAction;document.getElementById('btn-cancel-move').onclick=cancelMove;document.getElementById('btn-action-copy').onclick=()=>executeMove('copy');document.getElementById('btn-action-move-once').onclick=()=>executeMove('move_once');document.getElementById('btn-action-move-all').onclick=()=>executeMove('move_all');document.getElementById('btn-action-move-cancel').onclick=cancelMove;
+document.getElementById('btn-save').onclick=saveLesson;document.getElementById('btn-cancel-modal').onclick=closeAll;document.getElementById('btn-close-modal').onclick=closeAll;document.getElementById('modal-overlay').onclick=e=>{if(e.target.id==='modal-overlay')closeAll();};document.getElementById('move-modal-overlay').onclick=e=>{if(e.target.id==='move-modal-overlay')cancelMove();};document.getElementById('delete-modal-overlay').onclick=e=>{if(e.target.id==='delete-modal-overlay')closeAll();};document.getElementById('color-modal-overlay').onclick=e=>{if(e.target.id==='color-modal-overlay')closeAll();};
 
-// Зум
-document.getElementById('btn-zoom-in').onclick = () => { hourHeight=Math.min(160, hourHeight+20); renderCalendar(); };
-document.getElementById('btn-zoom-out').onclick = () => { hourHeight=Math.max(40, hourHeight-20); renderCalendar(); };
+// Contact type icons
+document.querySelectorAll('.contact-type-btn').forEach(btn=>btn.onclick=()=>{document.querySelectorAll('.contact-type-btn').forEach(x=>x.classList.remove('active'));btn.classList.add('active');document.getElementById('parent-contact-type').value=btn.dataset.type;});
 
-// Цвета
-document.getElementById('btn-action-color').onclick = () => { document.getElementById('action-menu-overlay').classList.add('hidden'); document.getElementById('color-modal-overlay').classList.remove('hidden'); };
-document.querySelectorAll('.color-swatch').forEach(sw => sw.onclick=async()=>{
-    await fetch(API_URL+'/update_student_color', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({student_id:state.selectedLesson.student_id, color:sw.dataset.color})});
-    document.getElementById('color-modal-overlay').classList.add('hidden'); fetchData();
-});
+// Date/month picker and navigation
+document.getElementById('month-label').onclick=()=>{const i=document.getElementById('date-picker-input');i.showPicker?i.showPicker():i.click();};document.getElementById('date-picker-input').onchange=e=>{if(!e.target.value)return;const [y,m,d]=e.target.value.split('-').map(Number);state.currentMonday=getMonday(new Date(y,m-1,d));fetchData();};document.getElementById('btn-today').onclick=()=>{state.currentMonday=getMonday(new Date());fetchData();};document.getElementById('btn-prev-week').onclick=()=>{state.currentMonday.setDate(state.currentMonday.getDate()-7);fetchData();};document.getElementById('btn-next-week').onclick=()=>{state.currentMonday.setDate(state.currentMonday.getDate()+7);fetchData();};document.getElementById('btn-zoom-in').onclick=()=>{hourHeight=Math.min(160,hourHeight+20);renderCalendar();};document.getElementById('btn-zoom-out').onclick=()=>{hourHeight=Math.max(40,hourHeight-20);renderCalendar();};
 
-// Навигация
-document.getElementById('btn-prev-week').onclick=()=>{state.currentMonday.setDate(state.currentMonday.getDate()-7); fetchData();};
-document.getElementById('btn-next-week').onclick=()=>{state.currentMonday.setDate(state.currentMonday.getDate()+7); fetchData();};
-document.getElementById('btn-today').onclick=()=>{state.currentMonday=getMonday(new Date()); fetchData();};
-document.getElementById('btn-close-modal').onclick=()=>{document.getElementById('modal-overlay').classList.add('hidden');};
-document.getElementById('btn-cancel-modal').onclick=document.getElementById('btn-close-modal').onclick;
-document.getElementById('btn-action-close').onclick=()=>document.getElementById('action-menu-overlay').classList.add('hidden');
+window.addEventListener('resize',()=>{requestAnimationFrame(()=>{renderCalendar();});});
 fetchData();

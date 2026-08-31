@@ -5,17 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Расписание</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css?v=9">
+    <link rel="stylesheet" href="styles.css?v=10">
 </head>
 <body>
     <header class="main-header">
         <div class="header-top">
-            <button id="btn-today" class="header-btn">Сегодня</button>
+            <div class="date-picker-wrapper">
+                <button id="btn-date-picker" class="header-btn date-btn">📅 Выбрать дату</button>
+                <input type="date" id="date-picker-input" class="hidden-date-input">
+            </div>
             <div class="nav-arrows">
                 <button id="btn-prev-week" class="icon-btn">◀</button>
                 <button id="btn-next-week" class="icon-btn">▶</button>
             </div>
-            <h1 id="month-label">...</h1>
+            <h1 id="month-label" title="Кликните для выбора месяца/даты">...</h1>
         </div>
         <div class="week-days-container">
             <div class="time-spacer"></div>
@@ -31,29 +34,60 @@
         </div>
     </main>
 
+    <!-- Подсказка перетягивания/переноса -->
     <div id="move-hint" class="move-hint-bar hidden">
-        <span>📍 Кликните целевой слот для переноса</span>
+        <span>📍 Кликните целевой слот для переноса/добавления</span>
         <button id="btn-cancel-move" class="cancel-move-btn">Отмена</button>
     </div>
 
-    <!-- МОДАЛЬНОЕ ОКНО ПЕРЕНОСА (РАЗОВО ИЛИ НАВСЕГДА) -->
+    <!-- МОДАЛЬНОЕ ОКНО ПЕРЕНОСА / КОПИРОВАНИЯ (Вылетает при клике на новый слот) -->
     <div id="move-modal-overlay" class="hidden">
         <div class="modal-content text-center">
-            <h2>Перенос занятия</h2>
-            <p id="move-modal-desc" class="modal-desc">Как перенести это занятие?</p>
+            <h2>Действие с занятием</h2>
+            <p id="move-modal-desc" class="modal-desc">Выберите действие для заняти:</p>
             <div class="modal-actions-column">
-                <button id="btn-move-once" class="primary-btn">Только на этой неделе (разово)</button>
-                <button id="btn-move-all" class="secondary-btn">Все будущие (навсегда)</button>
-                <button id="btn-move-cancel" class="danger-btn">Отмена</button>
+                <button id="btn-action-copy" class="primary-btn">➕ Добавить ещё одним занятием</button>
+                <button id="btn-action-move-once" class="secondary-btn">🔄 Перенести (разово)</button>
+                <button id="btn-action-move-all" class="secondary-btn">🔄 Перенести все будущие (навсегда)</button>
+                <button id="btn-action-move-cancel" class="danger-btn">❌ Отмена</button>
             </div>
         </div>
     </div>
 
-    <!-- МОДАЛЬНОЕ ОКНО ДОБАВЛЕНИЯ / НАСТРОЕК -->
+    <!-- МЕНЮ ДЕЙСТВИЙ (Вылетает при коротком клике на ученика) -->
+    <div id="action-menu-overlay" class="hidden">
+        <div class="modal-content text-center">
+            <h2 id="action-menu-title">Ученик</h2>
+            <p id="action-menu-subtitle" class="modal-subtitle">Выберите действие</p>
+            <div class="modal-actions-column">
+                <button id="btn-action-chat-student" class="action-menu-btn">💬 Написать ученику</button>
+                <button id="btn-action-chat-parent" class="action-menu-btn">💬 Написать родителю</button>
+                <button id="btn-action-paid" class="action-menu-btn paid-btn">💳 Оплатил</button>
+                <button id="btn-action-settings" class="action-menu-btn">⚙️ Настройки</button>
+                <button id="btn-action-delete" class="action-menu-btn delete-btn">🗑 Удалить</button>
+                <button id="btn-action-close" class="secondary-btn">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ДИАЛОГ УДАЛЕНИЯ -->
+    <div id="delete-modal-overlay" class="hidden">
+        <div class="modal-content text-center">
+            <h2>Удаление занятия</h2>
+            <p class="modal-desc">Как удалить это занятие?</p>
+            <div class="modal-actions-column">
+                <button id="btn-delete-once" class="danger-btn">Удалить только это занятие</button>
+                <button id="btn-delete-all" class="danger-btn">Удалить все будущие (навсегда)</button>
+                <button id="btn-delete-cancel" class="secondary-btn">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛЬНОЕ ОКНО НАСТРОЕК / ДОБАВЛЕНИЯ ЗАНЯТИЯ -->
     <div id="modal-overlay" class="hidden">
         <div class="modal-content">
             <header class="modal-header">
-                <h2 id="modal-title">Занятие</h2>
+                <h2 id="modal-title">Настройки занятия</h2>
                 <span id="btn-close-modal" class="close-modal">&times;</span>
             </header>
             <div class="modal-body">
@@ -70,6 +104,11 @@
                         <input type="text" id="manual-student-name" class="hidden" placeholder="Имя ученика">
                     </div>
 
+                    <div class="form-group">
+                        <label>Телефон родителя (Telegram/WhatsApp)</label>
+                        <input type="text" id="parent-phone" placeholder="+7 (999) 000-00-00">
+                    </div>
+
                     <div class="form-row">
                         <div class="form-group flex-1">
                             <label>Время начала</label>
@@ -79,6 +118,11 @@
                             <label>Длительность (мин)</label>
                             <input type="number" id="lesson-duration" value="60" min="15" step="5">
                         </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Стоимость урока (руб.)</label>
+                        <input type="text" id="lesson-price" placeholder="например: 1500">
                     </div>
 
                     <div class="form-group" id="repeat-group">
@@ -102,22 +146,18 @@
                     
                     <div class="form-group">
                         <label>Текст сообщения для ученика</label>
-                        <textarea id="reminder-text" rows="2" placeholder="Например: Встречаемся в Zoom!"></textarea>
+                        <textarea id="reminder-text" rows="2" placeholder="Например: Готовь тетрадь!"></textarea>
                     </div>
                 </div>
 
                 <div class="modal-actions">
                     <button id="btn-save" class="primary-btn">Сохранить</button>
-                    <div id="edit-actions" class="hidden">
-                        <button id="btn-chat" class="secondary-btn">💬 Написать</button>
-                        <button id="btn-delete" class="danger-btn">🗑 Удалить</button>
-                    </div>
                     <button id="btn-cancel-modal" class="secondary-btn">Отмена</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="app.js?v=9"></script>
+    <script src="app.js?v=10"></script>
 </body>
 </html>

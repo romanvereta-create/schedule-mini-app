@@ -48,7 +48,7 @@ function getStudentColor(studentId, name) {
     if (info.color !== undefined && info.color !== null) return Number(info.color);
     let hash = 0;
     for (const char of String(name || '')) hash = ((hash << 5) - hash) + char.charCodeAt(0);
-    return Math.abs(hash) % 8;
+    return Math.abs(hash) % 7;
 }
 
 async function fetchData() {
@@ -236,7 +236,9 @@ setInterval(updateCurrentTimeLine, 60000);
 
 function openActionMenu(date, lesson) {
     state.selectedLesson = { date, ...lesson };
-    document.getElementById('action-menu-title').textContent = lesson.student || 'Ученик';
+    const title = document.getElementById('action-menu-title');
+    const timeStr = lesson.time || '';
+    title.innerHTML = `${lesson.student || 'Ученик'} <span style="font-size:13px;font-weight:400;color:#5f6368;">${timeStr}</span>`;
     document.getElementById('btn-action-paid').textContent = lesson.paid ? '✅ Оплачено (снять)' : '💳 Оплатил';
     document.getElementById('action-menu-overlay').classList.remove('hidden');
 }
@@ -285,7 +287,6 @@ function resetAddForm() {
     document.getElementById('student-select').value = '';
     document.getElementById('manual-student-name').value = '';
     document.getElementById('manual-student-name').classList.add('hidden');
-    // Очищаем контакты
     document.querySelectorAll('.contact-input').forEach(inp => inp.value = '');
     document.querySelectorAll('.contact-remove-btn').forEach(btn => btn.style.display = 'none');
     document.getElementById('lesson-repeat').value = 'no';
@@ -328,7 +329,6 @@ function openEditModal(date, lesson) {
     document.getElementById('reminder-text').value = lesson.reminder_text || '';
     document.getElementById('zoom-link').value = lesson.zoom_link || '';
     
-    // Заполняем контакты
     const info = getStudentInfo(lesson.student_id);
     const contacts = info.contacts || {};
     document.querySelectorAll('.contact-input').forEach(inp => {
@@ -472,7 +472,6 @@ document.getElementById('add-contact-btn').addEventListener('click', () => {
     });
 });
 
-// Контакты: показывать кнопку удаления если есть значение
 document.querySelectorAll('.contact-input').forEach(inp => {
     const removeBtn = inp.parentElement.querySelector('.contact-remove-btn');
     if (inp.value.trim()) removeBtn.style.display = 'inline-block';
@@ -483,7 +482,6 @@ document.querySelectorAll('.contact-input').forEach(inp => {
     });
 });
 
-// Переключатель ручного ввода
 document.getElementById('student-select').addEventListener('change', event => {
     const input = document.getElementById('manual-student-name');
     const manual = event.target.value === 'manual';
@@ -503,7 +501,6 @@ document.getElementById('btn-action-paid').onclick = async () => {
 document.getElementById('btn-action-delete').onclick = () => { closeActionMenu(); document.getElementById('delete-modal-overlay').classList.remove('hidden'); };
 document.getElementById('btn-action-close').onclick = closeActionMenu;
 
-// Написать ученику
 document.getElementById('btn-action-chat-student').onclick = () => {
     const id = state.selectedLesson?.student_id;
     const info = getStudentInfo(id);
@@ -513,7 +510,6 @@ document.getElementById('btn-action-chat-student').onclick = () => {
     closeActionMenu();
 };
 
-// Написать родителю (выбор мессенджера)
 document.getElementById('btn-action-chat-parent').onclick = () => {
     const lesson = state.selectedLesson;
     const info = getStudentInfo(lesson?.student_id);
@@ -534,9 +530,6 @@ document.getElementById('btn-action-chat-parent').onclick = () => {
         return;
     }
     
-    // Если несколько — показываем выбор
-    const menu = document.getElementById('action-menu-overlay');
-    // Простой выбор через alert (можно расширить)
     const msg = 'Выберите мессенджер:\n' + available.map((t, i) => `${i+1}. ${t.toUpperCase()}: ${contacts[t]}`).join('\n');
     const choice = prompt(msg + '\n\nВведите номер:');
     if (choice) {
@@ -568,19 +561,16 @@ function openContact(type, value) {
     }
 }
 
-// Удаление
 document.getElementById('btn-delete-once').onclick = async () => { const l = state.selectedLesson; await fetch(`${API_URL}/delete_lesson`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: l.date, id: l.id, delete_all: false }) }); closeAllModals(); fetchData(); };
 document.getElementById('btn-delete-all').onclick = async () => { const l = state.selectedLesson; await fetch(`${API_URL}/delete_lesson`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: l.date, id: l.id, delete_all: true }) }); closeAllModals(); fetchData(); };
 document.getElementById('btn-delete-cancel').onclick = closeAllModals;
 
-// Перенос
 document.getElementById('btn-action-copy').onclick = () => executeMove('copy');
 document.getElementById('btn-action-move-once').onclick = () => executeMove('move_once');
 document.getElementById('btn-action-move-all').onclick = () => executeMove('move_all');
 document.getElementById('btn-action-move-cancel').onclick = cancelMove;
 document.getElementById('btn-cancel-move').onclick = cancelMove;
 
-// Кнопки сохранения и закрытия
 document.getElementById('btn-save').onclick = saveLesson;
 document.getElementById('btn-cancel-modal').onclick = closeAllModals;
 document.getElementById('btn-close-modal').onclick = closeAllModals;
@@ -588,20 +578,34 @@ document.getElementById('btn-close-modal').onclick = closeAllModals;
     document.getElementById(id).addEventListener('click', event => { if (event.target.id === id) closeAllModals(); });
 });
 
-// Дата и навигация
-document.getElementById('month-label').onclick = () => {
+// ===== ВЫБОР ДАТЫ ПО НАЖАТИЮ НА МЕСЯЦ =====
+document.getElementById('month-label').addEventListener('click', function(e) {
+    e.stopPropagation();
     const input = document.getElementById('date-picker-input');
-    if (input.showPicker) input.showPicker();
-    else input.click();
+    if (!input) return;
+    try {
+        if (typeof input.showPicker === 'function') {
+            input.showPicker();
+        } else {
+            input.click();
+        }
+    } catch (err) {
+        input.click();
+    }
+});
+
+document.getElementById('date-picker-input').onchange = event => { 
+    if (!event.target.value) return; 
+    const [y, m, d] = event.target.value.split('-').map(Number); 
+    state.currentMonday = getMonday(new Date(y, m - 1, d)); 
+    fetchData(); 
 };
-document.getElementById('date-picker-input').onchange = event => { if (!event.target.value) return; const [y, m, d] = event.target.value.split('-').map(Number); state.currentMonday = getMonday(new Date(y, m - 1, d)); fetchData(); };
 document.getElementById('btn-today').onclick = () => { state.currentMonday = getMonday(new Date()); fetchData(); };
 document.getElementById('btn-prev-week').onclick = () => { state.currentMonday.setDate(state.currentMonday.getDate() - 7); fetchData(); };
 document.getElementById('btn-next-week').onclick = () => { state.currentMonday.setDate(state.currentMonday.getDate() + 7); fetchData(); };
 document.getElementById('btn-zoom-in').onclick = () => { hourHeight = Math.min(MAX_HOUR_HEIGHT, hourHeight + ZOOM_STEP); renderCalendar(); };
 document.getElementById('btn-zoom-out').onclick = () => { hourHeight = Math.max(MIN_HOUR_HEIGHT, hourHeight - ZOOM_STEP); renderCalendar(); };
 
-// Pinch
 let pinchStartY = null;
 let pinchStartHeight = hourHeight;
 const calendarContainer = document.getElementById('calendar-container');

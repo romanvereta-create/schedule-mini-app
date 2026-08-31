@@ -13,6 +13,7 @@ body {
     -webkit-tap-highlight-color: transparent;
 }
 
+/* Header */
 .main-header {
     position: sticky;
     top: 0;
@@ -71,6 +72,7 @@ body {
 
 #week-label-indicator { font-size: 12px; font-weight: 600; color: #5f6368; padding: 0 4px; }
 
+/* Week Days Bar */
 .week-days-container { display: flex; border-top: 1px solid #d0d2d6; background: #ffffff; }
 
 .time-spacer {
@@ -94,6 +96,7 @@ body {
 }
 .day-header-cell.today .day-num { background: #1a73e8; color: #ffffff; }
 
+/* Calendar Grid */
 #calendar-container { height: calc(100vh - 85px); overflow-y: auto; overflow-x: hidden; position: relative; }
 .calendar-grid { display: flex; position: relative; min-height: calc(18 * var(--hour-height)); }
 
@@ -110,6 +113,7 @@ body {
 .time-slot { border-bottom: 1px solid #e2e4e8; box-sizing: border-box; }
 .time-slot:hover { background: #f1f3f4; }
 
+/* Events Layer */
 .events-layer { position: absolute; top: 0; left: 52px; right: 0; bottom: 0; pointer-events: none; }
 .event-card {
     position: absolute; pointer-events: auto; color: #ffffff; border-radius: 5px;
@@ -124,22 +128,24 @@ body {
 .event-card.color-4 { background: #e65100; }
 .event-card.color-5 { background: #0288d1; }
 .event-card.color-6 { background: #455a64; }
+.event-card.color-7 { background: #00897b; }
 
+/* Галочка Оплаты */
 .event-card.paid-status::after {
-    content: "✔";
+    content: "✓";
     position: absolute;
-    bottom: 0px;
-    right: 3px;
-    font-size: 32px;
+    bottom: -4px;
+    right: 2px;
+    font-size: 36px;
     font-weight: 900;
-    color: rgba(46, 125, 50, 0.85);
+    color: rgba(255, 255, 255, 0.45);
     line-height: 1;
     pointer-events: none;
-    text-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 
 .event-card.moving-active { opacity: 0.7; border: 2px dashed #ffffff; z-index: 1000; }
 
+/* Имя ученика — перенос на следующую строку */
 .event-title {
     font-weight: 700;
     line-height: 1.2;
@@ -152,22 +158,24 @@ body {
     white-space: normal;
 }
 
+/* Зеленая линия текущего времени */
 .current-time-line { position: absolute; height: 2px; background: #2e7d32; z-index: 500; pointer-events: none; }
 .time-line-dot { position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; background: #2e7d32; border-radius: 50%; }
 .current-time-line.hidden { display: none; }
 
+/* Палитра в меню действий */
 .inline-color-palette {
     display: flex;
-    gap: 5px;
+    gap: 6px;
     align-items: center;
     justify-content: center;
     margin: 6px 0;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
 }
 
 .color-swatch {
-    width: 28px;
-    height: 28px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     cursor: pointer;
     box-shadow: 0 1px 4px rgba(0,0,0,0.2);
@@ -182,19 +190,20 @@ body {
 .color-swatch.color-4 { background: #e65100; }
 .color-swatch.color-5 { background: #0288d1; }
 .color-swatch.color-6 { background: #455a64; }
+.color-swatch.color-7 { background: #00897b; }
 
 .color-swatch.color-picker-open {
     background: #f1f3f4;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
+    font-size: 14px;
     cursor: pointer;
     border: 2px dashed #dadce0;
-    width: 28px;
-    height: 28px;
 }
+.color-swatch.color-picker-open:hover { background: #e8eaed; }
 
+/* Контакты родителя — несколько мессенджеров */
 .contact-row {
     display: flex;
     align-items: center;
@@ -223,6 +232,7 @@ body {
     padding: 0 4px;
 }
 
+/* Move Hint Bar */
 .move-hint-bar {
     position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #202124; color: white;
     padding: 12px 20px; border-radius: 25px; font-size: 13px; z-index: 2000; box-shadow: 0 4px 16px rgba(0,0,0,0.4);
@@ -234,6 +244,7 @@ body {
     border-radius: 12px; padding: 4px 10px; font-size: 12px; cursor: pointer;
 }
 
+/* Modals */
 #modal-overlay, #move-modal-overlay, #action-menu-overlay, #delete-modal-overlay {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.45); z-index: 1000; display: flex; align-items: center; justify-content: center;
 }

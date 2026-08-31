@@ -3,7 +3,10 @@ tg.expand();
 const API_URL = 'https://bot-1787954043-4984-solo1986.bothost.tech/api';
 const START_HOUR = 6;
 const END_HOUR = 23;
-let hourHeight = 80;
+
+const ZOOM_LEVELS = [50, 80, 120];
+let currentZoomIdx = 1; // По умолчанию 80px
+let hourHeight = ZOOM_LEVELS[currentZoomIdx];
 
 const state = {
     currentMonday: getMonday(new Date()),
@@ -11,7 +14,8 @@ const state = {
     students: {},
     selectedLesson: null,
     isMoving: false,
-    pendingMove: null // { newDate, newTime }
+    pendingMove: null,
+    editingExisting: false
 };
 
 function getMonday(date) {
@@ -31,10 +35,14 @@ function haptic(type='light') {
     try { tg.HapticFeedback.impactOccurred(type); } catch(e) {} 
 }
 
-function colorOf(name) { 
-    let n=0; 
-    for (const c of String(name||'')) n=((n<<5)-n)+c.charCodeAt(0); 
-    return Math.abs(n)%8; 
+function colorOf(studentId, name) {
+    let sObj = state.students[studentId];
+    if (sObj && typeof sObj === 'object' && sObj.color !== undefined) {
+        return sObj.color;
+    }
+    let n = 0; 
+    for (const c of String(name||'')) n = ((n<<5)-n) + c.charCodeAt(0); 
+    return Math.abs(n) % 8; 
 }
 
 async function fetchData() {
@@ -70,7 +78,8 @@ function fillStudentsDropdown() {
         opt.textContent = s.name || id; 
         opt.dataset.name = s.name || id; 
         opt.dataset.username = s.username || ''; 
-        opt.dataset.phone = s.parent_phone || '';
+        opt.dataset.contact = s.parent_contact || '';
+        opt.dataset.contactType = s.parent_contact_type || 'tg';
         select.appendChild(opt);
     });
 }
@@ -82,11 +91,13 @@ function renderCalendar() {
     
     labels.innerHTML = ''; 
     grid.innerHTML = ''; 
-    layer.innerHTML = '';
+    
+    // Удаляем старые карточки (не удаляя полоску времени)
+    const oldCards = layer.querySelectorAll('.event-card');
+    oldCards.forEach(c => c.remove());
     
     document.documentElement.style.setProperty('--hour-height', `${hourHeight}px`);
     
-    // МЕСЯЦ В ШАПКЕ
     const midWeek = new Date(state.currentMonday);
     midWeek.setDate(midWeek.getDate() + 3);
     document.getElementById('month-label').textContent = midWeek.toLocaleDateString('ru-RU', {month:'long', year:'numeric'});
@@ -137,6 +148,7 @@ function renderCalendar() {
         grid.appendChild(col);
     }
     renderEvents();
+    updateCurrentTimeLine();
 }
 
 function renderEvents() {
@@ -154,14 +166,12 @@ function renderEvents() {
             if (h < START_HOUR || h > END_HOUR) return;
             
             const duration = parseInt(lesson.duration || 60);
-            
             const card = document.createElement('div');
             const active = state.isMoving && state.selectedLesson && state.selectedLesson.id === lesson.id;
             
-            let paidClass = lesson.paid ? ' paid-status' : '';
-            card.className = `event-card color-${colorOf(lesson.student)} ${active ? 'moving-active' : ''}${paidClass}`;
+            const colorClass = `color-${colorOf(lesson.student_id, lesson.student)}`;
+            card.className = `event-card ${colorClass} ${active ? 'moving-active' : ''}`;
             
-            // Точный расчет высоты и положения по минутам
             const topPx = ((h - START_HOUR) * 60 + m) * (hourHeight / 60);
             const heightPx = Math.max(22, duration * (hourHeight / 60) - 2);
             
@@ -170,42 +180,34 @@ function renderEvents() {
             card.style.width = `${Math.max(20, colWidth - 4)}px`;
             card.style.height = `${heightPx}px`;
             
-            card.innerHTML = `<div class="event-title"></div><div class="event-time"></div>`;
+            let paidBadge = lesson.paid ? `<div class="paid-badge">ОПЛАЧЕНО</div>` : '';
+            card.innerHTML = `${paidBadge}<div class="event-title"></div><div class="event-time"></div>`;
             card.querySelector('.event-title').textContent = lesson.student || 'Ученик';
             card.querySelector('.event-time').textContent = `${lesson.time} (${duration}м)`;
             
             let timer = null, longPressed = false;
             
-            // Длинное нажатие (500мс) -> АКТИВИРУЕТ РЕЖИМ ПЕРЕНОСА!
+            // Длинное нажатие -> Режим переноса
             card.addEventListener('touchstart', () => {
                 longPressed = false;
                 timer = setTimeout(() => {
                     longPressed = true;
                     haptic('heavy');
-                    state.selectedLesson = { date: key, ...lesson };
-                    state.isMoving = true;
-                    document.getElementById('move-hint').classList.remove('hidden');
-                    renderCalendar();
+                    triggerMoveFromLesson(key, lesson);
                 }, 500);
             }, {passive:true});
             
-            card.addEventListener('touchmove', () => {
-                clearTimeout(timer);
-            }, {passive:true});
-            
+            card.addEventListener('touchmove', () => clearTimeout(timer), {passive:true});
             card.addEventListener('touchend', () => clearTimeout(timer));
             
-            // Обработка клика
+            // Короткий клик -> Открывает Меню Действий!
             card.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (longPressed || state.isMoving) return;
-                
-                // КОРОТКИЙ КЛИК -> Открывает Меню Действий!
                 haptic('light');
                 openActionMenu(key, lesson);
             });
             
-            // Для Desktop: правый клик открывает контекстное меню (Action Menu)
             card.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 haptic('medium');
@@ -217,19 +219,58 @@ function renderEvents() {
     }
 }
 
+// Зелёная линия текущего времени
+function updateCurrentTimeLine() {
+    const line = document.getElementById('current-time-line');
+    const now = new Date();
+    const todayKey = dateKey(now);
+    
+    // Проверяем, отображается ли текущая неделя
+    let todayColIndex = -1;
+    for (let d = 0; d < 7; d++) {
+        const dt = new Date(state.currentMonday);
+        dt.setDate(dt.getDate() + d);
+        if (dateKey(dt) === todayKey) {
+            todayColIndex = d;
+            break;
+        }
+    }
+    
+    if (todayColIndex === -1) {
+        line.classList.add('hidden');
+        return;
+    }
+    
+    const currentHour = now.getHours();
+    const currentMin = now.getMinutes();
+    
+    if (currentHour < START_HOUR || currentHour > END_HOUR) {
+        line.classList.add('hidden');
+        return;
+    }
+    
+    const layer = document.getElementById('events-layer');
+    const colWidth = layer.clientWidth / 7;
+    const topPx = ((currentHour - START_HOUR) * 60 + currentMin) * (hourHeight / 60);
+    
+    line.style.top = `${topPx}px`;
+    line.style.left = `${todayColIndex * colWidth}px`;
+    line.style.width = `${colWidth}px`;
+    line.classList.remove('hidden');
+}
+
+// Повторяем обновление линии каждые 5 минут
+setInterval(updateCurrentTimeLine, 5 * 60 * 1000);
+
 // ============================================================
-// МЕНЮ ДЕЙСТВИЙ (по короткому клику)
+// МЕНЮ ДЕЙСТВИЙ
 // ============================================================
 function openActionMenu(date, lesson) {
     state.selectedLesson = { date, ...lesson };
     document.getElementById('action-menu-title').textContent = lesson.student || 'Ученик';
     
     const paidBtn = document.getElementById('btn-action-paid');
-    if (lesson.paid) {
-        paidBtn.textContent = '✅ Оплачено (Отменить)';
-    } else {
-        paidBtn.textContent = '💳 Оплатил';
-    }
+    paidBtn.textContent = lesson.paid ? '✅ Оплачено (Снять)' : '💳 Оплатил';
     
     document.getElementById('action-menu-overlay').classList.remove('hidden');
 }
@@ -238,51 +279,63 @@ function closeActionMenu() {
     document.getElementById('action-menu-overlay').classList.add('hidden');
 }
 
-// Написать ученику
+function triggerMoveFromLesson(date, lesson) {
+    state.selectedLesson = { date, ...lesson };
+    state.isMoving = true;
+    document.getElementById('move-hint').classList.remove('hidden');
+    haptic('medium');
+    renderCalendar();
+}
+
+document.getElementById('btn-action-move-trigger').onclick = () => {
+    closeActionMenu();
+    if (state.selectedLesson) {
+        triggerMoveFromLesson(state.selectedLesson.date, state.selectedLesson);
+    }
+};
+
 document.getElementById('btn-action-chat-student').onclick = () => {
     const id = state.selectedLesson?.student_id;
-    let username = '';
-    if (id && state.students[id]) {
-        username = state.students[id].username || '';
-    }
-    
+    let username = state.students[id]?.username || '';
     if (username) {
         tg.openTelegramLink(`https://t.me/${username}`);
     } else if (id && !String(id).startsWith('manual')) {
         tg.openTelegramLink(`tg://user?id=${id}`);
     } else {
-        alert('У этого ученика нет сохранённого Telegram профиля.');
+        alert('У этого ученика нет сохранённого профиля Telegram');
     }
     closeActionMenu();
 };
 
-// Написать родителю
 document.getElementById('btn-action-chat-parent').onclick = () => {
     const l = state.selectedLesson;
-    let phone = l?.parent_phone || '';
-    if (!phone && l?.student_id && state.students[l.student_id]) {
-        phone = state.students[l.student_id].parent_phone || '';
+    let contact = l?.parent_contact || '';
+    let type = l?.parent_contact_type || 'tg';
+    
+    if (!contact && l?.student_id && state.students[l.student_id]) {
+        contact = state.students[l.student_id].parent_contact || '';
+        type = state.students[l.student_id].parent_contact_type || 'tg';
     }
     
-    if (phone) {
-        // Очищаем телефон для ссылки
-        const cleanPhone = phone.replace(/[^0-9+]/g, '');
-        window.open(`https://wa.me/${cleanPhone.replace('+', '')}`, '_blank');
-    } else {
-        const inputPhone = prompt('Введите номер телефона родителя (для WhatsApp/Telegram):');
-        if (inputPhone) {
-            const clean = inputPhone.replace(/[^0-9+]/g, '');
-            window.open(`https://wa.me/${clean.replace('+', '')}`, '_blank');
+    if (contact) {
+        if (type === 'tg') {
+            const cleanTg = contact.replace('@', '').trim();
+            tg.openTelegramLink(`https://t.me/${cleanTg}`);
+        } else if (type === 'wa') {
+            const clean = contact.replace(/[^0-9]/g, '');
+            window.open(`https://wa.me/${clean}`, '_blank');
+        } else {
+            alert(`Контакт родителя (${type}): ${contact}`);
         }
+    } else {
+        alert('Контакт родителя не указан в настройках.');
     }
     closeActionMenu();
 };
 
-// Отметка "Оплатил"
 document.getElementById('btn-action-paid').onclick = async () => {
     if (!state.selectedLesson) return;
-    const newPaidStatus = !state.selectedLesson.paid;
-    
+    const newStatus = !state.selectedLesson.paid;
     try {
         await fetch(`${API_URL}/mark_paid`, {
             method: 'POST',
@@ -290,18 +343,44 @@ document.getElementById('btn-action-paid').onclick = async () => {
             body: JSON.stringify({
                 date: state.selectedLesson.date,
                 id: state.selectedLesson.id,
-                paid: newPaidStatus
+                paid: newStatus
             })
         });
         haptic('medium');
-    } catch(e) {
-        console.error(e);
-    }
+    } catch(e) {}
     closeActionMenu();
     fetchData();
 };
 
-// Кнопка Настройки из меню
+// Выбор цвета
+document.getElementById('btn-action-color').onclick = () => {
+    closeActionMenu();
+    document.getElementById('color-modal-overlay').classList.remove('hidden');
+};
+
+document.querySelectorAll('.color-circle').forEach(el => {
+    el.onclick = async () => {
+        const colorIdx = parseInt(el.dataset.color);
+        const studentId = state.selectedLesson?.student_id;
+        if (studentId) {
+            try {
+                await fetch(`${API_URL}/update_student_color`, {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ student_id: studentId, color: colorIdx })
+                });
+                haptic('medium');
+            } catch(e) {}
+        }
+        document.getElementById('color-modal-overlay').classList.add('hidden');
+        fetchData();
+    };
+});
+
+document.getElementById('btn-color-close').onclick = () => {
+    document.getElementById('color-modal-overlay').classList.add('hidden');
+};
+
 document.getElementById('btn-action-settings').onclick = () => {
     closeActionMenu();
     if (state.selectedLesson) {
@@ -309,7 +388,6 @@ document.getElementById('btn-action-settings').onclick = () => {
     }
 };
 
-// Кнопка Удалить из меню
 document.getElementById('btn-action-delete').onclick = () => {
     closeActionMenu();
     document.getElementById('delete-modal-overlay').classList.remove('hidden');
@@ -321,7 +399,7 @@ document.getElementById('action-menu-overlay').onclick = (e) => {
 };
 
 // ============================================================
-// ДИАЛОГ УДАЛЕНИЯ (Разово или все будущие)
+// ДИАЛОГ УДАЛЕНИЯ
 // ============================================================
 document.getElementById('btn-delete-once').onclick = async () => {
     if (!state.selectedLesson) return;
@@ -350,7 +428,7 @@ document.getElementById('btn-delete-cancel').onclick = () => {
 };
 
 // ============================================================
-// ПЕРЕНОС / ДОБАВЛЕНИЕ (по длинному нажатию)
+// ПЕРЕНОС / КОПИРОВАНИЕ
 // ============================================================
 function confirmMoveTarget(newDate, newTime) {
     state.pendingMove = { newDate, newTime };
@@ -358,7 +436,7 @@ function confirmMoveTarget(newDate, newTime) {
     document.getElementById('move-modal-overlay').classList.remove('hidden');
 }
 
-async function executeMove(actionType) { // 'copy', 'move_once', 'move_all'
+async function executeMove(actionType) {
     if (!state.selectedLesson || !state.pendingMove) return;
     const { newDate, newTime } = state.pendingMove;
     
@@ -375,9 +453,9 @@ async function executeMove(actionType) { // 'copy', 'move_once', 'move_all'
             })
         });
         const data = await res.json();
-        if (data.status !== 'ok') alert(data.message || 'Ошибка выполнения');
+        if (data.status !== 'ok') alert(data.message || 'Ошибка');
     } catch(e) {
-        alert('Ошибка сети при переносе/копировании');
+        alert('Ошибка связи при переносе');
     }
     
     cancelMove();
@@ -404,50 +482,58 @@ document.getElementById('btn-cancel-move').onclick = cancelMove;
 // ============================================================
 function openAddModal(date, time) {
     state.selectedLesson = null;
+    state.editingExisting = false;
     document.getElementById('modal-title').textContent = 'Добавить занятие';
+    
+    document.getElementById('student-select-group').classList.remove('hidden');
+    document.getElementById('student-fixed-group').classList.add('hidden');
+    document.getElementById('time-duration-group').classList.remove('hidden');
+    document.getElementById('repeat-group').classList.remove('hidden');
+    
     document.getElementById('lesson-date').value = date;
     document.getElementById('lesson-time').value = time;
     document.getElementById('lesson-duration').value = '60';
     document.getElementById('lesson-price').value = '';
     document.getElementById('lesson-id').value = '';
-    document.getElementById('parent-phone').value = '';
-    document.getElementById('repeat-group').classList.remove('hidden');
+    document.getElementById('parent-contact').value = '';
+    document.getElementById('parent-contact-type').value = 'tg';
+    
     resetForm();
     document.getElementById('modal-overlay').classList.remove('hidden');
 }
 
 function openEditModal(date, lesson) {
     state.selectedLesson = { date, ...lesson };
-    document.getElementById('modal-title').textContent = 'Настройки занятия';
+    state.editingExisting = true;
+    document.getElementById('modal-title').textContent = 'Настройки ученика';
+    
+    document.getElementById('student-select-group').classList.add('hidden');
+    document.getElementById('student-fixed-group').classList.remove('hidden');
+    document.getElementById('fixed-student-name').value = lesson.student || '';
+    
+    // В настройках НЕ показываем время и длительность!
+    document.getElementById('time-duration-group').classList.add('hidden');
+    document.getElementById('repeat-group').classList.add('hidden');
+    
     document.getElementById('lesson-date').value = date;
-    document.getElementById('lesson-time').value = lesson.time || '';
+    document.getElementById('lesson-time').value = lesson.time || '10:00';
     document.getElementById('lesson-duration').value = lesson.duration || 60;
     document.getElementById('lesson-price').value = lesson.price || '';
     document.getElementById('lesson-id').value = lesson.id || '';
-    document.getElementById('parent-phone').value = lesson.parent_phone || '';
     
-    let found = false;
-    const studentSel = document.getElementById('student-select');
-    for (const o of studentSel.options) {
-        if (o.value === lesson.student_id || o.dataset.name === lesson.student) {
-            studentSel.value = o.value;
-            found = true;
-            break;
-        }
-    }
-    if (!found) {
-        studentSel.value = 'manual';
-        document.getElementById('manual-student-name').value = lesson.student || '';
-        document.getElementById('manual-student-name').classList.remove('hidden');
-    } else {
-        document.getElementById('manual-student-name').classList.add('hidden');
+    let contact = lesson.parent_contact || '';
+    let contactType = lesson.parent_contact_type || 'tg';
+    if (!contact && lesson.student_id && state.students[lesson.student_id]) {
+        contact = state.students[lesson.student_id].parent_contact || '';
+        contactType = state.students[lesson.student_id].parent_contact_type || 'tg';
     }
     
+    document.getElementById('parent-contact').value = contact;
+    document.getElementById('parent-contact-type').value = contactType;
     document.getElementById('reminder-minutes').value = lesson.reminder_minutes ?? 60;
     document.getElementById('reminder-text').value = lesson.reminder_text || '';
     document.getElementById('zoom-link').value = lesson.zoom_link || '';
     
-    document.getElementById('repeat-group').classList.add('hidden');
     document.getElementById('modal-overlay').classList.remove('hidden');
 }
 
@@ -466,6 +552,7 @@ function closeModal() {
     document.getElementById('move-modal-overlay').classList.add('hidden');
     document.getElementById('action-menu-overlay').classList.add('hidden');
     document.getElementById('delete-modal-overlay').classList.add('hidden');
+    document.getElementById('color-modal-overlay').classList.add('hidden');
 }
 
 async function saveLesson() {
@@ -473,22 +560,29 @@ async function saveLesson() {
     const time = document.getElementById('lesson-time').value;
     const duration = document.getElementById('lesson-duration').value;
     const price = document.getElementById('lesson-price').value;
-    const parentPhone = document.getElementById('parent-phone').value.trim();
-    const sel = document.getElementById('student-select');
+    const parentContact = document.getElementById('parent-contact').value.trim();
+    const parentContactType = document.getElementById('parent-contact-type').value;
     
     let student = '', studentId = '';
-    if (sel.value === 'manual') {
-        student = document.getElementById('manual-student-name').value.trim();
-    } else if (sel.value) {
-        student = sel.options[sel.selectedIndex].dataset.name || sel.options[sel.selectedIndex].textContent;
-        studentId = sel.value;
+    
+    if (state.editingExisting && state.selectedLesson) {
+        student = state.selectedLesson.student;
+        studentId = state.selectedLesson.student_id;
+    } else {
+        const sel = document.getElementById('student-select');
+        if (sel.value === 'manual') {
+            student = document.getElementById('manual-student-name').value.trim();
+        } else if (sel.value) {
+            student = sel.options[sel.selectedIndex].dataset.name || sel.options[sel.selectedIndex].textContent;
+            studentId = sel.value;
+        }
     }
     
-    if (!student || !time) return alert('Укажите имя ученика и время');
+    if (!student || !time) return alert('Укажите имя ученика');
     
     const payload = {
         date, time, duration: parseInt(duration || 60), student, student_id: studentId,
-        price, parent_phone: parentPhone,
+        price, parent_contact: parentContact, parent_contact_type: parentContactType,
         reminder_minutes: document.getElementById('reminder-minutes').value,
         reminder_text: document.getElementById('reminder-text').value,
         zoom_link: document.getElementById('zoom-link').value,
@@ -496,7 +590,7 @@ async function saveLesson() {
     };
     
     let url = '/add_lesson';
-    if (state.selectedLesson && state.selectedLesson.id) {
+    if (state.editingExisting && state.selectedLesson) {
         url = '/update_lesson';
         payload.id = state.selectedLesson.id;
     }
@@ -518,15 +612,20 @@ async function saveLesson() {
 }
 
 // ============================================================
-// ПЛАВНЫЙ ЗУМ ДВУМЯ ПАЛЬЦАМИ (PINCH ZOOM BY VERTICAL PROJECTION)
+// ЗУМ (ВЕРТИКАЛЬНЫЙ И КНОПКА 🔍)
 // ============================================================
+document.getElementById('btn-zoom-toggle').onclick = () => {
+    currentZoomIdx = (currentZoomIdx + 1) % ZOOM_LEVELS.length;
+    hourHeight = ZOOM_LEVELS[currentZoomIdx];
+    renderCalendar();
+};
+
 let initialPinchDistY = 0;
 let initialHourHeight = hourHeight;
 const calContainer = document.getElementById('calendar-container');
 
 calContainer.addEventListener('touchstart', e => {
     if (e.touches.length === 2) {
-        // Проекция ТОЛЬКО по Y (вертикали)
         initialPinchDistY = Math.abs(e.touches[0].clientY - e.touches[1].clientY);
         initialHourHeight = hourHeight;
     }
@@ -534,11 +633,9 @@ calContainer.addEventListener('touchstart', e => {
 
 calContainer.addEventListener('touchmove', e => {
     if (e.touches.length === 2) {
-        e.preventDefault(); // Предотвращаем стандартный скролл страницы
+        e.preventDefault();
         const currentDistY = Math.abs(e.touches[0].clientY - e.touches[1].clientY);
         const deltaY = currentDistY - initialPinchDistY;
-        
-        // Меняем высоту часа на основе вертикальной проекции сжатия/разжатия
         hourHeight = Math.max(40, Math.min(160, initialHourHeight + deltaY * 0.6));
         renderCalendar();
     }
@@ -551,18 +648,14 @@ calContainer.addEventListener('touchend', e => {
 });
 
 // ============================================================
-// ВЫБОР ДАТЫ / МЕСЯЦА
+// ВЫБОР ДАТЫ / СЕГОДНЯ
 // ============================================================
 const datePickerInput = document.getElementById('date-picker-input');
 const monthLabel = document.getElementById('month-label');
-const btnDatePicker = document.getElementById('btn-date-picker');
 
-function triggerDatePicker() {
+monthLabel.onclick = () => {
     datePickerInput.showPicker ? datePickerInput.showPicker() : datePickerInput.click();
-}
-
-monthLabel.onclick = triggerDatePicker;
-btnDatePicker.onclick = triggerDatePicker;
+};
 
 datePickerInput.onchange = (e) => {
     const val = e.target.value;
@@ -574,7 +667,11 @@ datePickerInput.onchange = (e) => {
     }
 };
 
-// Слушатели кнопок
+document.getElementById('btn-today').onclick = () => {
+    state.currentMonday = getMonday(new Date());
+    fetchData();
+};
+
 document.getElementById('student-select').onchange = e => {
     document.getElementById('manual-student-name').classList.toggle('hidden', e.target.value !== 'manual');
 };

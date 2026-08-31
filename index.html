@@ -5,23 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Расписание</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css?v=10">
+    <link rel="stylesheet" href="styles.css?v=11">
 </head>
 <body>
     <header class="main-header">
         <div class="header-top">
-            <div class="date-picker-wrapper">
-                <button id="btn-date-picker" class="header-btn date-btn">📅 Выбрать дату</button>
-                <input type="date" id="date-picker-input" class="hidden-date-input">
-            </div>
+            <button id="btn-today" class="header-btn">Сегодня</button>
             <div class="nav-arrows">
                 <button id="btn-prev-week" class="icon-btn">◀</button>
+                <span id="week-label-indicator">неделя</span>
                 <button id="btn-next-week" class="icon-btn">▶</button>
             </div>
-            <h1 id="month-label" title="Кликните для выбора месяца/даты">...</h1>
+            <div class="month-label-wrapper">
+                <h1 id="month-label" title="Нажмите для выбора даты/месяца">...</h1>
+                <input type="date" id="date-picker-input" class="hidden-date-input">
+            </div>
         </div>
         <div class="week-days-container">
-            <div class="time-spacer"></div>
+            <div class="time-spacer">
+                <button id="btn-zoom-toggle" class="zoom-btn" title="Сжать / Растянуть сетку">🔍</button>
+            </div>
             <div class="days-row" id="days-header"></div>
         </div>
     </header>
@@ -30,21 +33,26 @@
         <div class="calendar-grid">
             <div class="time-column" id="time-labels"></div>
             <div class="days-grid" id="week-grid"></div>
-            <div class="events-layer" id="events-layer"></div>
+            <div class="events-layer" id="events-layer">
+                <!-- Полоса текущего времени -->
+                <div id="current-time-line" class="current-time-line hidden">
+                    <div class="time-line-dot"></div>
+                </div>
+            </div>
         </div>
     </main>
 
-    <!-- Подсказка перетягивания/переноса -->
+    <!-- Подсказка режима переноса -->
     <div id="move-hint" class="move-hint-bar hidden">
         <span>📍 Кликните целевой слот для переноса/добавления</span>
         <button id="btn-cancel-move" class="cancel-move-btn">Отмена</button>
     </div>
 
-    <!-- МОДАЛЬНОЕ ОКНО ПЕРЕНОСА / КОПИРОВАНИЯ (Вылетает при клике на новый слот) -->
+    <!-- МОДАЛЬНОЕ ОКНО ПЕРЕНОСА / КОПИРОВАНИЯ -->
     <div id="move-modal-overlay" class="hidden">
         <div class="modal-content text-center">
             <h2>Действие с занятием</h2>
-            <p id="move-modal-desc" class="modal-desc">Выберите действие для заняти:</p>
+            <p id="move-modal-desc" class="modal-desc">Выберите действие для занятия:</p>
             <div class="modal-actions-column">
                 <button id="btn-action-copy" class="primary-btn">➕ Добавить ещё одним занятием</button>
                 <button id="btn-action-move-once" class="secondary-btn">🔄 Перенести (разово)</button>
@@ -54,7 +62,7 @@
         </div>
     </div>
 
-    <!-- МЕНЮ ДЕЙСТВИЙ (Вылетает при коротком клике на ученика) -->
+    <!-- МЕНЮ ДЕЙСТВИЙ (Вылетает по короткому клику на ученика) -->
     <div id="action-menu-overlay" class="hidden">
         <div class="modal-content text-center">
             <h2 id="action-menu-title">Ученик</h2>
@@ -63,9 +71,32 @@
                 <button id="btn-action-chat-student" class="action-menu-btn">💬 Написать ученику</button>
                 <button id="btn-action-chat-parent" class="action-menu-btn">💬 Написать родителю</button>
                 <button id="btn-action-paid" class="action-menu-btn paid-btn">💳 Оплатил</button>
+                <button id="btn-action-move-trigger" class="action-menu-btn">🔄 Перенести</button>
+                <button id="btn-action-color" class="action-menu-btn">🎨 Изменить цвет</button>
                 <button id="btn-action-settings" class="action-menu-btn">⚙️ Настройки</button>
                 <button id="btn-action-delete" class="action-menu-btn delete-btn">🗑 Удалить</button>
                 <button id="btn-action-close" class="secondary-btn">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ОКНО ВЫБОРА ЦВЕТА УЧЕНИКА -->
+    <div id="color-modal-overlay" class="hidden">
+        <div class="modal-content text-center">
+            <h2>Цвет ученика</h2>
+            <p class="modal-subtitle">Выберите цвет карточки для этого ученика:</p>
+            <div class="color-palette-grid">
+                <div class="color-circle color-0" data-color="0"></div>
+                <div class="color-circle color-1" data-color="1"></div>
+                <div class="color-circle color-2" data-color="2"></div>
+                <div class="color-circle color-3" data-color="3"></div>
+                <div class="color-circle color-4" data-color="4"></div>
+                <div class="color-circle color-5" data-color="5"></div>
+                <div class="color-circle color-6" data-color="6"></div>
+                <div class="color-circle color-7" data-color="7"></div>
+            </div>
+            <div class="modal-actions-column">
+                <button id="btn-color-close" class="secondary-btn">Отмена</button>
             </div>
         </div>
     </div>
@@ -95,7 +126,7 @@
                 <input type="hidden" id="lesson-date">
 
                 <div id="form-container">
-                    <div class="form-group">
+                    <div class="form-group" id="student-select-group">
                         <label>Ученик</label>
                         <select id="student-select">
                             <option value="">-- Выбрать ученика --</option>
@@ -104,12 +135,25 @@
                         <input type="text" id="manual-student-name" class="hidden" placeholder="Имя ученика">
                     </div>
 
-                    <div class="form-group">
-                        <label>Телефон родителя (Telegram/WhatsApp)</label>
-                        <input type="text" id="parent-phone" placeholder="+7 (999) 000-00-00">
+                    <div class="form-group" id="student-fixed-group">
+                        <label>Ученик</label>
+                        <input type="text" id="fixed-student-name" readonly class="readonly-input">
                     </div>
 
-                    <div class="form-row">
+                    <div class="form-group">
+                        <label>Контакт родителя</label>
+                        <div class="contact-row">
+                            <input type="text" id="parent-contact" placeholder="Ник, ID или номер">
+                            <select id="parent-contact-type">
+                                <option value="tg">Telegram (никиd)</option>
+                                <option value="wa">WhatsApp (тел.)</option>
+                                <option value="phone">Телефон</option>
+                                <option value="max">Макс / Другое</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row" id="time-duration-group">
                         <div class="form-group flex-1">
                             <label>Время начала</label>
                             <input type="time" id="lesson-time" step="300">
@@ -158,6 +202,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=10"></script>
+    <script src="app.js?v=11"></script>
 </body>
 </html>

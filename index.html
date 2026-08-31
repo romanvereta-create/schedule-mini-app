@@ -5,25 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Расписание</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css?v=11">
+    <link rel="stylesheet" href="styles.css?v=12">
 </head>
 <body>
     <header class="main-header">
         <div class="header-top">
-            <button id="btn-today" class="header-btn">Сегодня</button>
+            <div class="date-picker-wrapper">
+                <button id="btn-today" class="header-btn">Сегодня</button>
+            </div>
             <div class="nav-arrows">
                 <button id="btn-prev-week" class="icon-btn">◀</button>
                 <span id="week-label-indicator">неделя</span>
                 <button id="btn-next-week" class="icon-btn">▶</button>
             </div>
             <div class="month-label-wrapper">
-                <h1 id="month-label" title="Нажмите для выбора даты/месяца">...</h1>
+                <h1 id="month-label" title="Нажмите для выбора даты">...</h1>
                 <input type="date" id="date-picker-input" class="hidden-date-input">
             </div>
         </div>
         <div class="week-days-container">
             <div class="time-spacer">
-                <button id="btn-zoom-toggle" class="zoom-btn" title="Сжать / Растянуть сетку">🔍</button>
+                <button id="btn-zoom-in" class="zoom-btn" title="Увеличить">➕</button>
+                <button id="btn-zoom-out" class="zoom-btn" title="Уменьшить">➖</button>
             </div>
             <div class="days-row" id="days-header"></div>
         </div>
@@ -34,45 +37,25 @@
             <div class="time-column" id="time-labels"></div>
             <div class="days-grid" id="week-grid"></div>
             <div class="events-layer" id="events-layer">
-                <!-- Полоса текущего времени -->
-                <div id="current-time-line" class="current-time-line hidden">
-                    <div class="time-line-dot"></div>
-                </div>
+                <div id="current-time-line" class="current-time-line hidden"><div class="time-line-dot"></div></div>
             </div>
         </div>
     </main>
 
-    <!-- Подсказка режима переноса -->
     <div id="move-hint" class="move-hint-bar hidden">
-        <span>📍 Кликните целевой слот для переноса/добавления</span>
+        <span>📍 Кликните целевой слот</span>
         <button id="btn-cancel-move" class="cancel-move-btn">Отмена</button>
     </div>
 
-    <!-- МОДАЛЬНОЕ ОКНО ПЕРЕНОСА / КОПИРОВАНИЯ -->
-    <div id="move-modal-overlay" class="hidden">
-        <div class="modal-content text-center">
-            <h2>Действие с занятием</h2>
-            <p id="move-modal-desc" class="modal-desc">Выберите действие для занятия:</p>
-            <div class="modal-actions-column">
-                <button id="btn-action-copy" class="primary-btn">➕ Добавить ещё одним занятием</button>
-                <button id="btn-action-move-once" class="secondary-btn">🔄 Перенести (разово)</button>
-                <button id="btn-action-move-all" class="secondary-btn">🔄 Перенести все будущие (навсегда)</button>
-                <button id="btn-action-move-cancel" class="danger-btn">❌ Отмена</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- МЕНЮ ДЕЙСТВИЙ (Вылетает по короткому клику на ученика) -->
+    <!-- МЕНЮ ДЕЙСТВИЙ -->
     <div id="action-menu-overlay" class="hidden">
         <div class="modal-content text-center">
             <h2 id="action-menu-title">Ученик</h2>
-            <p id="action-menu-subtitle" class="modal-subtitle">Выберите действие</p>
             <div class="modal-actions-column">
                 <button id="btn-action-chat-student" class="action-menu-btn">💬 Написать ученику</button>
                 <button id="btn-action-chat-parent" class="action-menu-btn">💬 Написать родителю</button>
                 <button id="btn-action-paid" class="action-menu-btn paid-btn">💳 Оплатил</button>
                 <button id="btn-action-move-trigger" class="action-menu-btn">🔄 Перенести</button>
-                <button id="btn-action-color" class="action-menu-btn">🎨 Изменить цвет</button>
                 <button id="btn-action-settings" class="action-menu-btn">⚙️ Настройки</button>
                 <button id="btn-action-delete" class="action-menu-btn delete-btn">🗑 Удалить</button>
                 <button id="btn-action-close" class="secondary-btn">Закрыть</button>
@@ -80,128 +63,12 @@
         </div>
     </div>
 
-    <!-- ОКНО ВЫБОРА ЦВЕТА УЧЕНИКА -->
-    <div id="color-modal-overlay" class="hidden">
-        <div class="modal-content text-center">
-            <h2>Цвет ученика</h2>
-            <p class="modal-subtitle">Выберите цвет карточки для этого ученика:</p>
-            <div class="color-palette-grid">
-                <div class="color-circle color-0" data-color="0"></div>
-                <div class="color-circle color-1" data-color="1"></div>
-                <div class="color-circle color-2" data-color="2"></div>
-                <div class="color-circle color-3" data-color="3"></div>
-                <div class="color-circle color-4" data-color="4"></div>
-                <div class="color-circle color-5" data-color="5"></div>
-                <div class="color-circle color-6" data-color="6"></div>
-                <div class="color-circle color-7" data-color="7"></div>
-            </div>
-            <div class="modal-actions-column">
-                <button id="btn-color-close" class="secondary-btn">Отмена</button>
-            </div>
-        </div>
-    </div>
+    <!-- МОДАЛЬНЫЕ ОКНА (Действия переноса/удаления/настроек) -->
+    <div id="modal-overlay" class="hidden">...</div>
+    <div id="move-modal-overlay" class="hidden">...</div>
+    <div id="delete-modal-overlay" class="hidden">...</div>
+    <div id="color-modal-overlay" class="hidden">...</div>
 
-    <!-- ДИАЛОГ УДАЛЕНИЯ -->
-    <div id="delete-modal-overlay" class="hidden">
-        <div class="modal-content text-center">
-            <h2>Удаление занятия</h2>
-            <p class="modal-desc">Как удалить это занятие?</p>
-            <div class="modal-actions-column">
-                <button id="btn-delete-once" class="danger-btn">Удалить только это занятие</button>
-                <button id="btn-delete-all" class="danger-btn">Удалить все будущие (навсегда)</button>
-                <button id="btn-delete-cancel" class="secondary-btn">Отмена</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- МОДАЛЬНОЕ ОКНО НАСТРОЕК / ДОБАВЛЕНИЯ ЗАНЯТИЯ -->
-    <div id="modal-overlay" class="hidden">
-        <div class="modal-content">
-            <header class="modal-header">
-                <h2 id="modal-title">Настройки занятия</h2>
-                <span id="btn-close-modal" class="close-modal">&times;</span>
-            </header>
-            <div class="modal-body">
-                <input type="hidden" id="lesson-id">
-                <input type="hidden" id="lesson-date">
-
-                <div id="form-container">
-                    <div class="form-group" id="student-select-group">
-                        <label>Ученик</label>
-                        <select id="student-select">
-                            <option value="">-- Выбрать ученика --</option>
-                            <option value="manual">Вписать вручную...</option>
-                        </select>
-                        <input type="text" id="manual-student-name" class="hidden" placeholder="Имя ученика">
-                    </div>
-
-                    <div class="form-group" id="student-fixed-group">
-                        <label>Ученик</label>
-                        <input type="text" id="fixed-student-name" readonly class="readonly-input">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Контакт родителя</label>
-                        <div class="contact-row">
-                            <input type="text" id="parent-contact" placeholder="Ник, ID или номер">
-                            <select id="parent-contact-type">
-                                <option value="tg">Telegram (никиd)</option>
-                                <option value="wa">WhatsApp (тел.)</option>
-                                <option value="phone">Телефон</option>
-                                <option value="max">Макс / Другое</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="form-row" id="time-duration-group">
-                        <div class="form-group flex-1">
-                            <label>Время начала</label>
-                            <input type="time" id="lesson-time" step="300">
-                        </div>
-                        <div class="form-group flex-1">
-                            <label>Длительность (мин)</label>
-                            <input type="number" id="lesson-duration" value="60" min="15" step="5">
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Стоимость урока (руб.)</label>
-                        <input type="text" id="lesson-price" placeholder="например: 1500">
-                    </div>
-
-                    <div class="form-group" id="repeat-group">
-                        <label>Повтор</label>
-                        <select id="lesson-repeat">
-                            <option value="no">Только сегодня (разово)</option>
-                            <option value="month">Каждую неделю на месяц</option>
-                            <option value="year">На учебный год (до 31 мая)</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Напомнить за (минут)</label>
-                        <input type="number" id="reminder-minutes" value="60" min="0" step="5">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Ссылка на Zoom / Telemost</label>
-                        <input type="text" id="zoom-link" placeholder="https://zoom.us/...">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Текст сообщения для ученика</label>
-                        <textarea id="reminder-text" rows="2" placeholder="Например: Готовь тетрадь!"></textarea>
-                    </div>
-                </div>
-
-                <div class="modal-actions">
-                    <button id="btn-save" class="primary-btn">Сохранить</button>
-                    <button id="btn-cancel-modal" class="secondary-btn">Отмена</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script src="app.js?v=11"></script>
+    <script src="app.js?v=12"></script>
 </body>
 </html>

@@ -130,7 +130,7 @@ body {
 .event-card.color-6 { background: #455a64; }
 .event-card.color-7 { background: #00897b; }
 
-/* Галочка Оплаты (крупная полупрозрачная в правом нижнем углу) */
+/* Галочка Оплаты */
 .event-card.paid-status::after {
     content: "✓";
     position: absolute;
@@ -144,37 +144,45 @@ body {
 }
 
 .event-card.moving-active { opacity: 0.7; border: 2px dashed #ffffff; z-index: 1000; }
-.event-title { font-weight: 700; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.event-time { font-size: 9px; opacity: 0.95; font-weight: 500; }
+
+/* Имя ученика — перенос на следующую строку */
+.event-title {
+    font-weight: 700;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    word-wrap: break-word;
+    white-space: normal;
+}
 
 /* Зеленая линия текущего времени */
 .current-time-line { position: absolute; height: 2px; background: #2e7d32; z-index: 500; pointer-events: none; }
 .time-line-dot { position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; background: #2e7d32; border-radius: 50%; }
 .current-time-line.hidden { display: none; }
 
-/* Палитра в модалке */
-.color-palette-grid {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; padding: 0 10px;
-}
-.color-circle {
-    width: 44px; height: 44px; border-radius: 50%; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2); border: 2px solid transparent; margin: 0 auto;
-}
-.color-circle.color-0 { background: #5c6bc0; }
-.color-circle.color-1 { background: #2e7d32; }
-.color-circle.color-2 { background: #7b1fa2; }
-.color-circle.color-3 { background: #d32f2f; }
-.color-circle.color-4 { background: #e65100; }
-.color-circle.color-5 { background: #0288d1; }
-.color-circle.color-6 { background: #455a64; }
-.color-circle.color-7 { background: #00897b; }
-
-/* Встроенная палитра в меню */
+/* Палитра в меню действий */
 .inline-color-palette {
-    display: flex; gap: 8px; align-items: center; justify-content: center; margin: 10px 0;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    justify-content: center;
+    margin: 6px 0;
+    flex-wrap: wrap;
 }
+
 .color-swatch {
-    width: 26px; height: 26px; border-radius: 50%; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.2); border: 2px solid transparent;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    border: 2px solid transparent;
+    flex-shrink: 0;
 }
+
 .color-swatch.color-0 { background: #5c6bc0; }
 .color-swatch.color-1 { background: #2e7d32; }
 .color-swatch.color-2 { background: #7b1fa2; }
@@ -184,16 +192,45 @@ body {
 .color-swatch.color-6 { background: #455a64; }
 .color-swatch.color-7 { background: #00897b; }
 
-/* Контакты родителя */
-.contact-input-row { display: flex; gap: 6px; }
-.contact-input-row input { flex: 1; }
-.contact-type-selector {
-    display: flex; gap: 2px; background: #f1f3f4; border: 1px solid #dadce0; border-radius: 8px; padding: 2px;
+.color-swatch.color-picker-open {
+    background: #f1f3f4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    cursor: pointer;
+    border: 2px dashed #dadce0;
 }
-.contact-type-btn {
-    border: none; background: transparent; padding: 4px 6px; font-size: 12px; font-weight: bold; cursor: pointer; border-radius: 6px;
+.color-swatch.color-picker-open:hover { background: #e8eaed; }
+
+/* Контакты родителя — несколько мессенджеров */
+.contact-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
 }
-.contact-type-btn.active { background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.15); color: #1a73e8; }
+.contact-row .contact-icon {
+    font-size: 16px;
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.contact-row .contact-input {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid #dadce0;
+    border-radius: 6px;
+    font-size: 13px;
+}
+.contact-row .contact-remove-btn {
+    background: none;
+    border: none;
+    font-size: 14px;
+    cursor: pointer;
+    color: #d93025;
+    padding: 0 4px;
+}
 
 /* Move Hint Bar */
 .move-hint-bar {
@@ -208,10 +245,10 @@ body {
 }
 
 /* Modals */
-#modal-overlay, #move-modal-overlay, #action-menu-overlay, #delete-modal-overlay, #color-modal-overlay {
+#modal-overlay, #move-modal-overlay, #action-menu-overlay, #delete-modal-overlay {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.45); z-index: 1000; display: flex; align-items: center; justify-content: center;
 }
-#modal-overlay.hidden, #move-modal-overlay.hidden, #action-menu-overlay.hidden, #delete-modal-overlay.hidden, #color-modal-overlay.hidden { display: none; }
+#modal-overlay.hidden, #move-modal-overlay.hidden, #action-menu-overlay.hidden, #delete-modal-overlay.hidden { display: none; }
 
 .modal-content { background: #ffffff; border-radius: 16px; width: 90%; max-width: 350px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
 .text-center { text-align: center; }

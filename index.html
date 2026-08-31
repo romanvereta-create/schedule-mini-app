@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Расписание</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css?v=14">
+    <link rel="stylesheet" href="styles.css?v=15">
 </head>
 <body>
     <header class="main-header">
@@ -23,8 +23,8 @@
         </div>
         <div class="week-days-container">
             <div class="time-spacer">
-                <button id="btn-zoom-in" class="zoom-btn" title="Увеличить высот">🔍+</button>
-                <button id="btn-zoom-out" class="zoom-btn" title="Уменьшить высот">🔍−</button>
+                <button id="btn-zoom-in" class="zoom-btn" title="Увеличить высоту">🔍+</button>
+                <button id="btn-zoom-out" class="zoom-btn" title="Уменьшить высоту">🔍−</button>
             </div>
             <div class="days-row" id="days-header"></div>
         </div>
@@ -57,30 +57,24 @@
                 <button id="btn-action-chat-parent" class="action-menu-btn">💬 Написать родителю</button>
                 <button id="btn-action-paid" class="action-menu-btn paid-btn">💳 Оплатил</button>
                 <button id="btn-action-move-trigger" class="action-menu-btn">🔄 Перенести</button>
-                <button id="btn-action-color" class="action-menu-btn">🎨 Изменить цвет</button>
+
+                <!-- ПАЛИТРА ЦВЕТОВ (вместо кнопки) -->
+                <div class="inline-color-palette">
+                    <div class="color-swatch color-0" data-color="0"></div>
+                    <div class="color-swatch color-1" data-color="1"></div>
+                    <div class="color-swatch color-2" data-color="2"></div>
+                    <div class="color-swatch color-3" data-color="3"></div>
+                    <div class="color-swatch color-4" data-color="4"></div>
+                    <div class="color-swatch color-5" data-color="5"></div>
+                    <div class="color-swatch color-6" data-color="6"></div>
+                    <div class="color-swatch color-7" data-color="7"></div>
+                    <div class="color-swatch color-picker-open" id="color-picker-open">🎨</div>
+                </div>
+
                 <button id="btn-action-settings" class="action-menu-btn">⚙️ Настройки</button>
                 <button id="btn-action-delete" class="action-menu-btn delete-btn">🗑 Удалить</button>
                 <button id="btn-action-close" class="secondary-btn">Закрыть</button>
             </div>
-        </div>
-    </div>
-
-    <!-- ВЫБОР ЦВЕТА УЧЕНИКА -->
-    <div id="color-modal-overlay" class="hidden">
-        <div class="modal-content text-center">
-            <h2>Цвет ученика</h2>
-            <p class="modal-subtitle">Выберите цвет карточки для этого ученика:</p>
-            <div class="color-palette-grid">
-                <div class="color-circle color-0" data-color="0"></div>
-                <div class="color-circle color-1" data-color="1"></div>
-                <div class="color-circle color-2" data-color="2"></div>
-                <div class="color-circle color-3" data-color="3"></div>
-                <div class="color-circle color-4" data-color="4"></div>
-                <div class="color-circle color-5" data-color="5"></div>
-                <div class="color-circle color-6" data-color="6"></div>
-                <div class="color-circle color-7" data-color="7"></div>
-            </div>
-            <button id="btn-color-close" class="secondary-btn">Отмена</button>
         </div>
     </div>
 
@@ -139,22 +133,35 @@
                         <input type="text" id="fixed-student-name" readonly class="readonly-input">
                     </div>
 
-                    <!-- Контакт родителя -->
+                    <!-- Контакты родителя (несколько мессенджеров) -->
                     <div class="form-group">
-                        <label>Контакт родителя</label>
-                        <div class="contact-input-row">
-                            <input type="text" id="parent-contact" placeholder="Ник (@username), ID или номер">
-                            <div class="contact-type-selector">
-                                <button type="button" class="contact-type-btn active" data-type="tg">TG</button>
-                                <button type="button" class="contact-type-btn" data-type="wa">WA</button>
-                                <button type="button" class="contact-type-btn" data-type="phone">☎</button>
-                                <button type="button" class="contact-type-btn" data-type="max">M</button>
+                        <label>Контакты родителя</label>
+                        <div id="contacts-container">
+                            <div class="contact-row" data-type="tg">
+                                <span class="contact-icon">💬</span>
+                                <input type="text" class="contact-input" placeholder="@username или ID" data-field="tg">
+                                <button class="contact-remove-btn" style="display:none;">✕</button>
                             </div>
+                            <div class="contact-row" data-type="wa">
+                                <span class="contact-icon">📱</span>
+                                <input type="text" class="contact-input" placeholder="WhatsApp номер" data-field="wa">
+                                <button class="contact-remove-btn" style="display:none;">✕</button>
+                            </div>
+                            <div class="contact-row" data-type="phone">
+                                <span class="contact-icon">☎️</span>
+                                <input type="text" class="contact-input" placeholder="Телефон" data-field="phone">
+                                <button class="contact-remove-btn" style="display:none;">✕</button>
+                            </div>
+                            <div class="contact-row" data-type="max">
+                                <span class="contact-icon">M</span>
+                                <input type="text" class="contact-input" placeholder="Max (ник)" data-field="max">
+                                <button class="contact-remove-btn" style="display:none;">✕</button>
+                            </div>
+                            <button id="add-contact-btn" class="secondary-btn" style="margin-top:6px;padding:4px 8px;font-size:12px;">➕ Добавить контакт</button>
                         </div>
-                        <input type="hidden" id="parent-contact-type" value="tg">
                     </div>
 
-                    <!-- Время и Длительность (Скрыты в окне Настроек существующего ученика) -->
+                    <!-- Время и Длительность -->
                     <div class="form-row" id="time-duration-group">
                         <div class="form-group flex-1">
                             <label>Время начала</label>
@@ -204,6 +211,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=14"></script>
+    <script src="app.js?v=15"></script>
 </body>
 </html>

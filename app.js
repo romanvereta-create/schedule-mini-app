@@ -179,10 +179,7 @@ function renderEvents() {
             const title = document.createElement('div');
             title.className = 'event-title';
             title.textContent = lesson.student || 'Ученик';
-            const time = document.createElement('div');
-            time.className = 'event-time';
-            time.textContent = `${lesson.time} (${duration} мин)`;
-            card.append(title, time);
+            card.appendChild(title);
 
             let longPressed = false;
             let timer = null;
@@ -288,13 +285,13 @@ function resetAddForm() {
     document.getElementById('student-select').value = '';
     document.getElementById('manual-student-name').value = '';
     document.getElementById('manual-student-name').classList.add('hidden');
-    document.getElementById('parent-contact').value = '';
-    document.getElementById('parent-contact-type').value = 'tg';
-    document.querySelectorAll('.contact-type-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.type === 'tg'));
+    // Очищаем контакты
+    document.querySelectorAll('.contact-input').forEach(inp => inp.value = '');
+    document.querySelectorAll('.contact-remove-btn').forEach(btn => btn.style.display = 'none');
+    document.getElementById('lesson-repeat').value = 'no';
     document.getElementById('reminder-minutes').value = '60';
     document.getElementById('reminder-text').value = '';
     document.getElementById('zoom-link').value = '';
-    document.getElementById('lesson-repeat').value = 'no';
 }
 
 function openAddModal(date, time) {
@@ -327,13 +324,33 @@ function openEditModal(date, lesson) {
     document.getElementById('lesson-duration').value = lesson.duration || 60;
     document.getElementById('lesson-id').value = lesson.id || '';
     document.getElementById('lesson-price').value = lesson.price || '';
-    document.getElementById('parent-contact').value = lesson.parent_contact || getStudentInfo(lesson.student_id).parent_contact || '';
-    document.getElementById('parent-contact-type').value = lesson.parent_contact_type || getStudentInfo(lesson.student_id).parent_contact_type || 'tg';
     document.getElementById('reminder-minutes').value = lesson.reminder_minutes ?? 60;
     document.getElementById('reminder-text').value = lesson.reminder_text || '';
     document.getElementById('zoom-link').value = lesson.zoom_link || '';
-    document.querySelectorAll('.contact-type-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.type === document.getElementById('parent-contact-type').value));
+    
+    // Заполняем контакты
+    const info = getStudentInfo(lesson.student_id);
+    const contacts = info.contacts || {};
+    document.querySelectorAll('.contact-input').forEach(inp => {
+        const field = inp.dataset.field;
+        inp.value = contacts[field] || '';
+        const removeBtn = inp.parentElement.querySelector('.contact-remove-btn');
+        if (inp.value) removeBtn.style.display = 'inline-block';
+        else removeBtn.style.display = 'none';
+    });
+    
     document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+function getContacts() {
+    const contacts = {};
+    document.querySelectorAll('.contact-input').forEach(inp => {
+        const val = inp.value.trim();
+        if (val) {
+            contacts[inp.dataset.field] = val;
+        }
+    });
+    return contacts;
 }
 
 async function saveLesson() {
@@ -341,8 +358,7 @@ async function saveLesson() {
     const time = document.getElementById('lesson-time').value;
     const duration = parseInt(document.getElementById('lesson-duration').value || 60, 10);
     const price = document.getElementById('lesson-price').value;
-    const contact = document.getElementById('parent-contact').value.trim();
-    const contactType = document.getElementById('parent-contact-type').value;
+    const contacts = getContacts();
     let student = '';
     let studentId = '';
 
@@ -362,7 +378,7 @@ async function saveLesson() {
 
     const payload = {
         date, time, duration, student, student_id: studentId, price,
-        parent_contact: contact, parent_contact_type: contactType,
+        contacts: contacts,
         reminder_minutes: document.getElementById('reminder-minutes').value,
         reminder_text: document.getElementById('reminder-text').value,
         zoom_link: document.getElementById('zoom-link').value,
@@ -379,10 +395,95 @@ async function saveLesson() {
 }
 
 function closeAllModals() {
-    ['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'color-modal-overlay'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+    ['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
 }
 
-// Переключатель ручного ввода — исправлено: обработчик установлен после загрузки DOM.
+// Палитра цветов в меню действий
+document.querySelectorAll('.color-swatch').forEach(el => {
+    el.addEventListener('click', async () => {
+        if (el.id === 'color-picker-open') {
+            const input = document.createElement('input');
+            input.type = 'color';
+            input.value = '#5c6bc0';
+            input.addEventListener('input', async (e) => {
+                const color = e.target.value;
+                await fetch(`${API_URL}/update_student_color`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ student_id: state.selectedLesson?.student_id, color: color })
+                });
+                closeAllModals();
+                fetchData();
+            });
+            input.click();
+            return;
+        }
+        const color = el.dataset.color;
+        await fetch(`${API_URL}/update_student_color`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ student_id: state.selectedLesson?.student_id, color: color })
+        });
+        closeAllModals();
+        fetchData();
+    });
+});
+
+// Добавление/удаление контактов
+document.getElementById('add-contact-btn').addEventListener('click', () => {
+    const container = document.getElementById('contacts-container');
+    const rows = container.querySelectorAll('.contact-row');
+    const types = ['tg', 'wa', 'phone', 'max'];
+    let newType = null;
+    for (const type of types) {
+        if (!Array.from(rows).some(r => r.dataset.type === type)) {
+            newType = type;
+            break;
+        }
+    }
+    if (!newType) return alert('Все типы контактов уже добавлены');
+    
+    const icons = { tg: '💬', wa: '📱', phone: '☎️', max: 'M' };
+    const placeholders = {
+        tg: '@username или ID',
+        wa: 'WhatsApp номер',
+        phone: 'Телефон',
+        max: 'Max (ник)'
+    };
+    
+    const row = document.createElement('div');
+    row.className = 'contact-row';
+    row.dataset.type = newType;
+    row.innerHTML = `
+        <span class="contact-icon">${icons[newType]}</span>
+        <input type="text" class="contact-input" placeholder="${placeholders[newType]}" data-field="${newType}">
+        <button class="contact-remove-btn">✕</button>
+    `;
+    container.insertBefore(row, document.getElementById('add-contact-btn'));
+    
+    const input = row.querySelector('.contact-input');
+    const removeBtn = row.querySelector('.contact-remove-btn');
+    removeBtn.style.display = 'none';
+    input.addEventListener('input', () => {
+        removeBtn.style.display = input.value.trim() ? 'inline-block' : 'none';
+    });
+    removeBtn.addEventListener('click', () => {
+        row.remove();
+    });
+});
+
+// Контакты: показывать кнопку удаления если есть значение
+document.querySelectorAll('.contact-input').forEach(inp => {
+    const removeBtn = inp.parentElement.querySelector('.contact-remove-btn');
+    if (inp.value.trim()) removeBtn.style.display = 'inline-block';
+    else removeBtn.style.display = 'none';
+    inp.addEventListener('input', () => {
+        if (inp.value.trim()) removeBtn.style.display = 'inline-block';
+        else removeBtn.style.display = 'none';
+    });
+});
+
+// Переключатель ручного ввода
 document.getElementById('student-select').addEventListener('change', event => {
     const input = document.getElementById('manual-student-name');
     const manual = event.target.value === 'manual';
@@ -399,19 +500,73 @@ document.getElementById('btn-action-paid').onclick = async () => {
     closeActionMenu();
     fetchData();
 };
-document.getElementById('btn-action-color').onclick = () => { closeActionMenu(); document.getElementById('color-modal-overlay').classList.remove('hidden'); };
-document.querySelectorAll('.color-circle').forEach(circle => {
-    circle.addEventListener('click', async () => {
-        await fetch(`${API_URL}/update_student_color`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ student_id: state.selectedLesson.student_id, color: circle.dataset.color }) });
-        closeAllModals();
-        fetchData();
-    });
-});
-document.getElementById('btn-color-close').onclick = closeAllModals;
 document.getElementById('btn-action-delete').onclick = () => { closeActionMenu(); document.getElementById('delete-modal-overlay').classList.remove('hidden'); };
 document.getElementById('btn-action-close').onclick = closeActionMenu;
-document.getElementById('btn-action-chat-student').onclick = () => { const id = state.selectedLesson?.student_id; const info = getStudentInfo(id); if (info.username) tg.openTelegramLink(`https://t.me/${info.username}`); else if (id && !String(id).startsWith('manual')) tg.openTelegramLink(`tg://user?id=${id}`); else alert('Нет Telegram-контакта'); closeActionMenu(); };
-document.getElementById('btn-action-chat-parent').onclick = () => { const lesson = state.selectedLesson; const info = getStudentInfo(lesson?.student_id); const contact = lesson?.parent_contact || info.parent_contact; if (contact) alert(`Контакт родителя: ${contact}`); else alert('Контакт родителя не указан'); closeActionMenu(); };
+
+// Написать ученику
+document.getElementById('btn-action-chat-student').onclick = () => {
+    const id = state.selectedLesson?.student_id;
+    const info = getStudentInfo(id);
+    if (info.username) tg.openTelegramLink(`https://t.me/${info.username}`);
+    else if (id && !String(id).startsWith('manual')) tg.openTelegramLink(`tg://user?id=${id}`);
+    else alert('Нет Telegram-контакта');
+    closeActionMenu();
+};
+
+// Написать родителю (выбор мессенджера)
+document.getElementById('btn-action-chat-parent').onclick = () => {
+    const lesson = state.selectedLesson;
+    const info = getStudentInfo(lesson?.student_id);
+    const contacts = info.contacts || {};
+    const available = Object.keys(contacts).filter(k => contacts[k]);
+    
+    if (available.length === 0) {
+        alert('Нет сохранённых контактов родителя');
+        closeActionMenu();
+        return;
+    }
+    
+    if (available.length === 1) {
+        const type = available[0];
+        const value = contacts[type];
+        openContact(type, value);
+        closeActionMenu();
+        return;
+    }
+    
+    // Если несколько — показываем выбор
+    const menu = document.getElementById('action-menu-overlay');
+    // Простой выбор через alert (можно расширить)
+    const msg = 'Выберите мессенджер:\n' + available.map((t, i) => `${i+1}. ${t.toUpperCase()}: ${contacts[t]}`).join('\n');
+    const choice = prompt(msg + '\n\nВведите номер:');
+    if (choice) {
+        const idx = parseInt(choice) - 1;
+        if (idx >= 0 && idx < available.length) {
+            const type = available[idx];
+            openContact(type, contacts[type]);
+        }
+    }
+    closeActionMenu();
+};
+
+function openContact(type, value) {
+    switch(type) {
+        case 'tg':
+            tg.openTelegramLink(`https://t.me/${value.replace('@', '')}`);
+            break;
+        case 'wa':
+            window.open(`https://wa.me/${value.replace(/[^0-9]/g, '')}`, '_blank');
+            break;
+        case 'phone':
+            window.open(`tel:${value}`, '_blank');
+            break;
+        case 'max':
+            alert(`Max: ${value}`);
+            break;
+        default:
+            alert(`Контакт: ${value}`);
+    }
+}
 
 // Удаление
 document.getElementById('btn-delete-once').onclick = async () => { const l = state.selectedLesson; await fetch(`${API_URL}/delete_lesson`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: l.date, id: l.id, delete_all: false }) }); closeAllModals(); fetchData(); };
@@ -425,26 +580,20 @@ document.getElementById('btn-action-move-all').onclick = () => executeMove('move
 document.getElementById('btn-action-move-cancel').onclick = cancelMove;
 document.getElementById('btn-cancel-move').onclick = cancelMove;
 
-// Кнопки и закрытие
+// Кнопки сохранения и закрытия
 document.getElementById('btn-save').onclick = saveLesson;
 document.getElementById('btn-cancel-modal').onclick = closeAllModals;
 document.getElementById('btn-close-modal').onclick = closeAllModals;
-document.getElementById('btn-action-close').onclick = closeActionMenu;
-['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'color-modal-overlay'].forEach(id => {
+['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay'].forEach(id => {
     document.getElementById(id).addEventListener('click', event => { if (event.target.id === id) closeAllModals(); });
 });
 
-// Контакты — иконки-маркеры типа связи
-document.querySelectorAll('.contact-type-btn').forEach(button => {
-    button.addEventListener('click', () => {
-        document.querySelectorAll('.contact-type-btn').forEach(item => item.classList.remove('active'));
-        button.classList.add('active');
-        document.getElementById('parent-contact-type').value = button.dataset.type;
-    });
-});
-
 // Дата и навигация
-document.getElementById('month-label').onclick = () => { const input = document.getElementById('date-picker-input'); input.showPicker ? input.showPicker() : input.click(); };
+document.getElementById('month-label').onclick = () => {
+    const input = document.getElementById('date-picker-input');
+    if (input.showPicker) input.showPicker();
+    else input.click();
+};
 document.getElementById('date-picker-input').onchange = event => { if (!event.target.value) return; const [y, m, d] = event.target.value.split('-').map(Number); state.currentMonday = getMonday(new Date(y, m - 1, d)); fetchData(); };
 document.getElementById('btn-today').onclick = () => { state.currentMonday = getMonday(new Date()); fetchData(); };
 document.getElementById('btn-prev-week').onclick = () => { state.currentMonday.setDate(state.currentMonday.getDate() - 7); fetchData(); };
@@ -452,7 +601,7 @@ document.getElementById('btn-next-week').onclick = () => { state.currentMonday.s
 document.getElementById('btn-zoom-in').onclick = () => { hourHeight = Math.min(MAX_HOUR_HEIGHT, hourHeight + ZOOM_STEP); renderCalendar(); };
 document.getElementById('btn-zoom-out').onclick = () => { hourHeight = Math.max(MIN_HOUR_HEIGHT, hourHeight - ZOOM_STEP); renderCalendar(); };
 
-// Более устойчивый pinch: учитывается вертикальная проекция, даже если пальцы движутся по диагонали.
+// Pinch
 let pinchStartY = null;
 let pinchStartHeight = hourHeight;
 const calendarContainer = document.getElementById('calendar-container');

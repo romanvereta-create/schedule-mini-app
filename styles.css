@@ -3,7 +3,7 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
 body {
@@ -20,7 +20,7 @@ body {
     top: 0;
     background: #ffffff;
     z-index: 100;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid #c6c8cc; /* Повышенная контрастность */
 }
 
 .header-top {
@@ -32,21 +32,21 @@ body {
 
 .header-top h1 {
     font-size: 18px;
-    font-weight: 500;
+    font-weight: 600;
     flex-grow: 1;
     margin-left: 10px;
-    color: #3c4043;
+    color: #202124;
 }
 
 .header-btn {
-    background: #f1f3f4;
-    border: none;
+    background: #e8eaed;
+    border: 1px solid #dadce0;
     border-radius: 18px;
     padding: 6px 14px;
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
-    color: #3c4043;
+    color: #202124;
 }
 
 .icon-btn {
@@ -55,7 +55,7 @@ body {
     font-size: 16px;
     padding: 6px 10px;
     cursor: pointer;
-    color: #5f6368;
+    color: #3c4043;
 }
 
 .nav-arrows {
@@ -66,14 +66,14 @@ body {
 /* Week Days Bar */
 .week-days-container {
     display: flex;
-    border-top: 1px solid #f1f3f4;
+    border-top: 1px solid #d0d2d6;
     background: #ffffff;
 }
 
 .time-spacer {
-    width: 45px;
+    width: 55px; /* Увеличено до 55px */
     flex-shrink: 0;
-    border-right: 1px solid #e0e0e0;
+    border-right: 1px solid #d0d2d6; /* Четкая граница */
 }
 
 .days-row {
@@ -86,9 +86,9 @@ body {
 .day-header-cell {
     padding: 6px 0;
     font-size: 11px;
-    font-weight: 500;
-    color: #70757a;
-    border-right: 1px solid #f1f3f4;
+    font-weight: 600;
+    color: #5f6368;
+    border-right: 1px solid #d0d2d6; /* Четкая вертикальная линия */
 }
 
 .day-header-cell:last-child {
@@ -99,12 +99,12 @@ body {
     display: inline-block;
     margin-top: 2px;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 700;
     width: 26px;
     height: 26px;
     line-height: 26px;
     border-radius: 50%;
-    color: #3c4043;
+    color: #202124;
 }
 
 .day-header-cell.today .day-num {
@@ -123,31 +123,31 @@ body {
 .calendar-grid {
     display: flex;
     position: relative;
-    min-height: calc(18 * var(--hour-height)); /* 18 hours (6-23) * hour-height */
+    min-height: calc(18 * var(--hour-height));
 }
 
 .time-column {
-    width: 45px;
+    width: 55px; /* Увеличено до 55px */
     flex-shrink: 0;
-    border-right: 1px solid #e0e0e0;
+    border-right: 1px solid #d0d2d6; /* Четкая граница */
     background: #ffffff;
 }
 
 .time-label {
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 700;
     color: #3c4043;
     text-align: right;
-    padding-right: 10px;
+    padding-right: 8px; /* Отступ справа, время не прижато к краю */
     display: flex;
     align-items: flex-start;
-    padding-top: 4px;
-    border-bottom: 1px solid #f1f3f4;
+    padding-top: 3px;
+    border-bottom: 1px solid #d0d2d6; /* Четкая горизонтальная линия */
     box-sizing: border-box;
 }
 
 .time-label:first-child {
-    border-top: 1px solid #f1f3f4;
+    border-top: 1px solid #d0d2d6;
 }
 
 .days-grid {
@@ -158,7 +158,7 @@ body {
 }
 
 .day-column {
-    border-right: 1px solid #f1f3f4;
+    border-right: 1px solid #d0d2d6; /* Четкие вертикальные линии */
     position: relative;
 }
 
@@ -167,19 +167,19 @@ body {
 }
 
 .time-slot {
-    border-bottom: 1px solid #f1f3f4;
+    border-bottom: 1px solid #e2e4e8; /* Четкие линии слотов */
     box-sizing: border-box;
 }
 
 .time-slot:hover {
-    background: #f8f9fa;
+    background: #f1f3f4;
 }
 
 /* Events Layer */
 .events-layer {
     position: absolute;
     top: 0;
-    left: 45px;
+    left: 55px; /* Совпадает с шириной time-column */
     right: 0;
     bottom: 0;
     pointer-events: none;
@@ -189,44 +189,50 @@ body {
     position: absolute;
     pointer-events: auto;
     color: #ffffff;
-    border-radius: 4px;
-    padding: 3px 6px;
+    border-radius: 5px;
+    padding: 4px 6px;
     font-size: 11px;
     overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.25);
     cursor: pointer;
     transition: transform 0.1s, opacity 0.1s;
     word-break: break-all;
+    border: 1px solid rgba(0,0,0,0.15);
 }
 
-/* Color classes for event cards */
-.event-card.color-0 { background: #7986cb; } /* Indigo */
-.event-card.color-1 { background: #33b679; } /* Sage */
-.event-card.color-2 { background: #8e24aa; } /* Grape */
-.event-card.color-3 { background: #e67c73; } /* Flamingo */
-.event-card.color-4 { background: #f4511e; } /* Tangerine */
-.event-card.color-5 { background: #039be5; } /* Peacock */
-.event-card.color-6 { background: #616161; } /* Graphite */
-.event-card.color-7 { background: #3f51b5; } /* Blueberry */
+.event-card:active {
+    transform: scale(0.97);
+}
+
+/* Яркие и разборчивые цвета */
+.event-card.color-0 { background: #5c6bc0; } /* Indigo */
+.event-card.color-1 { background: #2e7d32; } /* Dark Green */
+.event-card.color-2 { background: #7b1fa2; } /* Purple */
+.event-card.color-3 { background: #d32f2f; } /* Red */
+.event-card.color-4 { background: #e65100; } /* Dark Orange */
+.event-card.color-5 { background: #0288d1; } /* Blue */
+.event-card.color-6 { background: #455a64; } /* Blue Grey */
+.event-card.color-7 { background: #00897b; } /* Teal */
 
 .event-card.moving-active {
-    opacity: 0.6;
+    opacity: 0.7;
     border: 2px dashed #ffffff;
-    transform: scale(1.03);
+    transform: scale(1.04);
     z-index: 1000;
 }
 
 .event-title {
-    font-weight: 600;
-    line-height: 1.1;
+    font-weight: 700;
+    line-height: 1.2;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .event-time {
-    font-size: 9px;
-    opacity: 0.9;
+    font-size: 10px;
+    opacity: 0.95;
+    font-weight: 500;
 }
 
 /* Move Hint Bar */
@@ -235,13 +241,13 @@ body {
     bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
-    background: #323232;
+    background: #202124;
     color: white;
-    padding: 12px 24px;
+    padding: 12px 20px;
     border-radius: 25px;
-    font-size: 14px;
+    font-size: 13px;
     z-index: 2000;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
     display: flex;
     align-items: center;
     gap: 10px;
@@ -252,28 +258,27 @@ body {
 }
 
 .cancel-move-btn {
-    background: none;
-    border: 1px solid white;
+    background: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.4);
     color: white;
     border-radius: 12px;
-    padding: 2px 8px;
-    font-size: 11px;
-    margin-left: 10px;
+    padding: 4px 10px;
+    font-size: 12px;
     cursor: pointer;
 }
 
 /* Modal */
-#modal-overlay {
+#modal-overlay, #move-modal-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(0, 0, 0, 0.45);
     z-index: 1000;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
-#modal-overlay.hidden {
+#modal-overlay.hidden, #move-modal-overlay.hidden {
     display: none;
 }
 
@@ -281,9 +286,19 @@ body {
     background: #ffffff;
     border-radius: 16px;
     width: 90%;
-    max-width: 340px; /* Немного уже для лучшего вида на мобилке */
-    padding: 18px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    max-width: 360px;
+    padding: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.text-center {
+    text-align: center;
+}
+
+.modal-desc {
+    margin: 10px 0 18px 0;
+    font-size: 14px;
+    color: #5f6368;
 }
 
 .modal-header {
@@ -294,18 +309,18 @@ body {
 }
 
 .modal-header h2 {
-    font-size: 18px;
+    font-size: 19px;
     color: #202124;
 }
 
 .close-modal {
-    font-size: 24px;
+    font-size: 26px;
     cursor: pointer;
     color: #5f6368;
 }
 
 .modal-body {
-    max-height: 70vh;
+    max-height: 75vh;
     overflow-y: auto;
 }
 
@@ -313,17 +328,26 @@ body {
     margin-bottom: 12px;
 }
 
+.form-row {
+    display: flex;
+    gap: 10px;
+}
+
+.flex-1 {
+    flex: 1;
+}
+
 .form-group label {
     display: block;
-    font-size: 11px;
-    font-weight: 500;
+    font-size: 12px;
+    font-weight: 600;
     color: #5f6368;
-    margin-bottom: 2px;
+    margin-bottom: 4px;
 }
 
 .form-group input, .form-group select, .form-group textarea {
     width: 100%;
-    padding: 8px 10px;
+    padding: 9px 11px;
     border: 1px solid #dadce0;
     border-radius: 8px;
     font-size: 14px;
@@ -335,8 +359,8 @@ body {
     outline-offset: -1px;
 }
 
-.modal-actions {
-    margin-top: 14px;
+.modal-actions, .modal-actions-column {
+    margin-top: 16px;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -346,19 +370,21 @@ body {
     background: #1a73e8;
     color: white;
     border: none;
-    padding: 10px;
+    padding: 11px;
     border-radius: 8px;
     font-weight: 600;
+    font-size: 14px;
     cursor: pointer;
 }
 
 .secondary-btn {
     background: #f1f3f4;
-    color: #3c4043;
-    border: none;
-    padding: 8px;
+    color: #202124;
+    border: 1px solid #dadce0;
+    padding: 10px;
     border-radius: 8px;
-    font-weight: 500;
+    font-weight: 600;
+    font-size: 14px;
     cursor: pointer;
 }
 
@@ -366,23 +392,16 @@ body {
     background: #d93025;
     color: white;
     border: none;
-    padding: 8px;
+    padding: 10px;
     border-radius: 8px;
-    font-weight: 500;
+    font-weight: 600;
+    font-size: 14px;
     cursor: pointer;
-}
-
-#lesson-details-view, #lesson-edit-form {
-    /* flex-grow: 1; */
-}
-
-#lesson-details-view.hidden, #lesson-edit-form.hidden {
-    display: none !important;
 }
 
 #edit-actions {
     display: flex;
-    gap: 6px;
+    gap: 8px;
 }
 
 #edit-actions button {
@@ -393,9 +412,8 @@ body {
     display: none !important;
 }
 
-/* Для зума */
 :root {
-    --hour-height: 80px; /* Default height */
+    --hour-height: 80px;
 }
 
 .calendar-grid {
@@ -405,7 +423,4 @@ body {
 .time-label,
 .time-slot {
     height: var(--hour-height);
-}
-.event-card {
-    height: calc(var(--hour-height) - 4px);
 }

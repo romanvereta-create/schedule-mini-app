@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Расписание</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css?v=25-telegram-exports-discount">
+    <link rel="stylesheet" href="styles.css?v=27-student-card">
 </head>
 <body>
     <header class="main-header">
@@ -137,13 +137,13 @@
                 <input type="number" id="subscription-pay-amount" min="0" step="1" inputmode="decimal" placeholder="Например: 3000">
                 <small id="subscription-pay-hint" class="field-hint"></small>
             </div>
-            <label class="checkbox-label receipt-send-checkbox">
-                <input type="checkbox" id="subscription-custom-count-enabled">
-                <span>Зачесть за другое количество занятий</span>
-            </label>
-            <div id="subscription-custom-count-wrap" class="form-group text-left hidden">
-                <label>Количество занятий</label>
-                <input type="number" id="subscription-custom-count" min="2" step="1" inputmode="numeric" placeholder="Например: 3">
+            <div class="form-group text-left">
+                <label>Зачесть за</label>
+                <div class="subscription-count-stepper">
+                    <button type="button" id="subscription-count-minus" class="subscription-count-btn" aria-label="Уменьшить количество занятий">−</button>
+                    <strong id="subscription-custom-count" class="subscription-count-value">3 занятия</strong>
+                    <button type="button" id="subscription-count-plus" class="subscription-count-btn" aria-label="Увеличить количество занятий">+</button>
+                </div>
             </div>
             <label class="checkbox-label receipt-send-checkbox">
                 <input type="checkbox" id="subscription-send-receipt-checkbox" checked>
@@ -333,6 +333,18 @@
                     </div>
                 </div>
                 <div class="form-group">
+                    <label>Статус</label>
+                    <div class="student-status-switch" role="group" aria-label="Статус ученика">
+                        <button type="button" id="student-status-active" class="student-status-btn active" data-status="active">Активный</button>
+                        <button type="button" id="student-status-paused" class="student-status-btn" data-status="paused">Пауза</button>
+                    </div>
+                    <small class="field-hint">Ученики на паузе не показываются при добавлении нового занятия. Уже созданные занятия сохраняются.</small>
+                </div>
+                <div class="form-group">
+                    <label>Заметка</label>
+                    <textarea id="student-note" rows="3" maxlength="1000" placeholder="Например: готовится к ЕГЭ, по средам только после 18:00"></textarea>
+                </div>
+                <div class="form-group">
                     <label>Контакт ученика</label>
                     <div id="student-card-student-contacts" class="contacts-list"></div>
                     <button type="button" class="secondary-btn add-contact-btn" data-target="student-card-student-contacts">＋ Добавить контакт</button>
@@ -341,6 +353,15 @@
                     <label>Контакт родителя</label>
                     <div id="student-card-parent-contacts" class="contacts-list"></div>
                     <button type="button" class="secondary-btn add-contact-btn" data-target="student-card-parent-contacts">＋ Добавить контакт</button>
+                </div>
+                <div class="form-group student-history-section">
+                    <div class="student-history-head">
+                        <label>История занятий</label>
+                        <small id="student-history-summary" class="muted-inline"></small>
+                    </div>
+                    <div id="student-history-list" class="student-history-list">
+                        <div class="student-history-empty">Загрузка…</div>
+                    </div>
                 </div>
             </div>
             <div class="modal-actions">
@@ -446,6 +467,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=25-telegram-exports-discount"></script>
+    <script src="app.js?v=27-student-card"></script>
 </body>
 </html>

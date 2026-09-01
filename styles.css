@@ -657,3 +657,68 @@ body {
 .student-lesson-stats span { font-size: 12px; color: #5f6368; font-weight: 600; }
 .student-lesson-stats strong { font-size: 20px; color: #202124; white-space: nowrap; }
 .text-left { text-align: left; }
+
+
+/* v26: compact subscription count stepper */
+.subscription-count-stepper { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 7px; }
+.subscription-count-btn { width: 40px; height: 36px; border: 1px solid #d7d7d7; border-radius: 10px; background: #fff; font-size: 22px; line-height: 1; cursor: pointer; }
+.subscription-count-value { min-width: 104px; text-align: center; font-size: 15px; }
+.hub-explainer { display: flex; flex-direction: column; gap: 4px; padding: 9px 10px; margin-bottom: 7px; border-radius: 10px; background: rgba(127,127,127,0.08); font-size: 12px; line-height: 1.35; }
+.hub-explainer strong { font-size: 12px; }
+.hub-explainer span { opacity: 0.75; }
+
+/* v27: карточка ученика — статус, заметка и история */
+.student-status-switch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    padding: 3px;
+    border-radius: 10px;
+    background: rgba(127, 127, 127, 0.12);
+}
+.student-status-btn {
+    min-height: 34px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+.student-status-btn.active {
+    background: var(--accent-color, #2481cc);
+    color: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.16);
+}
+#student-note {
+    width: 100%;
+    min-height: 74px;
+    resize: vertical;
+    box-sizing: border-box;
+}
+.student-history-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+.student-history-list {
+    border: 1px solid rgba(127, 127, 127, 0.18);
+    border-radius: 10px;
+    overflow: hidden;
+}
+.student-history-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    border-bottom: 1px solid rgba(127, 127, 127, 0.12);
+}
+.student-history-row:last-child { border-bottom: 0; }
+.student-history-paid { font-size: 12px; opacity: 0.68; white-space: nowrap; }
+.student-history-paid.is-paid { opacity: 1; }
+.student-history-empty { padding: 10px; font-size: 13px; opacity: 0.65; text-align: center; }

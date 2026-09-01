@@ -177,6 +177,7 @@ function fillStudentsDropdown() {
 
     Object.entries(state.students).forEach(([id, raw]) => {
         const info = typeof raw === 'string' ? { name: raw } : (raw || {});
+        if (info.status === 'paused') return;
         const option = document.createElement('option');
         option.value = id;
         option.textContent = info.name || id;
@@ -189,6 +190,7 @@ function groupMemberOptions(selectedId = '') {
     const options = ['<option value="">-- Выбрать ученика --</option>', '<option value="manual">Вписать вручную...</option>'];
     Object.entries(state.students).forEach(([id, raw]) => {
         const info = typeof raw === 'string' ? { name: raw } : (raw || {});
+        if (info.status === 'paused' && String(id) !== String(selectedId)) return;
         const selected = String(id) === String(selectedId) ? ' selected' : '';
         options.push(`<option value="${escapeHtml(String(id))}" data-name="${escapeHtml(info.name || String(id))}"${selected}>${escapeHtml(info.name || String(id))}</option>`);
     });
@@ -787,9 +789,8 @@ document.getElementById('btn-action-subscription').onclick = () => {
     document.getElementById('subscription-pay-desc').textContent = `Стоимость одного урока: ${price.toLocaleString('ru-RU')} ₽. Укажите общую сумму абонемента.`;
     const amountInput = document.getElementById('subscription-pay-amount');
     amountInput.value = String(price * 3);
-    document.getElementById('subscription-custom-count-enabled').checked = false;
-    document.getElementById('subscription-custom-count').value = '3';
-    document.getElementById('subscription-custom-count-wrap').classList.add('hidden');
+    document.getElementById('subscription-custom-count').dataset.count = '3';
+    document.getElementById('subscription-custom-count').textContent = '3 занятия';
     document.getElementById('subscription-send-receipt-checkbox').checked = state.settings.default_send_receipts !== false;
     updateSubscriptionPayHint();
     closeActionMenu();
@@ -797,53 +798,59 @@ document.getElementById('btn-action-subscription').onclick = () => {
     setTimeout(() => amountInput.focus(), 50);
 };
 
+function subscriptionCountWord(count) {
+    const mod100 = count % 100;
+    const mod10 = count % 10;
+    if (mod100 >= 11 && mod100 <= 14) return 'занятий';
+    if (mod10 === 1) return 'занятие';
+    if (mod10 >= 2 && mod10 <= 4) return 'занятия';
+    return 'занятий';
+}
+
+function getSubscriptionLessonCount() {
+    const el = document.getElementById('subscription-custom-count');
+    return Math.max(2, Number(el?.dataset.count || 2));
+}
+
+function setSubscriptionLessonCount(count) {
+    const el = document.getElementById('subscription-custom-count');
+    if (!el) return;
+    const safeCount = Math.max(2, Math.round(Number(count) || 2));
+    el.dataset.count = String(safeCount);
+    el.textContent = `${safeCount} ${subscriptionCountWord(safeCount)}`;
+    updateSubscriptionPayHint();
+}
+
 function updateSubscriptionPayHint() {
     const lesson = state.selectedLesson;
     const hint = document.getElementById('subscription-pay-hint');
     if (!lesson || !hint) return;
     const price = Number(getStudentInfo(lesson.student_id).default_price || lesson.price || 0);
     const amount = Number(document.getElementById('subscription-pay-amount').value || 0);
-    const customEnabled = document.getElementById('subscription-custom-count-enabled').checked;
-    const customCount = Number(document.getElementById('subscription-custom-count').value || 0);
-    document.getElementById('subscription-custom-count-wrap').classList.toggle('hidden', !customEnabled);
+    const lessonCount = getSubscriptionLessonCount();
     if (!(price > 0) || !(amount > 0)) { hint.textContent = ''; return; }
-
-    if (customEnabled) {
-        if (!Number.isInteger(customCount) || customCount < 2) {
-            hint.textContent = 'Укажите количество занятий — целое число от 2.';
-            return;
-        }
-        const effectivePrice = amount / customCount;
-        hint.textContent = `Будет оплачено занятий: ${customCount}. Цена по абонементу: ${effectivePrice.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽ / занятие.`;
-        return;
-    }
-
-    const count = amount / price;
-    if (Math.abs(count - Math.round(count)) > 0.0001) hint.textContent = `Сумма не делится на ${price.toLocaleString('ru-RU')} ₽. Включите «Зачесть за другое количество занятий».`;
-    else hint.textContent = `Будет оплачено занятий: ${Math.round(count)}.`;
+    const effectivePrice = amount / lessonCount;
+    const regularTotal = price * lessonCount;
+    const discount = regularTotal > amount ? ((regularTotal - amount) / regularTotal) * 100 : 0;
+    const discountText = discount > 0.01 ? ` · скидка ${discount.toLocaleString('ru-RU', { maximumFractionDigits: 1 })}%` : '';
+    hint.textContent = `Будет оплачено: ${lessonCount} ${subscriptionCountWord(lessonCount)} · ${effectivePrice.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽ / занятие${discountText}.`;
 }
 
-document.getElementById('subscription-pay-amount').addEventListener('input', updateSubscriptionPayHint);
-document.getElementById('subscription-custom-count').addEventListener('input', updateSubscriptionPayHint);
-document.getElementById('subscription-custom-count-enabled').addEventListener('change', () => {
-    const enabled = document.getElementById('subscription-custom-count-enabled').checked;
-    if (enabled) {
-        const lesson = state.selectedLesson;
-        const price = Number(getStudentInfo(lesson?.student_id).default_price || lesson?.price || 0);
-        const amount = Number(document.getElementById('subscription-pay-amount').value || 0);
-        if (price > 0 && amount > 0) {
-            document.getElementById('subscription-custom-count').value = String(Math.max(2, Math.round(amount / price)));
-        }
-    }
-    updateSubscriptionPayHint();
+document.getElementById('subscription-pay-amount').addEventListener('input', () => {
+    const lesson = state.selectedLesson;
+    const price = Number(getStudentInfo(lesson?.student_id).default_price || lesson?.price || 0);
+    const amount = Number(document.getElementById('subscription-pay-amount').value || 0);
+    if (price > 0 && amount > 0) setSubscriptionLessonCount(Math.max(2, Math.round(amount / price)));
+    else updateSubscriptionPayHint();
 });
+document.getElementById('subscription-count-minus').onclick = () => setSubscriptionLessonCount(getSubscriptionLessonCount() - 1);
+document.getElementById('subscription-count-plus').onclick = () => setSubscriptionLessonCount(getSubscriptionLessonCount() + 1);
 document.getElementById('btn-subscription-pay-cancel').onclick = () => document.getElementById('subscription-pay-overlay').classList.add('hidden');
 document.getElementById('btn-subscription-pay-apply').onclick = async () => {
     const lesson = state.selectedLesson;
     if (!lesson) return;
     const amount = Number(document.getElementById('subscription-pay-amount').value || 0);
-    const customCountEnabled = document.getElementById('subscription-custom-count-enabled').checked;
-    const lessonCount = customCountEnabled ? Number(document.getElementById('subscription-custom-count').value || 0) : null;
+    const lessonCount = getSubscriptionLessonCount();
     const sendReceipt = document.getElementById('subscription-send-receipt-checkbox').checked;
     const button = document.getElementById('btn-subscription-pay-apply');
     button.disabled = true;
@@ -1359,16 +1366,40 @@ document.getElementById('btn-save-receipt-settings').onclick = async () => {
 // Карточка ученика: имя, стоимость, контакты и статистика оплат
 async function loadStudentLessonStats(studentId) {
     const ratio = document.getElementById('student-lessons-ratio');
+    const historyList = document.getElementById('student-history-list');
+    const historySummary = document.getElementById('student-history-summary');
     ratio.textContent = '… / …';
+    if (historyList) historyList.innerHTML = '<div class="student-history-empty">Загрузка…</div>';
+    if (historySummary) historySummary.textContent = '';
     try {
         const response = await apiFetch('/get_student_stats', { method: 'POST', body: JSON.stringify({ student_id: studentId }) });
         const result = await response.json();
         if (result.status !== 'ok') throw new Error(result.message || 'Ошибка статистики');
         ratio.textContent = `${result.paid_lessons || 0} / ${result.conducted_lessons || 0}`;
+        if (historySummary) historySummary.textContent = `${result.total_lessons || 0} всего`;
+        if (historyList) {
+            const history = Array.isArray(result.history) ? result.history : [];
+            historyList.innerHTML = history.length ? history.map(item => {
+                const dateLabel = shortDateRu(item.date);
+                const paidLabel = item.paid ? '✓ оплачено' : 'не оплачено';
+                return `<div class="student-history-row"><span>${escapeHtml(dateLabel)} · ${escapeHtml(item.time || '')}</span><span class="student-history-paid ${item.paid ? 'is-paid' : ''}">${paidLabel}</span></div>`;
+            }).join('') : '<div class="student-history-empty">Занятий пока нет</div>';
+        }
     } catch (error) {
         ratio.textContent = '— / —';
+        if (historyList) historyList.innerHTML = '<div class="student-history-empty">Не удалось загрузить историю</div>';
     }
 }
+
+function setStudentStatus(status) {
+    const normalized = status === 'paused' ? 'paused' : 'active';
+    document.getElementById('student-card-overlay').dataset.studentStatus = normalized;
+    document.getElementById('student-status-active').classList.toggle('active', normalized === 'active');
+    document.getElementById('student-status-paused').classList.toggle('active', normalized === 'paused');
+}
+
+document.getElementById('student-status-active').onclick = () => setStudentStatus('active');
+document.getElementById('student-status-paused').onclick = () => setStudentStatus('paused');
 
 function openStudentCard(studentId) {
     if (!studentId || !state.students[studentId]) return alert('Карточка доступна после сохранения ученика.');
@@ -1378,6 +1409,8 @@ function openStudentCard(studentId) {
     document.getElementById('student-calendar-name').value = info.calendar_name || '';
     document.getElementById('student-birthday').value = info.birthday || '';
     document.getElementById('student-default-price').value = info.default_price || '';
+    document.getElementById('student-note').value = info.note || '';
+    setStudentStatus(info.status || 'active');
     renderContacts('student-card-student-contacts', info.student_contacts || {});
     renderContacts('student-card-parent-contacts', info.contacts || {});
     document.getElementById('student-card-overlay').classList.remove('hidden');
@@ -1393,6 +1426,8 @@ document.getElementById('btn-save-student-card').onclick = async () => {
         calendar_name: document.getElementById('student-calendar-name').value.trim(),
         birthday: document.getElementById('student-birthday').value,
         default_price: Number(document.getElementById('student-default-price').value || 0),
+        status: document.getElementById('student-card-overlay').dataset.studentStatus || 'active',
+        note: document.getElementById('student-note').value.trim(),
         student_contacts: getContacts('student-card-student-contacts'),
         contacts: getContacts('student-card-parent-contacts')
     };
@@ -1401,6 +1436,7 @@ document.getElementById('btn-save-student-card').onclick = async () => {
     if (result.status !== 'ok') return alert(result.message || 'Ошибка сохранения ученика');
     state.students[studentId] = result.student;
     document.getElementById('student-card-overlay').classList.add('hidden');
+    fillStudentsDropdown();
     renderCalendar();
     refreshWorkCenterBadge();
 };
@@ -1434,9 +1470,10 @@ function renderWorkCenter() {
     badge.textContent = data.attention.length;
     badge.classList.toggle('hidden', !data.attention.length);
 
-    document.getElementById('hub-attention').innerHTML = data.attention.length
+    const attentionInfo = `<div class="hub-explainer"><strong>Что отслеживается</strong><span>Просроченные неоплаченные занятия · дни рождения в ближайшие 7 дней · задолженность, если она сохранена в данных ученика.</span></div>`;
+    document.getElementById('hub-attention').innerHTML = attentionInfo + (data.attention.length
         ? data.attention.map(item => `<div class="hub-item">${escapeHtml(item.text || '')}</div>`).join('')
-        : '<div class="hub-empty">Всё спокойно — ничего срочного.</div>';
+        : '<div class="hub-empty">Сейчас всё спокойно — ничего из этого не требует внимания.</div>');
 
     document.getElementById('hub-windows').innerHTML = data.windows.length
         ? data.windows.map(item => `<div class="hub-item"><strong>${shortDateRu(item.date)}</strong><span>${item.from}–${item.to}</span></div>`).join('')

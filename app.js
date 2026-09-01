@@ -787,6 +787,9 @@ document.getElementById('btn-action-subscription').onclick = () => {
     document.getElementById('subscription-pay-desc').textContent = `Стоимость одного урока: ${price.toLocaleString('ru-RU')} ₽. Укажите общую сумму абонемента.`;
     const amountInput = document.getElementById('subscription-pay-amount');
     amountInput.value = String(price * 3);
+    document.getElementById('subscription-custom-count-enabled').checked = false;
+    document.getElementById('subscription-custom-count').value = '3';
+    document.getElementById('subscription-custom-count-wrap').classList.add('hidden');
     document.getElementById('subscription-send-receipt-checkbox').checked = state.settings.default_send_receipts !== false;
     updateSubscriptionPayHint();
     closeActionMenu();
@@ -800,25 +803,54 @@ function updateSubscriptionPayHint() {
     if (!lesson || !hint) return;
     const price = Number(getStudentInfo(lesson.student_id).default_price || lesson.price || 0);
     const amount = Number(document.getElementById('subscription-pay-amount').value || 0);
+    const customEnabled = document.getElementById('subscription-custom-count-enabled').checked;
+    const customCount = Number(document.getElementById('subscription-custom-count').value || 0);
+    document.getElementById('subscription-custom-count-wrap').classList.toggle('hidden', !customEnabled);
     if (!(price > 0) || !(amount > 0)) { hint.textContent = ''; return; }
+
+    if (customEnabled) {
+        if (!Number.isInteger(customCount) || customCount < 2) {
+            hint.textContent = 'Укажите количество занятий — целое число от 2.';
+            return;
+        }
+        const effectivePrice = amount / customCount;
+        hint.textContent = `Будет оплачено занятий: ${customCount}. Цена по абонементу: ${effectivePrice.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽ / занятие.`;
+        return;
+    }
+
     const count = amount / price;
-    if (Math.abs(count - Math.round(count)) > 0.0001) hint.textContent = `Сумма должна делиться на ${price.toLocaleString('ru-RU')} ₽ без остатка.`;
+    if (Math.abs(count - Math.round(count)) > 0.0001) hint.textContent = `Сумма не делится на ${price.toLocaleString('ru-RU')} ₽. Включите «Зачесть за другое количество занятий».`;
     else hint.textContent = `Будет оплачено занятий: ${Math.round(count)}.`;
 }
 
 document.getElementById('subscription-pay-amount').addEventListener('input', updateSubscriptionPayHint);
+document.getElementById('subscription-custom-count').addEventListener('input', updateSubscriptionPayHint);
+document.getElementById('subscription-custom-count-enabled').addEventListener('change', () => {
+    const enabled = document.getElementById('subscription-custom-count-enabled').checked;
+    if (enabled) {
+        const lesson = state.selectedLesson;
+        const price = Number(getStudentInfo(lesson?.student_id).default_price || lesson?.price || 0);
+        const amount = Number(document.getElementById('subscription-pay-amount').value || 0);
+        if (price > 0 && amount > 0) {
+            document.getElementById('subscription-custom-count').value = String(Math.max(2, Math.round(amount / price)));
+        }
+    }
+    updateSubscriptionPayHint();
+});
 document.getElementById('btn-subscription-pay-cancel').onclick = () => document.getElementById('subscription-pay-overlay').classList.add('hidden');
 document.getElementById('btn-subscription-pay-apply').onclick = async () => {
     const lesson = state.selectedLesson;
     if (!lesson) return;
     const amount = Number(document.getElementById('subscription-pay-amount').value || 0);
+    const customCountEnabled = document.getElementById('subscription-custom-count-enabled').checked;
+    const lessonCount = customCountEnabled ? Number(document.getElementById('subscription-custom-count').value || 0) : null;
     const sendReceipt = document.getElementById('subscription-send-receipt-checkbox').checked;
     const button = document.getElementById('btn-subscription-pay-apply');
     button.disabled = true;
     try {
         const response = await apiFetch('/pay_subscription', {
             method: 'POST',
-            body: JSON.stringify({ date: lesson.date, id: lesson.id, amount, send_receipt: sendReceipt })
+            body: JSON.stringify({ date: lesson.date, id: lesson.id, amount, lesson_count: lessonCount, send_receipt: sendReceipt })
         });
         const result = await response.json();
         if (result.status !== 'ok') return alert(result.message || 'Ошибка оплаты абонемента');
@@ -1196,20 +1228,28 @@ async function runExportButton(button, workingText, action) {
     }
 }
 
+async function sendExportToTelegram(path, options = {}) {
+    const response = await apiFetch(path, options);
+    let result = {};
+    try { result = await response.json(); } catch (_) {}
+    if (!response.ok || result.status !== 'ok') {
+        throw new Error(result.message || 'Не удалось отправить файл в Telegram');
+    }
+    alert(result.message || 'Файл отправлен в Telegram.');
+}
+
 const btnDownloadBook = document.getElementById('btn-download-book');
-btnDownloadBook.onclick = () => runExportButton(btnDownloadBook, 'Готовлю книгу учёта', async () => {
-    await downloadApiFile('/download_book', { method: 'GET' }, 'kniga_ucheta.xlsx');
+btnDownloadBook.onclick = () => runExportButton(btnDownloadBook, 'Отправляю книгу учёта', async () => {
+    await sendExportToTelegram('/download_book', { method: 'GET' });
 });
 
 const btnExportWeekPdf = document.getElementById('btn-export-week-pdf');
-btnExportWeekPdf.onclick = () => runExportButton(btnExportWeekPdf, 'Готовлю PDF недели', async () => {
+btnExportWeekPdf.onclick = () => runExportButton(btnExportWeekPdf, 'Отправляю PDF недели', async () => {
     const start = dateKey(state.currentMonday);
-    const endDate = new Date(state.currentMonday);
-    endDate.setDate(endDate.getDate() + 6);
-    await downloadApiFile('/export_week_pdf', {
+    await sendExportToTelegram('/export_week_pdf', {
         method: 'POST',
         body: JSON.stringify({ week_start: start })
-    }, `raspisanie_${start}_${dateKey(endDate)}.pdf`);
+    });
 });
 
 // Общие настройки и данные для чека

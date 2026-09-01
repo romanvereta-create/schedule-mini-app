@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Расписание</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css?v=24-simple-payments">
+    <link rel="stylesheet" href="styles.css?v=25-telegram-exports-discount">
 </head>
 <body>
     <header class="main-header">
@@ -136,6 +136,14 @@
                 <label>Сумма абонемента, ₽</label>
                 <input type="number" id="subscription-pay-amount" min="0" step="1" inputmode="decimal" placeholder="Например: 3000">
                 <small id="subscription-pay-hint" class="field-hint"></small>
+            </div>
+            <label class="checkbox-label receipt-send-checkbox">
+                <input type="checkbox" id="subscription-custom-count-enabled">
+                <span>Зачесть за другое количество занятий</span>
+            </label>
+            <div id="subscription-custom-count-wrap" class="form-group text-left hidden">
+                <label>Количество занятий</label>
+                <input type="number" id="subscription-custom-count" min="2" step="1" inputmode="numeric" placeholder="Например: 3">
             </div>
             <label class="checkbox-label receipt-send-checkbox">
                 <input type="checkbox" id="subscription-send-receipt-checkbox" checked>
@@ -367,10 +375,10 @@
                 </button>
                 <div class="settings-mini-title">Файлы и экспорт</div>
                 <button id="btn-download-book" class="settings-link-row export-link-row" type="button">
-                    <span class="settings-link-main"><strong>📗 Книга учёта</strong><small>Скачать Excel-файл</small></span><span>↓</span>
+                    <span class="settings-link-main"><strong>📗 Книга учёта</strong><small>Прислать Excel в Telegram</small></span><span>›</span>
                 </button>
                 <button id="btn-export-week-pdf" class="settings-link-row export-link-row" type="button">
-                    <span class="settings-link-main"><strong>📄 Расписание недели</strong><small>Открытая сейчас неделя · PDF</small></span><span>↓</span>
+                    <span class="settings-link-main"><strong>📄 Расписание недели</strong><small>Прислать PDF в Telegram</small></span><span>›</span>
                 </button>
             </div>
             <div class="modal-actions">
@@ -438,6 +446,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=24-simple-payments"></script>
+    <script src="app.js?v=25-telegram-exports-discount"></script>
 </body>
 </html>

@@ -78,35 +78,88 @@ async function apiFetch(path, options = {}) {
     return response;
 }
 
+async function loadSchedule() {
+    const requestedWeek = dateKey(state.currentMonday);
+    const response = await apiFetch('/get_week_schedule', {
+        method: 'POST',
+        body: JSON.stringify({ week_start: requestedWeek })
+    });
+    const data = await response.json();
+    if (data.status !== 'ok') throw new Error(data.message || 'Ошибка расписания');
+
+    // Если пользователь успел перелистнуть неделю, не затираем новый экран старым ответом.
+    if (requestedWeek !== dateKey(state.currentMonday)) return false;
+    state.schedule = data.schedule || {};
+    renderCalendar();
+    return true;
+}
+
+async function loadStudents() {
+    const response = await apiFetch('/get_students');
+    const data = await response.json();
+    if (!response.ok || data.status === 'error') throw new Error(data.message || 'Ошибка загрузки учеников');
+    state.students = data.students || {};
+    fillStudentsDropdown();
+    return true;
+}
+
+async function loadSettings() {
+    try {
+        const response = await apiFetch('/get_settings');
+        if (!response.ok) return false;
+        const data = await response.json();
+        if (data.status === 'ok') state.settings = data.settings || state.settings;
+        return true;
+    } catch (error) {
+        console.warn('Настройки пока недоступны:', error);
+        return false;
+    }
+}
+
+function scheduleWorkCenterRefresh(delay = 300) {
+    window.clearTimeout(scheduleWorkCenterRefresh.timer);
+    scheduleWorkCenterRefresh.timer = window.setTimeout(() => {
+        refreshWorkCenterBadge();
+    }, delay);
+}
+
 async function fetchData() {
     try {
-        const scheduleResponse = await apiFetch('/get_week_schedule', {
-            method: 'POST',
-            body: JSON.stringify({ week_start: dateKey(state.currentMonday) })
-        });
-        const scheduleData = await scheduleResponse.json();
-        if (scheduleData.status !== 'ok') throw new Error(scheduleData.message || 'Ошибка расписания');
-        state.schedule = scheduleData.schedule || {};
-
-        const studentsResponse = await apiFetch('/get_students');
-        const studentsData = await studentsResponse.json();
-        state.students = studentsData.students || {};
-
-        try {
-            const settingsResponse = await apiFetch('/get_settings');
-            if (settingsResponse.ok) {
-                const settingsData = await settingsResponse.json();
-                if (settingsData.status === 'ok') state.settings = settingsData.settings || state.settings;
-            }
-        } catch (settingsError) {
-            console.warn('Настройки пока недоступны:', settingsError);
-        }
-
-        fillStudentsDropdown();
+        // Независимые стартовые запросы идут одновременно, а не цепочкой.
+        await Promise.all([loadSchedule(), loadStudents(), loadSettings()]);
         renderCalendar();
-        refreshWorkCenterBadge();
+        scheduleWorkCenterRefresh();
     } catch (error) {
         console.error('Ошибка загрузки:', error);
+    }
+}
+
+async function refreshScheduleOnly({ refreshHelper = true } = {}) {
+    try {
+        const applied = await loadSchedule();
+        if (applied && refreshHelper) scheduleWorkCenterRefresh();
+    } catch (error) {
+        console.error('Ошибка загрузки расписания:', error);
+    }
+}
+
+async function refreshScheduleAndStudents() {
+    try {
+        await Promise.all([loadSchedule(), loadStudents()]);
+        renderCalendar();
+        scheduleWorkCenterRefresh();
+    } catch (error) {
+        console.error('Ошибка обновления данных:', error);
+    }
+}
+
+async function refreshStudentsOnly() {
+    try {
+        await loadStudents();
+        renderCalendar();
+        scheduleWorkCenterRefresh();
+    } catch (error) {
+        console.error('Ошибка обновления учеников:', error);
     }
 }
 
@@ -398,7 +451,7 @@ async function executeMove(actionType) {
     const result = await response.json();
     if (result.status !== 'ok') return alert(result.message || 'Ошибка переноса');
     cancelMove();
-    fetchData();
+    refreshScheduleOnly();
 }
 
 function cancelMove() {
@@ -625,7 +678,7 @@ async function saveLesson() {
     const result = await response.json();
     if (result.status !== 'ok') return alert(result.message || 'Ошибка сохранения');
     closeAllModals();
-    fetchData();
+    refreshScheduleAndStudents();
 }
 
 function closeAllModals() {
@@ -648,7 +701,7 @@ document.querySelectorAll('.color-swatch').forEach(el => {
                 const result = await response.json();
                 if (result.status !== 'ok') return alert(result.message || 'Ошибка изменения цвета');
                 closeAllModals();
-                fetchData();
+                refreshStudentsOnly();
             });
             input.click();
             return;
@@ -661,7 +714,7 @@ document.querySelectorAll('.color-swatch').forEach(el => {
         const result = await response.json();
         if (result.status !== 'ok') return alert(result.message || 'Ошибка изменения цвета');
         closeAllModals();
-        fetchData();
+        refreshStudentsOnly();
     });
 });
 
@@ -704,7 +757,7 @@ document.getElementById('btn-action-paid').onclick = async () => {
         const result = await response.json();
         if (result.status !== 'ok') return alert(result.message || 'Ошибка изменения оплаты');
         closeActionMenu();
-        fetchData();
+        refreshScheduleOnly();
         return;
     }
 
@@ -747,7 +800,7 @@ document.getElementById('btn-paid-confirm-apply').onclick = async () => {
         const result = await response.json();
         if (result.status !== 'ok') return alert(result.message || 'Ошибка изменения оплаты');
         document.getElementById('paid-confirm-overlay').classList.add('hidden');
-        await fetchData();
+        await refreshScheduleOnly();
         if (isGroup) alert(`Оплаты группы сохранены. ${result.receipt_message || ''}`);
         else alert(`Оплата отмечена. Чек № ${result.receipt_number || '—'}. ${result.receipt_message || ''}`);
     } finally {
@@ -840,7 +893,7 @@ document.getElementById('btn-delete-once').onclick = async () => {
     const result = await response.json();
     if (result.status !== 'ok') return alert(result.message || 'Ошибка удаления');
     closeAllModals();
-    fetchData();
+    refreshScheduleOnly();
 };
 document.getElementById('btn-delete-all').onclick = async () => {
     const l = state.selectedLesson;
@@ -848,7 +901,7 @@ document.getElementById('btn-delete-all').onclick = async () => {
     const result = await response.json();
     if (result.status !== 'ok') return alert(result.message || 'Ошибка удаления');
     closeAllModals();
-    fetchData();
+    refreshScheduleOnly();
 };
 document.getElementById('btn-delete-cancel').onclick = closeAllModals;
 
@@ -870,7 +923,7 @@ document.getElementById('btn-close-modal').onclick = closeAllModals;
 // Дата и навигация
 function shiftWeek(days) {
     state.currentMonday.setDate(state.currentMonday.getDate() + days);
-    fetchData();
+    refreshScheduleOnly();
 }
 
 function openDatePicker() {
@@ -907,7 +960,7 @@ function renderDatePicker() {
         button.onclick = () => {
             state.currentMonday = getMonday(date);
             document.getElementById('date-picker-overlay').classList.add('hidden');
-            fetchData();
+            refreshScheduleOnly();
         };
         grid.appendChild(button);
     }
@@ -920,11 +973,11 @@ document.getElementById('date-picker-today').onclick = () => {
     const today = new Date();
     state.currentMonday = getMonday(today);
     document.getElementById('date-picker-overlay').classList.add('hidden');
-    fetchData();
+    refreshScheduleOnly();
 };
 document.getElementById('date-picker-close').onclick = () => document.getElementById('date-picker-overlay').classList.add('hidden');
 
-document.getElementById('btn-today').onclick = () => { state.currentMonday = getMonday(new Date()); fetchData(); };
+document.getElementById('btn-today').onclick = () => { state.currentMonday = getMonday(new Date()); refreshScheduleOnly(); };
 document.getElementById('btn-prev-week').onclick = () => shiftWeek(-7);
 document.getElementById('btn-next-week').onclick = () => shiftWeek(7);
 document.getElementById('btn-zoom-in').onclick = () => { hourHeight = Math.min(MAX_HOUR_HEIGHT, hourHeight + ZOOM_STEP); renderCalendar(); };

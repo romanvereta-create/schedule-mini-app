@@ -583,3 +583,33 @@ body {
 .event-card.partial-paid-status {
     box-shadow: inset 0 0 0 2px #f9ab00, 0 2px 5px rgba(0,0,0,0.25);
 }
+
+
+/* v21: плавное листание недель и более отзывчивый zoom */
+.week-days-container { position: relative; overflow: hidden; }
+.days-row, .calendar-grid { transform: translate3d(0, 0, 0); backface-visibility: hidden; }
+.week-slide-snapshot {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 25;
+    width: 100%;
+    background: #ffffff;
+    pointer-events: none;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+}
+.week-header-snapshot {
+    position: absolute !important;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 52px;
+    z-index: 5;
+    background: #ffffff;
+    pointer-events: none;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+}
+#calendar-container { overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }

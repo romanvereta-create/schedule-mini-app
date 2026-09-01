@@ -9,6 +9,7 @@ const MAX_HOUR_HEIGHT = 160;
 const ZOOM_STEP = 20;
 
 let hourHeight = 80;
+let weekTransitioning = false;
 
 const state = {
     currentMonday: getMonday(new Date()),
@@ -78,18 +79,24 @@ async function apiFetch(path, options = {}) {
     return response;
 }
 
-async function loadSchedule() {
-    const requestedWeek = dateKey(state.currentMonday);
+async function fetchWeekSchedule(monday) {
+    const requestedWeek = dateKey(monday);
     const response = await apiFetch('/get_week_schedule', {
         method: 'POST',
         body: JSON.stringify({ week_start: requestedWeek })
     });
     const data = await response.json();
     if (data.status !== 'ok') throw new Error(data.message || 'Ошибка расписания');
+    return { requestedWeek, schedule: data.schedule || {} };
+}
+
+async function loadSchedule() {
+    const requestedMonday = new Date(state.currentMonday);
+    const data = await fetchWeekSchedule(requestedMonday);
 
     // Если пользователь успел перелистнуть неделю, не затираем новый экран старым ответом.
-    if (requestedWeek !== dateKey(state.currentMonday)) return false;
-    state.schedule = data.schedule || {};
+    if (data.requestedWeek !== dateKey(state.currentMonday)) return false;
+    state.schedule = data.schedule;
     renderCalendar();
     return true;
 }
@@ -284,7 +291,6 @@ function renderCalendar() {
     for (let hour = START_HOUR; hour <= END_HOUR; hour++) {
         const label = document.createElement('div');
         label.className = 'time-label';
-        label.style.height = `${hourHeight}px`;
         label.textContent = `${String(hour).padStart(2, '0')}:00`;
         labels.appendChild(label);
     }
@@ -299,7 +305,6 @@ function renderCalendar() {
         for (let hour = START_HOUR; hour <= END_HOUR; hour++) {
             const slot = document.createElement('div');
             slot.className = 'time-slot';
-            slot.style.height = `${hourHeight}px`;
             slot.addEventListener('click', () => {
                 const time = `${String(hour).padStart(2, '0')}:00`;
                 if (state.isMoving) confirmMoveTarget(key, time);
@@ -346,6 +351,8 @@ function renderEvents() {
             card.style.left = `${dayIndex * colWidth + 2}px`;
             card.style.width = `${Math.max(20, colWidth - 4)}px`;
             card.style.height = `${height}px`;
+            card.dataset.startMinutes = String((hour - START_HOUR) * 60 + minute);
+            card.dataset.durationMinutes = String(duration);
 
             const title = document.createElement('div');
             title.className = 'event-title';
@@ -921,9 +928,127 @@ document.getElementById('btn-close-modal').onclick = closeAllModals;
 });
 
 // Дата и навигация
-function shiftWeek(days) {
-    state.currentMonday.setDate(state.currentMonday.getDate() + days);
-    refreshScheduleOnly();
+function stripCloneIds(root) {
+    if (root.id) root.removeAttribute('id');
+    root.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+}
+
+function clearWeekDragStyles() {
+    const grid = document.querySelector('#calendar-container > .calendar-grid');
+    const header = document.getElementById('days-header');
+    if (grid) {
+        grid.style.transition = '';
+        grid.style.transform = '';
+        grid.style.willChange = '';
+    }
+    if (header) {
+        header.style.transition = '';
+        header.style.transform = '';
+        header.style.willChange = '';
+    }
+}
+
+function setWeekDragOffset(dx) {
+    const grid = document.querySelector('#calendar-container > .calendar-grid');
+    const header = document.getElementById('days-header');
+    const offset = Math.max(-150, Math.min(150, dx * 0.48));
+    const transform = `translate3d(${offset}px, 0, 0)`;
+    if (grid) {
+        grid.style.willChange = 'transform';
+        grid.style.transform = transform;
+    }
+    if (header) {
+        header.style.willChange = 'transform';
+        header.style.transform = transform;
+    }
+}
+
+function animateBackFromWeekDrag() {
+    const grid = document.querySelector('#calendar-container > .calendar-grid');
+    const header = document.getElementById('days-header');
+    [grid, header].forEach(el => {
+        if (!el) return;
+        el.style.transition = 'transform 180ms cubic-bezier(.22,.61,.36,1)';
+        el.style.transform = 'translate3d(0,0,0)';
+    });
+    window.setTimeout(clearWeekDragStyles, 200);
+}
+
+async function shiftWeek(days, { fromSwipe = false } = {}) {
+    if (weekTransitioning || !days) return;
+    weekTransitioning = true;
+
+    const direction = days > 0 ? -1 : 1;
+    const container = document.getElementById('calendar-container');
+    const currentGrid = container.querySelector(':scope > .calendar-grid');
+    const header = document.getElementById('days-header');
+    const headerParent = header?.parentElement;
+
+    const gridSnapshot = currentGrid?.cloneNode(true) || null;
+    const headerSnapshot = header?.cloneNode(true) || null;
+    if (gridSnapshot) {
+        stripCloneIds(gridSnapshot);
+        gridSnapshot.classList.add('week-slide-snapshot');
+        gridSnapshot.style.transform = currentGrid.style.transform || 'translate3d(0,0,0)';
+        container.appendChild(gridSnapshot);
+    }
+    if (headerSnapshot && headerParent) {
+        stripCloneIds(headerSnapshot);
+        headerSnapshot.classList.add('week-header-snapshot');
+        headerSnapshot.style.transform = header.style.transform || 'translate3d(0,0,0)';
+        headerParent.appendChild(headerSnapshot);
+    }
+
+    const targetMonday = new Date(state.currentMonday);
+    targetMonday.setDate(targetMonday.getDate() + days);
+
+    try {
+        const data = await fetchWeekSchedule(targetMonday);
+        state.currentMonday = targetMonday;
+        state.schedule = data.schedule;
+        clearWeekDragStyles();
+        renderCalendar();
+
+        const newGrid = container.querySelector(':scope > .calendar-grid');
+        const newHeader = document.getElementById('days-header');
+        const startX = direction * -100;
+        const exitX = direction * 100;
+
+        [newGrid, newHeader].forEach(el => {
+            if (!el) return;
+            el.style.transition = 'none';
+            el.style.willChange = 'transform';
+            el.style.transform = `translate3d(${startX}%,0,0)`;
+        });
+
+        // Два кадра гарантируют, что браузер увидит начальную позицию новой недели.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            [newGrid, newHeader].forEach(el => {
+                if (!el) return;
+                el.style.transition = 'transform 230ms cubic-bezier(.22,.61,.36,1)';
+                el.style.transform = 'translate3d(0,0,0)';
+            });
+            [gridSnapshot, headerSnapshot].forEach(el => {
+                if (!el) return;
+                el.style.transition = 'transform 230ms cubic-bezier(.22,.61,.36,1)';
+                el.style.transform = `translate3d(${exitX}%,0,0)`;
+            });
+        }));
+
+        window.setTimeout(() => {
+            gridSnapshot?.remove();
+            headerSnapshot?.remove();
+            clearWeekDragStyles();
+            weekTransitioning = false;
+        }, 270);
+        scheduleWorkCenterRefresh();
+    } catch (error) {
+        console.error('Ошибка загрузки расписания:', error);
+        gridSnapshot?.remove();
+        headerSnapshot?.remove();
+        animateBackFromWeekDrag();
+        weekTransitioning = false;
+    }
 }
 
 function openDatePicker() {
@@ -980,8 +1105,8 @@ document.getElementById('date-picker-close').onclick = () => document.getElement
 document.getElementById('btn-today').onclick = () => { state.currentMonday = getMonday(new Date()); refreshScheduleOnly(); };
 document.getElementById('btn-prev-week').onclick = () => shiftWeek(-7);
 document.getElementById('btn-next-week').onclick = () => shiftWeek(7);
-document.getElementById('btn-zoom-in').onclick = () => { hourHeight = Math.min(MAX_HOUR_HEIGHT, hourHeight + ZOOM_STEP); renderCalendar(); };
-document.getElementById('btn-zoom-out').onclick = () => { hourHeight = Math.max(MIN_HOUR_HEIGHT, hourHeight - ZOOM_STEP); renderCalendar(); };
+document.getElementById('btn-zoom-in').onclick = () => applyHourHeightSmooth(Math.min(MAX_HOUR_HEIGHT, hourHeight + ZOOM_STEP));
+document.getElementById('btn-zoom-out').onclick = () => applyHourHeightSmooth(Math.max(MIN_HOUR_HEIGHT, hourHeight - ZOOM_STEP));
 
 // Общие настройки и данные для чека
 const receiptSettingFields = [
@@ -1204,58 +1329,134 @@ document.querySelectorAll('.hub-row').forEach(row => {
     };
 });
 
-// Pinch + перелистывание недель одним пальцем
-let pinchStartY = null;
+// Плавный pinch-зум + живое перелистывание недель одним пальцем
+let pinchStartDistance = null;
 let pinchStartHeight = hourHeight;
+let pinchAnchorHours = null;
+let pinchAnchorLocalY = null;
+let pendingPinchHeight = null;
+let pinchFrame = null;
 let swipeStartX = null;
 let swipeStartY = null;
 let swipeTracking = false;
+let swipeHorizontal = false;
 const calendarContainer = document.getElementById('calendar-container');
+
+function applyHourHeightSmooth(nextHeight) {
+    hourHeight = Math.max(MIN_HOUR_HEIGHT, Math.min(MAX_HOUR_HEIGHT, nextHeight));
+    document.documentElement.style.setProperty('--hour-height', `${hourHeight}px`);
+
+    document.querySelectorAll('#events-layer .event-card').forEach(card => {
+        const startMinutes = Number(card.dataset.startMinutes || 0);
+        const duration = Number(card.dataset.durationMinutes || 60);
+        card.style.top = `${startMinutes * hourHeight / 60}px`;
+        card.style.height = `${Math.max(18, duration * hourHeight / 60 - 2)}px`;
+    });
+
+    if (pinchAnchorHours !== null && pinchAnchorLocalY !== null) {
+        calendarContainer.scrollTop = Math.max(0, pinchAnchorHours * hourHeight - pinchAnchorLocalY);
+    }
+    updateCurrentTimeLine();
+}
+
+function schedulePinchHeight(nextHeight) {
+    pendingPinchHeight = nextHeight;
+    if (pinchFrame !== null) return;
+    pinchFrame = requestAnimationFrame(() => {
+        pinchFrame = null;
+        if (pendingPinchHeight !== null) applyHourHeightSmooth(pendingPinchHeight);
+        pendingPinchHeight = null;
+    });
+}
+
+function finishPinch() {
+    if (pinchFrame !== null) {
+        cancelAnimationFrame(pinchFrame);
+        pinchFrame = null;
+    }
+    if (pendingPinchHeight !== null) {
+        applyHourHeightSmooth(pendingPinchHeight);
+        pendingPinchHeight = null;
+    }
+    pinchStartDistance = null;
+    pinchAnchorHours = null;
+    pinchAnchorLocalY = null;
+}
 
 calendarContainer.addEventListener('touchstart', event => {
     if (event.touches.length === 2) {
         swipeTracking = false;
+        swipeHorizontal = false;
         swipeStartX = null;
-        pinchStartY = Math.abs(event.touches[0].clientY - event.touches[1].clientY);
+        const a = event.touches[0];
+        const b = event.touches[1];
+        const dx = a.clientX - b.clientX;
+        const dy = a.clientY - b.clientY;
+        pinchStartDistance = Math.hypot(dx, dy);
         pinchStartHeight = hourHeight;
+        const rect = calendarContainer.getBoundingClientRect();
+        const midpointY = (a.clientY + b.clientY) / 2;
+        pinchAnchorLocalY = midpointY - rect.top;
+        pinchAnchorHours = (calendarContainer.scrollTop + pinchAnchorLocalY) / pinchStartHeight;
         return;
     }
-    if (event.touches.length === 1 && !state.isMoving && !event.target.closest('.event-card')) {
-        pinchStartY = null;
+    if (event.touches.length === 1 && !state.isMoving && !weekTransitioning && !event.target.closest('.event-card')) {
+        finishPinch();
         swipeStartX = event.touches[0].clientX;
         swipeStartY = event.touches[0].clientY;
         swipeTracking = true;
+        swipeHorizontal = false;
     }
 }, { passive: true });
 
 calendarContainer.addEventListener('touchmove', event => {
-    if (event.touches.length === 2 && pinchStartY !== null) {
+    if (event.touches.length === 2 && pinchStartDistance !== null) {
         event.preventDefault();
-        const currentY = Math.abs(event.touches[0].clientY - event.touches[1].clientY);
-        const difference = currentY - pinchStartY;
-        hourHeight = Math.max(MIN_HOUR_HEIGHT, Math.min(MAX_HOUR_HEIGHT, pinchStartHeight + difference * 0.6));
-        renderCalendar();
+        const a = event.touches[0];
+        const b = event.touches[1];
+        const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+        const ratio = distance / Math.max(1, pinchStartDistance);
+        // Нелинейная чувствительность: небольшое движение пальцев уже заметно, но без скачков.
+        const nextHeight = pinchStartHeight * Math.pow(ratio, 0.88);
+        schedulePinchHeight(nextHeight);
         return;
     }
     if (event.touches.length === 1 && swipeTracking && swipeStartX !== null) {
         const dx = event.touches[0].clientX - swipeStartX;
         const dy = event.touches[0].clientY - swipeStartY;
-        if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.2) event.preventDefault();
+        if (!swipeHorizontal && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.15) swipeHorizontal = true;
+        if (swipeHorizontal) {
+            event.preventDefault();
+            setWeekDragOffset(dx);
+        }
     }
 }, { passive: false });
 
 calendarContainer.addEventListener('touchend', event => {
-    if (event.touches.length < 2) pinchStartY = null;
+    if (event.touches.length < 2 && pinchStartDistance !== null) finishPinch();
     if (!swipeTracking || swipeStartX === null || !event.changedTouches.length) return;
     const dx = event.changedTouches[0].clientX - swipeStartX;
     const dy = event.changedTouches[0].clientY - swipeStartY;
     swipeTracking = false;
     swipeStartX = null;
     swipeStartY = null;
-    if (Math.abs(dx) >= 70 && Math.abs(dx) > Math.abs(dy) * 1.25) {
+    const shouldShift = swipeHorizontal && Math.abs(dx) >= 58 && Math.abs(dx) > Math.abs(dy) * 1.18;
+    swipeHorizontal = false;
+    if (shouldShift) {
         haptic('light');
-        shiftWeek(dx < 0 ? 7 : -7);
+        shiftWeek(dx < 0 ? 7 : -7, { fromSwipe: true });
+    } else {
+        animateBackFromWeekDrag();
     }
+});
+
+calendarContainer.addEventListener('touchcancel', () => {
+    finishPinch();
+    swipeTracking = false;
+    swipeHorizontal = false;
+    swipeStartX = null;
+    swipeStartY = null;
+    animateBackFromWeekDrag();
 });
 
 window.addEventListener('resize', () => requestAnimationFrame(() => renderCalendar()));

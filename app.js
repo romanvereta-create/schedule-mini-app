@@ -45,24 +45,46 @@ function getStudentInfo(studentId) {
 
 function getStudentColor(studentId, name) {
     const info = getStudentInfo(studentId);
-    if (info.color !== undefined && info.color !== null) return Number(info.color);
+    if (typeof info.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(info.color)) return info.color;
+    if (info.color !== undefined && info.color !== null) {
+        const numericColor = Number(info.color);
+        if (Number.isInteger(numericColor) && numericColor >= 0 && numericColor <= 7) return numericColor;
+    }
     let hash = 0;
     for (const char of String(name || '')) hash = ((hash << 5) - hash) + char.charCodeAt(0);
     return Math.abs(hash) % 7;
 }
 
+function apiHeaders(extraHeaders = {}) {
+    return {
+        'Content-Type': 'application/json',
+        'X-Telegram-Init-Data': tg.initData || '',
+        ...extraHeaders
+    };
+}
+
+async function apiFetch(path, options = {}) {
+    const response = await fetch(API_URL + path, {
+        ...options,
+        headers: apiHeaders(options.headers || {})
+    });
+    if (response.status === 401) {
+        throw new Error('Доступ к API отклонён. Откройте календарь через Telegram-бота.');
+    }
+    return response;
+}
+
 async function fetchData() {
     try {
-        const scheduleResponse = await fetch(`${API_URL}/get_week_schedule`, {
+        const scheduleResponse = await apiFetch('/get_week_schedule', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ week_start: dateKey(state.currentMonday) })
         });
         const scheduleData = await scheduleResponse.json();
         if (scheduleData.status !== 'ok') throw new Error(scheduleData.message || 'Ошибка расписания');
         state.schedule = scheduleData.schedule || {};
 
-        const studentsResponse = await fetch(`${API_URL}/get_students`);
+        const studentsResponse = await apiFetch('/get_students');
         const studentsData = await studentsResponse.json();
         state.students = studentsData.students || {};
 
@@ -167,7 +189,9 @@ function renderEvents() {
             const card = document.createElement('div');
             const isActiveMove = state.isMoving && state.selectedLesson && state.selectedLesson.id === lesson.id;
             const color = getStudentColor(lesson.student_id, lesson.student);
-            card.className = `event-card color-${color} ${lesson.paid ? 'paid-status' : ''} ${isActiveMove ? 'moving-active' : ''}`;
+            const colorClass = typeof color === 'number' ? `color-${color}` : '';
+            card.className = `event-card ${colorClass} ${lesson.paid ? 'paid-status' : ''} ${isActiveMove ? 'moving-active' : ''}`;
+            if (typeof color === 'string') card.style.backgroundColor = color;
 
             const top = ((hour - START_HOUR) * 60 + minute) * hourHeight / 60;
             const height = Math.max(18, duration * hourHeight / 60 - 2);
@@ -189,7 +213,7 @@ function renderEvents() {
                     longPressed = true;
                     haptic('heavy');
                     startMove(key, lesson);
-                }, 550);
+                }, 500);
             }, { passive: true });
             card.addEventListener('touchmove', () => clearTimeout(timer), { passive: true });
             card.addEventListener('touchend', () => clearTimeout(timer));
@@ -225,20 +249,18 @@ function updateCurrentTimeLine() {
     }
 
     const columnWidth = document.getElementById('events-layer').clientWidth / 7;
-    const minutes = now.getHours() * 60 + Math.floor(now.getMinutes() / 10) * 10 - START_HOUR * 60;
+    const minutes = now.getHours() * 60 + Math.floor(now.getMinutes() / 5) * 5 - START_HOUR * 60;
     line.style.top = `${minutes * hourHeight / 60}px`;
     line.style.left = `${todayColumn * columnWidth}px`;
     line.style.width = `${columnWidth}px`;
     line.classList.remove('hidden');
 }
 
-setInterval(updateCurrentTimeLine, 60000);
+setInterval(updateCurrentTimeLine, 5 * 60 * 1000);
 
 function openActionMenu(date, lesson) {
     state.selectedLesson = { date, ...lesson };
-    const title = document.getElementById('action-menu-title');
-    const timeStr = lesson.time || '';
-    title.innerHTML = `${lesson.student || 'Ученик'} <span style="font-size:13px;font-weight:400;color:#5f6368;">${timeStr}</span>`;
+    document.getElementById('action-menu-title').textContent = `${lesson.student || 'Ученик'} · ${lesson.time || '--:--'}`;
     document.getElementById('btn-action-paid').textContent = lesson.paid ? '✅ Оплачено (снять)' : '💳 Оплатил';
     document.getElementById('action-menu-overlay').classList.remove('hidden');
 }
@@ -269,7 +291,9 @@ async function executeMove(actionType) {
         new_time: state.pendingMove.newTime,
         action_type: actionType
     };
-    await fetch(`${API_URL}/move_lesson`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const response = await apiFetch('/move_lesson', { method: 'POST', body: JSON.stringify(payload) });
+    const result = await response.json();
+    if (result.status !== 'ok') return alert(result.message || 'Ошибка переноса');
     cancelMove();
     fetchData();
 }
@@ -287,6 +311,7 @@ function resetAddForm() {
     document.getElementById('student-select').value = '';
     document.getElementById('manual-student-name').value = '';
     document.getElementById('manual-student-name').classList.add('hidden');
+    // Очищаем контакты
     document.querySelectorAll('.contact-input').forEach(inp => inp.value = '');
     document.querySelectorAll('.contact-remove-btn').forEach(btn => btn.style.display = 'none');
     document.getElementById('lesson-repeat').value = 'no';
@@ -329,6 +354,7 @@ function openEditModal(date, lesson) {
     document.getElementById('reminder-text').value = lesson.reminder_text || '';
     document.getElementById('zoom-link').value = lesson.zoom_link || '';
     
+    // Заполняем контакты
     const info = getStudentInfo(lesson.student_id);
     const contacts = info.contacts || {};
     document.querySelectorAll('.contact-input').forEach(inp => {
@@ -387,7 +413,7 @@ async function saveLesson() {
     const endpoint = state.editingExisting ? '/update_lesson' : '/add_lesson';
     if (state.editingExisting) payload.id = state.selectedLesson.id;
 
-    const response = await fetch(API_URL + endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const response = await apiFetch(endpoint, { method: 'POST', body: JSON.stringify(payload) });
     const result = await response.json();
     if (result.status !== 'ok') return alert(result.message || 'Ошибка сохранения');
     closeAllModals();
@@ -407,11 +433,12 @@ document.querySelectorAll('.color-swatch').forEach(el => {
             input.value = '#5c6bc0';
             input.addEventListener('input', async (e) => {
                 const color = e.target.value;
-                await fetch(`${API_URL}/update_student_color`, {
+                const response = await apiFetch('/update_student_color', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ student_id: state.selectedLesson?.student_id, color: color })
                 });
+                const result = await response.json();
+                if (result.status !== 'ok') return alert(result.message || 'Ошибка изменения цвета');
                 closeAllModals();
                 fetchData();
             });
@@ -419,11 +446,12 @@ document.querySelectorAll('.color-swatch').forEach(el => {
             return;
         }
         const color = el.dataset.color;
-        await fetch(`${API_URL}/update_student_color`, {
+        const response = await apiFetch('/update_student_color', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ student_id: state.selectedLesson?.student_id, color: color })
         });
+        const result = await response.json();
+        if (result.status !== 'ok') return alert(result.message || 'Ошибка изменения цвета');
         closeAllModals();
         fetchData();
     });
@@ -472,6 +500,7 @@ document.getElementById('add-contact-btn').addEventListener('click', () => {
     });
 });
 
+// Контакты: показывать кнопку удаления если есть значение
 document.querySelectorAll('.contact-input').forEach(inp => {
     const removeBtn = inp.parentElement.querySelector('.contact-remove-btn');
     if (inp.value.trim()) removeBtn.style.display = 'inline-block';
@@ -480,8 +509,15 @@ document.querySelectorAll('.contact-input').forEach(inp => {
         if (inp.value.trim()) removeBtn.style.display = 'inline-block';
         else removeBtn.style.display = 'none';
     });
+    removeBtn.addEventListener('click', event => {
+        event.preventDefault();
+        inp.value = '';
+        removeBtn.style.display = 'none';
+        inp.focus();
+    });
 });
 
+// Переключатель ручного ввода
 document.getElementById('student-select').addEventListener('change', event => {
     const input = document.getElementById('manual-student-name');
     const manual = event.target.value === 'manual';
@@ -494,13 +530,16 @@ document.getElementById('btn-action-settings').onclick = () => { closeActionMenu
 document.getElementById('btn-action-move-trigger').onclick = () => { closeActionMenu(); if (state.selectedLesson) startMove(state.selectedLesson.date, state.selectedLesson); };
 document.getElementById('btn-action-paid').onclick = async () => {
     const lesson = state.selectedLesson;
-    await fetch(`${API_URL}/mark_paid`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: lesson.date, id: lesson.id, paid: !lesson.paid }) });
+    const response = await apiFetch('/mark_paid', { method: 'POST', body: JSON.stringify({ date: lesson.date, id: lesson.id, paid: !lesson.paid }) });
+    const result = await response.json();
+    if (result.status !== 'ok') return alert(result.message || 'Ошибка изменения оплаты');
     closeActionMenu();
     fetchData();
 };
 document.getElementById('btn-action-delete').onclick = () => { closeActionMenu(); document.getElementById('delete-modal-overlay').classList.remove('hidden'); };
 document.getElementById('btn-action-close').onclick = closeActionMenu;
 
+// Написать ученику
 document.getElementById('btn-action-chat-student').onclick = () => {
     const id = state.selectedLesson?.student_id;
     const info = getStudentInfo(id);
@@ -510,6 +549,7 @@ document.getElementById('btn-action-chat-student').onclick = () => {
     closeActionMenu();
 };
 
+// Написать родителю (выбор мессенджера)
 document.getElementById('btn-action-chat-parent').onclick = () => {
     const lesson = state.selectedLesson;
     const info = getStudentInfo(lesson?.student_id);
@@ -530,6 +570,9 @@ document.getElementById('btn-action-chat-parent').onclick = () => {
         return;
     }
     
+    // Если несколько — показываем выбор
+    const menu = document.getElementById('action-menu-overlay');
+    // Простой выбор через alert (можно расширить)
     const msg = 'Выберите мессенджер:\n' + available.map((t, i) => `${i+1}. ${t.toUpperCase()}: ${contacts[t]}`).join('\n');
     const choice = prompt(msg + '\n\nВведите номер:');
     if (choice) {
@@ -561,16 +604,33 @@ function openContact(type, value) {
     }
 }
 
-document.getElementById('btn-delete-once').onclick = async () => { const l = state.selectedLesson; await fetch(`${API_URL}/delete_lesson`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: l.date, id: l.id, delete_all: false }) }); closeAllModals(); fetchData(); };
-document.getElementById('btn-delete-all').onclick = async () => { const l = state.selectedLesson; await fetch(`${API_URL}/delete_lesson`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: l.date, id: l.id, delete_all: true }) }); closeAllModals(); fetchData(); };
+// Удаление
+document.getElementById('btn-delete-once').onclick = async () => {
+    const l = state.selectedLesson;
+    const response = await apiFetch('/delete_lesson', { method: 'POST', body: JSON.stringify({ date: l.date, id: l.id, delete_all: false }) });
+    const result = await response.json();
+    if (result.status !== 'ok') return alert(result.message || 'Ошибка удаления');
+    closeAllModals();
+    fetchData();
+};
+document.getElementById('btn-delete-all').onclick = async () => {
+    const l = state.selectedLesson;
+    const response = await apiFetch('/delete_lesson', { method: 'POST', body: JSON.stringify({ date: l.date, id: l.id, delete_all: true }) });
+    const result = await response.json();
+    if (result.status !== 'ok') return alert(result.message || 'Ошибка удаления');
+    closeAllModals();
+    fetchData();
+};
 document.getElementById('btn-delete-cancel').onclick = closeAllModals;
 
+// Перенос
 document.getElementById('btn-action-copy').onclick = () => executeMove('copy');
 document.getElementById('btn-action-move-once').onclick = () => executeMove('move_once');
 document.getElementById('btn-action-move-all').onclick = () => executeMove('move_all');
 document.getElementById('btn-action-move-cancel').onclick = cancelMove;
 document.getElementById('btn-cancel-move').onclick = cancelMove;
 
+// Кнопки сохранения и закрытия
 document.getElementById('btn-save').onclick = saveLesson;
 document.getElementById('btn-cancel-modal').onclick = closeAllModals;
 document.getElementById('btn-close-modal').onclick = closeAllModals;
@@ -578,27 +638,25 @@ document.getElementById('btn-close-modal').onclick = closeAllModals;
     document.getElementById(id).addEventListener('click', event => { if (event.target.id === id) closeAllModals(); });
 });
 
-// ===== ВЫБОР ДАТЫ ПО НАЖАТИЮ НА МЕСЯЦ =====
-document.getElementById('month-label').addEventListener('click', function(e) {
-    e.stopPropagation();
+// Дата и навигация
+document.getElementById('month-label').onclick = () => {
     const input = document.getElementById('date-picker-input');
-    if (!input) return;
+    const visibleDate = new Date(state.currentMonday);
+    visibleDate.setDate(visibleDate.getDate() + 3);
+    input.value = dateKey(visibleDate);
+    input.focus({ preventScroll: true });
     try {
-        if (typeof input.showPicker === 'function') {
-            input.showPicker();
-        } else {
-            input.click();
-        }
-    } catch (err) {
+        if (typeof input.showPicker === 'function') input.showPicker();
+        else input.click();
+    } catch (error) {
         input.click();
     }
-});
-
-document.getElementById('date-picker-input').onchange = event => { 
-    if (!event.target.value) return; 
-    const [y, m, d] = event.target.value.split('-').map(Number); 
-    state.currentMonday = getMonday(new Date(y, m - 1, d)); 
-    fetchData(); 
+};
+document.getElementById('date-picker-input').onchange = event => {
+    if (!event.target.value) return;
+    const [y, m, d] = event.target.value.split('-').map(Number);
+    state.currentMonday = getMonday(new Date(y, m - 1, d));
+    fetchData();
 };
 document.getElementById('btn-today').onclick = () => { state.currentMonday = getMonday(new Date()); fetchData(); };
 document.getElementById('btn-prev-week').onclick = () => { state.currentMonday.setDate(state.currentMonday.getDate() - 7); fetchData(); };
@@ -606,6 +664,7 @@ document.getElementById('btn-next-week').onclick = () => { state.currentMonday.s
 document.getElementById('btn-zoom-in').onclick = () => { hourHeight = Math.min(MAX_HOUR_HEIGHT, hourHeight + ZOOM_STEP); renderCalendar(); };
 document.getElementById('btn-zoom-out').onclick = () => { hourHeight = Math.max(MIN_HOUR_HEIGHT, hourHeight - ZOOM_STEP); renderCalendar(); };
 
+// Pinch
 let pinchStartY = null;
 let pinchStartHeight = hourHeight;
 const calendarContainer = document.getElementById('calendar-container');

@@ -19,7 +19,7 @@ const state = {
     isMoving: false,
     pendingMove: null,
     editingExisting: false,
-    settings: { default_reminders_enabled: true, default_send_receipts: true },
+    settings: { default_reminders_enabled: true, default_send_receipts: true, default_send_receipt_copy: true },
     datePickerMonth: new Date(),
     workCenter: null
 };
@@ -356,7 +356,14 @@ function renderEvents() {
 
             const title = document.createElement('div');
             title.className = 'event-title';
-            title.textContent = isGroup ? (lesson.group_name || lesson.student || 'Группа') : (lesson.student || 'Ученик');
+            const studentInfo = isGroup ? {} : getStudentInfo(lesson.student_id);
+            title.textContent = isGroup
+                ? (lesson.group_name || lesson.student || 'Группа')
+                : (studentInfo.calendar_name || lesson.student || studentInfo.name || 'Ученик');
+            const cardHeight = height;
+            if (cardHeight < 34) card.classList.add('event-card-compact');
+            else if (cardHeight < 54) card.classList.add('event-card-medium');
+            else card.classList.add('event-card-tall');
             card.appendChild(title);
             if (isGroup && groupMembers.length) {
                 const meta = document.createElement('div');
@@ -1108,6 +1115,68 @@ document.getElementById('btn-next-week').onclick = () => shiftWeek(7);
 document.getElementById('btn-zoom-in').onclick = () => applyHourHeightSmooth(Math.min(MAX_HOUR_HEIGHT, hourHeight + ZOOM_STEP));
 document.getElementById('btn-zoom-out').onclick = () => applyHourHeightSmooth(Math.max(MIN_HOUR_HEIGHT, hourHeight - ZOOM_STEP));
 
+async function downloadApiFile(path, options, fallbackFilename) {
+    const response = await apiFetch(path, options || {});
+    if (!response.ok) {
+        let message = 'Не удалось скачать файл';
+        try {
+            const data = await response.json();
+            message = data.message || message;
+        } catch (_) {}
+        throw new Error(message);
+    }
+
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename\*?=(?:UTF-8''|\")?([^\";]+)/i);
+    let filename = fallbackFilename;
+    if (match && match[1]) {
+        try { filename = decodeURIComponent(match[1].replace(/\"/g, '').trim()); } catch (_) {}
+    }
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+async function runExportButton(button, workingText, action) {
+    const original = button.innerHTML;
+    button.disabled = true;
+    button.classList.add('is-loading');
+    button.innerHTML = `<span class="settings-link-main"><strong>${workingText}</strong><small>Подождите немного…</small></span><span>…</span>`;
+    try {
+        await action();
+    } catch (error) {
+        alert(error.message || 'Ошибка экспорта');
+    } finally {
+        button.disabled = false;
+        button.classList.remove('is-loading');
+        button.innerHTML = original;
+    }
+}
+
+const btnDownloadBook = document.getElementById('btn-download-book');
+btnDownloadBook.onclick = () => runExportButton(btnDownloadBook, 'Готовлю книгу учёта', async () => {
+    await downloadApiFile('/download_book', { method: 'GET' }, 'kniga_ucheta.xlsx');
+});
+
+const btnExportWeekPdf = document.getElementById('btn-export-week-pdf');
+btnExportWeekPdf.onclick = () => runExportButton(btnExportWeekPdf, 'Готовлю PDF недели', async () => {
+    const start = dateKey(state.currentMonday);
+    const endDate = new Date(state.currentMonday);
+    endDate.setDate(endDate.getDate() + 6);
+    await downloadApiFile('/export_week_pdf', {
+        method: 'POST',
+        body: JSON.stringify({ week_start: start })
+    }, `raspisanie_${start}_${dateKey(endDate)}.pdf`);
+});
+
 // Общие настройки и данные для чека
 const receiptSettingFields = [
     'company_name', 'inn', 'ogrnip', 'address', 'phone', 'service_name', 'tax_system',
@@ -1118,6 +1187,7 @@ const receiptSettingFields = [
 function fillAppSettingsForm() {
     document.getElementById('default-reminders-enabled').checked = state.settings.default_reminders_enabled !== false;
     document.getElementById('default-send-receipts').checked = state.settings.default_send_receipts !== false;
+    document.getElementById('default-send-receipt-copy').checked = state.settings.default_send_receipt_copy !== false;
 }
 
 function fillReceiptSettingsForm() {
@@ -1154,7 +1224,8 @@ document.getElementById('btn-save-app-settings').onclick = async () => {
     try {
         const settings = {
             default_reminders_enabled: document.getElementById('default-reminders-enabled').checked,
-            default_send_receipts: document.getElementById('default-send-receipts').checked
+            default_send_receipts: document.getElementById('default-send-receipts').checked,
+            default_send_receipt_copy: document.getElementById('default-send-receipt-copy').checked
         };
         const response = await apiFetch('/update_settings', { method: 'POST', body: JSON.stringify(settings) });
         const result = await response.json();
@@ -1226,6 +1297,7 @@ function openStudentCard(studentId) {
     const info = getStudentInfo(studentId);
     document.getElementById('student-card-overlay').dataset.studentId = studentId;
     document.getElementById('student-card-title').textContent = info.name || 'Ученик';
+    document.getElementById('student-calendar-name').value = info.calendar_name || '';
     document.getElementById('student-birthday').value = info.birthday || '';
     document.getElementById('student-balance').value = info.balance ?? 0;
     document.getElementById('student-subscription-enabled').checked = info.subscription_enabled === true;
@@ -1243,6 +1315,7 @@ document.getElementById('btn-save-student-card').onclick = async () => {
     const studentId = document.getElementById('student-card-overlay').dataset.studentId;
     const payload = {
         student_id: studentId,
+        calendar_name: document.getElementById('student-calendar-name').value.trim(),
         birthday: document.getElementById('student-birthday').value,
         balance: Number(document.getElementById('student-balance').value || 0),
         subscription_enabled: document.getElementById('student-subscription-enabled').checked,
@@ -1255,6 +1328,7 @@ document.getElementById('btn-save-student-card').onclick = async () => {
     if (result.status !== 'ok') return alert(result.message || 'Ошибка сохранения ученика');
     state.students[studentId] = result.student;
     document.getElementById('student-card-overlay').classList.add('hidden');
+    renderCalendar();
     refreshWorkCenterBadge();
 };
 

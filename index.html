@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Расписание</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css?v=21-motion">
+    <link rel="stylesheet" href="styles.css?v=23-receipts-names">
 </head>
 <body>
     <header class="main-header">
@@ -327,6 +327,11 @@
                     <div><small>Абонемент</small><strong id="student-subscription-preview">—</strong></div>
                 </div>
                 <div class="form-group">
+                    <label>Имя в календаре <small class="muted-inline">(необязательно)</small></label>
+                    <input type="text" id="student-calendar-name" maxlength="24" placeholder="Например: Саша">
+                    <small class="field-hint">Если оставить пустым, в календаре будет обычное имя.</small>
+                </div>
+                <div class="form-group">
                     <label>День рождения</label>
                     <input type="date" id="student-birthday">
                 </div>
@@ -367,10 +372,21 @@
                 </label>
                 <label class="checkbox-label settings-checkbox compact-setting-row">
                     <input type="checkbox" id="default-send-receipts" checked>
-                    <span>Отправлять чек при оплате</span>
+                    <span>Отправлять чек родителю</span>
+                </label>
+                <label class="checkbox-label settings-checkbox compact-setting-row">
+                    <input type="checkbox" id="default-send-receipt-copy" checked>
+                    <span>Присылать копию чека мне</span>
                 </label>
                 <button id="btn-open-receipt-settings" class="settings-link-row" type="button">
                     <span>🧾 Данные для чека</span><span>›</span>
+                </button>
+                <div class="settings-mini-title">Файлы и экспорт</div>
+                <button id="btn-download-book" class="settings-link-row export-link-row" type="button">
+                    <span class="settings-link-main"><strong>📗 Книга учёта</strong><small>Скачать Excel-файл</small></span><span>↓</span>
+                </button>
+                <button id="btn-export-week-pdf" class="settings-link-row export-link-row" type="button">
+                    <span class="settings-link-main"><strong>📄 Расписание недели</strong><small>Открытая сейчас неделя · PDF</small></span><span>↓</span>
                 </button>
             </div>
             <div class="modal-actions">
@@ -438,6 +454,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=21-motion"></script>
+    <script src="app.js?v=23-receipts-names"></script>
 </body>
 </html>

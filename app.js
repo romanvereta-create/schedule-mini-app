@@ -17,7 +17,9 @@ const state = {
     selectedLesson: null,
     isMoving: false,
     pendingMove: null,
-    editingExisting: false
+    editingExisting: false,
+    settings: { default_reminders_enabled: true },
+    datePickerMonth: new Date()
 };
 
 function getMonday(date) {
@@ -87,6 +89,16 @@ async function fetchData() {
         const studentsResponse = await apiFetch('/get_students');
         const studentsData = await studentsResponse.json();
         state.students = studentsData.students || {};
+
+        try {
+            const settingsResponse = await apiFetch('/get_settings');
+            if (settingsResponse.ok) {
+                const settingsData = await settingsResponse.json();
+                if (settingsData.status === 'ok') state.settings = settingsData.settings || state.settings;
+            }
+        } catch (settingsError) {
+            console.warn('Настройки пока недоступны:', settingsError);
+        }
 
         fillStudentsDropdown();
         renderCalendar();
@@ -307,17 +319,114 @@ function cancelMove() {
     renderCalendar();
 }
 
+const CONTACT_TYPES = {
+    tg: { icon: '✈️', placeholder: '@username или ID' },
+    wa: { icon: '🟢', placeholder: 'WhatsApp номер' },
+    phone: { icon: '☎️', placeholder: 'Телефон' },
+    max: { icon: 'M', placeholder: 'Max (ник)' }
+};
+
+function createContactRow(type = 'tg', value = '', removable = true) {
+    const normalizedType = CONTACT_TYPES[type] ? type : 'tg';
+    const row = document.createElement('div');
+    row.className = 'contact-row';
+    row.dataset.type = normalizedType;
+
+    const select = document.createElement('select');
+    select.className = 'contact-type-select';
+    select.setAttribute('aria-label', 'Мессенджер');
+    Object.entries(CONTACT_TYPES).forEach(([key, meta]) => {
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = meta.icon;
+        option.selected = key === normalizedType;
+        select.appendChild(option);
+    });
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'contact-input';
+    input.dataset.field = normalizedType;
+    input.placeholder = CONTACT_TYPES[normalizedType].placeholder;
+    input.value = value || '';
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'contact-remove-btn';
+    remove.title = 'Удалить контакт';
+    remove.textContent = '✕';
+    remove.style.visibility = removable ? 'visible' : 'hidden';
+
+    select.addEventListener('change', () => {
+        const nextType = select.value;
+        row.dataset.type = nextType;
+        input.dataset.field = nextType;
+        input.placeholder = CONTACT_TYPES[nextType].placeholder;
+    });
+    remove.addEventListener('click', () => row.remove());
+
+    row.append(select, input, remove);
+    return row;
+}
+
+function renderContacts(containerId, contacts = {}, defaultType = 'tg') {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const addButton = container.querySelector('.add-contact-btn');
+    container.querySelectorAll('.contact-row').forEach(row => row.remove());
+
+    const entries = Object.entries(contacts || {}).filter(([type, value]) => CONTACT_TYPES[type] && String(value || '').trim());
+    if (entries.length === 0) entries.push([defaultType, '']);
+
+    entries.forEach(([type, value], index) => {
+        const row = createContactRow(type, value, index > 0);
+        container.insertBefore(row, addButton);
+    });
+}
+
+function addContactRow(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const used = new Set(Array.from(container.querySelectorAll('.contact-row')).map(row => row.dataset.type));
+    const type = Object.keys(CONTACT_TYPES).find(key => !used.has(key));
+    if (!type) return alert('Все типы контактов уже добавлены');
+    const row = createContactRow(type, '', true);
+    container.insertBefore(row, container.querySelector('.add-contact-btn'));
+    row.querySelector('.contact-input').focus();
+}
+
+function getContacts(containerId) {
+    const contacts = {};
+    document.querySelectorAll(`#${containerId} .contact-row`).forEach(row => {
+        const input = row.querySelector('.contact-input');
+        const type = row.querySelector('.contact-type-select')?.value || row.dataset.type;
+        const value = input?.value.trim() || '';
+        if (value && CONTACT_TYPES[type]) contacts[type] = value;
+    });
+    return contacts;
+}
+
+function updateReminderControls() {
+    const enabled = document.getElementById('reminder-enabled').checked;
+    const input = document.getElementById('reminder-minutes');
+    const wrap = document.getElementById('reminder-minutes-wrap');
+    input.disabled = !enabled;
+    wrap.classList.toggle('disabled', !enabled);
+}
+
 function resetAddForm() {
     document.getElementById('student-select').value = '';
     document.getElementById('manual-student-name').value = '';
     document.getElementById('manual-student-name').classList.add('hidden');
-    // Очищаем контакты
-    document.querySelectorAll('.contact-input').forEach(inp => inp.value = '');
-    document.querySelectorAll('.contact-remove-btn').forEach(btn => btn.style.display = 'none');
+    document.getElementById('student-contacts-group').classList.add('hidden');
+    renderContacts('student-contacts-container', {});
+    renderContacts('parent-contacts-container', {});
     document.getElementById('lesson-repeat').value = 'no';
+    document.getElementById('reminder-enabled').checked = state.settings.default_reminders_enabled !== false;
     document.getElementById('reminder-minutes').value = '60';
     document.getElementById('reminder-text').value = '';
     document.getElementById('zoom-link').value = '';
+    updateReminderControls();
 }
 
 function openAddModal(date, time) {
@@ -328,11 +437,11 @@ function openAddModal(date, time) {
     document.getElementById('student-fixed-group').classList.add('hidden');
     document.getElementById('time-duration-group').classList.remove('hidden');
     document.getElementById('repeat-group').classList.remove('hidden');
+    resetAddForm();
     document.getElementById('lesson-date').value = date;
     document.getElementById('lesson-time').value = time;
     document.getElementById('lesson-duration').value = '60';
     document.getElementById('lesson-price').value = '';
-    resetAddForm();
     document.getElementById('modal-overlay').classList.remove('hidden');
 }
 
@@ -342,6 +451,8 @@ function openEditModal(date, lesson) {
     document.getElementById('modal-title').textContent = 'Настройки ученика';
     document.getElementById('student-select-group').classList.add('hidden');
     document.getElementById('student-fixed-group').classList.remove('hidden');
+    const isManualStudent = String(lesson.student_id || '').startsWith('manual');
+    document.getElementById('student-contacts-group').classList.toggle('hidden', !isManualStudent);
     document.getElementById('fixed-student-name').value = lesson.student || '';
     document.getElementById('time-duration-group').classList.add('hidden');
     document.getElementById('repeat-group').classList.add('hidden');
@@ -350,33 +461,16 @@ function openEditModal(date, lesson) {
     document.getElementById('lesson-duration').value = lesson.duration || 60;
     document.getElementById('lesson-id').value = lesson.id || '';
     document.getElementById('lesson-price').value = lesson.price || '';
+    document.getElementById('reminder-enabled').checked = lesson.reminder_enabled !== false;
     document.getElementById('reminder-minutes').value = lesson.reminder_minutes ?? 60;
     document.getElementById('reminder-text').value = lesson.reminder_text || '';
     document.getElementById('zoom-link').value = lesson.zoom_link || '';
-    
-    // Заполняем контакты
-    const info = getStudentInfo(lesson.student_id);
-    const contacts = info.contacts || {};
-    document.querySelectorAll('.contact-input').forEach(inp => {
-        const field = inp.dataset.field;
-        inp.value = contacts[field] || '';
-        const removeBtn = inp.parentElement.querySelector('.contact-remove-btn');
-        if (inp.value) removeBtn.style.display = 'inline-block';
-        else removeBtn.style.display = 'none';
-    });
-    
-    document.getElementById('modal-overlay').classList.remove('hidden');
-}
 
-function getContacts() {
-    const contacts = {};
-    document.querySelectorAll('.contact-input').forEach(inp => {
-        const val = inp.value.trim();
-        if (val) {
-            contacts[inp.dataset.field] = val;
-        }
-    });
-    return contacts;
+    const info = getStudentInfo(lesson.student_id);
+    renderContacts('parent-contacts-container', info.contacts || lesson.contacts || {});
+    renderContacts('student-contacts-container', isManualStudent ? (info.student_contacts || {}) : {});
+    updateReminderControls();
+    document.getElementById('modal-overlay').classList.remove('hidden');
 }
 
 async function saveLesson() {
@@ -384,7 +478,8 @@ async function saveLesson() {
     const time = document.getElementById('lesson-time').value;
     const duration = parseInt(document.getElementById('lesson-duration').value || 60, 10);
     const price = document.getElementById('lesson-price').value;
-    const contacts = getContacts();
+    const contacts = getContacts('parent-contacts-container');
+    const studentContacts = getContacts('student-contacts-container');
     let student = '';
     let studentId = '';
 
@@ -404,8 +499,10 @@ async function saveLesson() {
 
     const payload = {
         date, time, duration, student, student_id: studentId, price,
-        contacts: contacts,
-        reminder_minutes: document.getElementById('reminder-minutes').value,
+        contacts,
+        student_contacts: studentContacts,
+        reminder_enabled: document.getElementById('reminder-enabled').checked,
+        reminder_minutes: document.getElementById('reminder-minutes').value || 60,
         reminder_text: document.getElementById('reminder-text').value,
         zoom_link: document.getElementById('zoom-link').value,
         repeat: document.getElementById('lesson-repeat').value
@@ -421,7 +518,7 @@ async function saveLesson() {
 }
 
 function closeAllModals() {
-    ['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+    ['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
 }
 
 // Палитра цветов в меню действий
@@ -457,72 +554,22 @@ document.querySelectorAll('.color-swatch').forEach(el => {
     });
 });
 
-// Добавление/удаление контактов
-document.getElementById('add-contact-btn').addEventListener('click', () => {
-    const container = document.getElementById('contacts-container');
-    const rows = container.querySelectorAll('.contact-row');
-    const types = ['tg', 'wa', 'phone', 'max'];
-    let newType = null;
-    for (const type of types) {
-        if (!Array.from(rows).some(r => r.dataset.type === type)) {
-            newType = type;
-            break;
-        }
-    }
-    if (!newType) return alert('Все типы контактов уже добавлены');
-    
-    const icons = { tg: '💬', wa: '📱', phone: '☎️', max: 'M' };
-    const placeholders = {
-        tg: '@username или ID',
-        wa: 'WhatsApp номер',
-        phone: 'Телефон',
-        max: 'Max (ник)'
-    };
-    
-    const row = document.createElement('div');
-    row.className = 'contact-row';
-    row.dataset.type = newType;
-    row.innerHTML = `
-        <span class="contact-icon">${icons[newType]}</span>
-        <input type="text" class="contact-input" placeholder="${placeholders[newType]}" data-field="${newType}">
-        <button class="contact-remove-btn">✕</button>
-    `;
-    container.insertBefore(row, document.getElementById('add-contact-btn'));
-    
-    const input = row.querySelector('.contact-input');
-    const removeBtn = row.querySelector('.contact-remove-btn');
-    removeBtn.style.display = 'none';
-    input.addEventListener('input', () => {
-        removeBtn.style.display = input.value.trim() ? 'inline-block' : 'none';
-    });
-    removeBtn.addEventListener('click', () => {
-        row.remove();
-    });
+// Добавление контактов
+ document.querySelectorAll('.add-contact-btn').forEach(button => {
+    button.addEventListener('click', () => addContactRow(button.dataset.target));
 });
-
-// Контакты: показывать кнопку удаления если есть значение
-document.querySelectorAll('.contact-input').forEach(inp => {
-    const removeBtn = inp.parentElement.querySelector('.contact-remove-btn');
-    if (inp.value.trim()) removeBtn.style.display = 'inline-block';
-    else removeBtn.style.display = 'none';
-    inp.addEventListener('input', () => {
-        if (inp.value.trim()) removeBtn.style.display = 'inline-block';
-        else removeBtn.style.display = 'none';
-    });
-    removeBtn.addEventListener('click', event => {
-        event.preventDefault();
-        inp.value = '';
-        removeBtn.style.display = 'none';
-        inp.focus();
-    });
-});
+document.getElementById('reminder-enabled').addEventListener('change', updateReminderControls);
 
 // Переключатель ручного ввода
 document.getElementById('student-select').addEventListener('change', event => {
     const input = document.getElementById('manual-student-name');
     const manual = event.target.value === 'manual';
     input.classList.toggle('hidden', !manual);
-    if (manual) input.focus();
+    document.getElementById('student-contacts-group').classList.toggle('hidden', !manual);
+    if (manual) {
+        renderContacts('student-contacts-container', {});
+        input.focus();
+    }
 });
 
 // Меню действий
@@ -544,8 +591,16 @@ document.getElementById('btn-action-chat-student').onclick = () => {
     const id = state.selectedLesson?.student_id;
     const info = getStudentInfo(id);
     if (info.username) tg.openTelegramLink(`https://t.me/${info.username}`);
-    else if (id && !String(id).startsWith('manual')) tg.openTelegramLink(`tg://user?id=${id}`);
-    else alert('Нет Telegram-контакта');
+    else if (info.student_contacts && Object.keys(info.student_contacts).length) {
+        const entries = Object.entries(info.student_contacts).filter(([, value]) => value);
+        if (entries.length === 1) openContact(entries[0][0], entries[0][1]);
+        else {
+            const choice = prompt('Выберите контакт ученика:\n' + entries.map(([type, value], i) => `${i + 1}. ${type.toUpperCase()}: ${value}`).join('\n') + '\n\nВведите номер:');
+            const idx = parseInt(choice, 10) - 1;
+            if (idx >= 0 && idx < entries.length) openContact(entries[idx][0], entries[idx][1]);
+        }
+    } else if (id && !String(id).startsWith('manual')) tg.openTelegramLink(`tg://user?id=${id}`);
+    else alert('Нет контакта ученика');
     closeActionMenu();
 };
 
@@ -587,9 +642,12 @@ document.getElementById('btn-action-chat-parent').onclick = () => {
 
 function openContact(type, value) {
     switch(type) {
-        case 'tg':
-            tg.openTelegramLink(`https://t.me/${value.replace('@', '')}`);
+        case 'tg': {
+            const clean = String(value).trim().replace('@', '');
+            if (/^\d+$/.test(clean)) window.location.href = `tg://user?id=${clean}`;
+            else tg.openTelegramLink(`https://t.me/${clean}`);
             break;
+        }
         case 'wa':
             window.open(`https://wa.me/${value.replace(/[^0-9]/g, '')}`, '_blank');
             break;
@@ -634,55 +692,142 @@ document.getElementById('btn-cancel-move').onclick = cancelMove;
 document.getElementById('btn-save').onclick = saveLesson;
 document.getElementById('btn-cancel-modal').onclick = closeAllModals;
 document.getElementById('btn-close-modal').onclick = closeAllModals;
-['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay'].forEach(id => {
+['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay'].forEach(id => {
     document.getElementById(id).addEventListener('click', event => { if (event.target.id === id) closeAllModals(); });
 });
 
 // Дата и навигация
-document.getElementById('month-label').onclick = () => {
-    const input = document.getElementById('date-picker-input');
-    const visibleDate = new Date(state.currentMonday);
-    visibleDate.setDate(visibleDate.getDate() + 3);
-    input.value = dateKey(visibleDate);
-    input.focus({ preventScroll: true });
-    try {
-        if (typeof input.showPicker === 'function') input.showPicker();
-        else input.click();
-    } catch (error) {
-        input.click();
+function shiftWeek(days) {
+    state.currentMonday.setDate(state.currentMonday.getDate() + days);
+    fetchData();
+}
+
+function openDatePicker() {
+    const middle = new Date(state.currentMonday);
+    middle.setDate(middle.getDate() + 3);
+    state.datePickerMonth = new Date(middle.getFullYear(), middle.getMonth(), 1);
+    renderDatePicker();
+    document.getElementById('date-picker-overlay').classList.remove('hidden');
+}
+
+function renderDatePicker() {
+    const base = new Date(state.datePickerMonth);
+    const year = base.getFullYear();
+    const month = base.getMonth();
+    document.getElementById('date-picker-title').textContent = base.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+    const grid = document.getElementById('date-picker-grid');
+    grid.innerHTML = '';
+
+    const first = new Date(year, month, 1);
+    const mondayOffset = (first.getDay() + 6) % 7;
+    const start = new Date(year, month, 1 - mondayOffset);
+    const today = dateKey(new Date());
+
+    for (let i = 0; i < 42; i++) {
+        const date = new Date(start);
+        date.setDate(start.getDate() + i);
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'date-picker-day';
+        if (date.getMonth() !== month) button.classList.add('other-month');
+        if (dateKey(date) === today) button.classList.add('today');
+        if (date >= state.currentMonday && date < new Date(state.currentMonday.getFullYear(), state.currentMonday.getMonth(), state.currentMonday.getDate() + 7)) button.classList.add('selected');
+        button.textContent = date.getDate();
+        button.onclick = () => {
+            state.currentMonday = getMonday(date);
+            document.getElementById('date-picker-overlay').classList.add('hidden');
+            fetchData();
+        };
+        grid.appendChild(button);
     }
-};
-document.getElementById('date-picker-input').onchange = event => {
-    if (!event.target.value) return;
-    const [y, m, d] = event.target.value.split('-').map(Number);
-    state.currentMonday = getMonday(new Date(y, m - 1, d));
+}
+
+document.getElementById('month-label').onclick = openDatePicker;
+document.getElementById('date-picker-prev').onclick = () => { state.datePickerMonth.setMonth(state.datePickerMonth.getMonth() - 1); renderDatePicker(); };
+document.getElementById('date-picker-next').onclick = () => { state.datePickerMonth.setMonth(state.datePickerMonth.getMonth() + 1); renderDatePicker(); };
+document.getElementById('date-picker-today').onclick = () => {
+    const today = new Date();
+    state.currentMonday = getMonday(today);
+    document.getElementById('date-picker-overlay').classList.add('hidden');
     fetchData();
 };
+document.getElementById('date-picker-close').onclick = () => document.getElementById('date-picker-overlay').classList.add('hidden');
+
 document.getElementById('btn-today').onclick = () => { state.currentMonday = getMonday(new Date()); fetchData(); };
-document.getElementById('btn-prev-week').onclick = () => { state.currentMonday.setDate(state.currentMonday.getDate() - 7); fetchData(); };
-document.getElementById('btn-next-week').onclick = () => { state.currentMonday.setDate(state.currentMonday.getDate() + 7); fetchData(); };
+document.getElementById('btn-prev-week').onclick = () => shiftWeek(-7);
+document.getElementById('btn-next-week').onclick = () => shiftWeek(7);
 document.getElementById('btn-zoom-in').onclick = () => { hourHeight = Math.min(MAX_HOUR_HEIGHT, hourHeight + ZOOM_STEP); renderCalendar(); };
 document.getElementById('btn-zoom-out').onclick = () => { hourHeight = Math.max(MIN_HOUR_HEIGHT, hourHeight - ZOOM_STEP); renderCalendar(); };
 
-// Pinch
+// Общие настройки
+document.getElementById('btn-app-settings').onclick = () => {
+    document.getElementById('default-reminders-enabled').checked = state.settings.default_reminders_enabled !== false;
+    document.getElementById('app-settings-overlay').classList.remove('hidden');
+};
+document.getElementById('btn-close-app-settings').onclick = () => document.getElementById('app-settings-overlay').classList.add('hidden');
+document.getElementById('btn-cancel-app-settings').onclick = () => document.getElementById('app-settings-overlay').classList.add('hidden');
+document.getElementById('btn-save-app-settings').onclick = async () => {
+    const settings = { default_reminders_enabled: document.getElementById('default-reminders-enabled').checked };
+    const response = await apiFetch('/update_settings', { method: 'POST', body: JSON.stringify(settings) });
+    const result = await response.json();
+    if (result.status !== 'ok') return alert(result.message || 'Ошибка сохранения настроек');
+    state.settings = result.settings || settings;
+    document.getElementById('app-settings-overlay').classList.add('hidden');
+};
+
+// Pinch + перелистывание недель одним пальцем
 let pinchStartY = null;
 let pinchStartHeight = hourHeight;
+let swipeStartX = null;
+let swipeStartY = null;
+let swipeTracking = false;
 const calendarContainer = document.getElementById('calendar-container');
+
 calendarContainer.addEventListener('touchstart', event => {
     if (event.touches.length === 2) {
+        swipeTracking = false;
+        swipeStartX = null;
         pinchStartY = Math.abs(event.touches[0].clientY - event.touches[1].clientY);
         pinchStartHeight = hourHeight;
+        return;
+    }
+    if (event.touches.length === 1 && !state.isMoving && !event.target.closest('.event-card')) {
+        pinchStartY = null;
+        swipeStartX = event.touches[0].clientX;
+        swipeStartY = event.touches[0].clientY;
+        swipeTracking = true;
     }
 }, { passive: true });
+
 calendarContainer.addEventListener('touchmove', event => {
-    if (event.touches.length !== 2 || pinchStartY === null) return;
-    event.preventDefault();
-    const currentY = Math.abs(event.touches[0].clientY - event.touches[1].clientY);
-    const difference = currentY - pinchStartY;
-    hourHeight = Math.max(MIN_HOUR_HEIGHT, Math.min(MAX_HOUR_HEIGHT, pinchStartHeight + difference * 0.6));
-    renderCalendar();
+    if (event.touches.length === 2 && pinchStartY !== null) {
+        event.preventDefault();
+        const currentY = Math.abs(event.touches[0].clientY - event.touches[1].clientY);
+        const difference = currentY - pinchStartY;
+        hourHeight = Math.max(MIN_HOUR_HEIGHT, Math.min(MAX_HOUR_HEIGHT, pinchStartHeight + difference * 0.6));
+        renderCalendar();
+        return;
+    }
+    if (event.touches.length === 1 && swipeTracking && swipeStartX !== null) {
+        const dx = event.touches[0].clientX - swipeStartX;
+        const dy = event.touches[0].clientY - swipeStartY;
+        if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.2) event.preventDefault();
+    }
 }, { passive: false });
-calendarContainer.addEventListener('touchend', event => { if (event.touches.length < 2) pinchStartY = null; });
+
+calendarContainer.addEventListener('touchend', event => {
+    if (event.touches.length < 2) pinchStartY = null;
+    if (!swipeTracking || swipeStartX === null || !event.changedTouches.length) return;
+    const dx = event.changedTouches[0].clientX - swipeStartX;
+    const dy = event.changedTouches[0].clientY - swipeStartY;
+    swipeTracking = false;
+    swipeStartX = null;
+    swipeStartY = null;
+    if (Math.abs(dx) >= 70 && Math.abs(dx) > Math.abs(dy) * 1.25) {
+        haptic('light');
+        shiftWeek(dx < 0 ? 7 : -7);
+    }
+});
 
 window.addEventListener('resize', () => requestAnimationFrame(() => renderCalendar()));
 fetchData();

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Расписание</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css?v=16">
+    <link rel="stylesheet" href="styles.css?v=17">
 </head>
 <body>
     <header class="main-header">
@@ -18,8 +18,8 @@
             </div>
             <div class="month-label-wrapper">
                 <h1 id="month-label" title="Нажмите для выбора даты">...</h1>
-                <input type="date" id="date-picker-input" class="hidden-date-input">
             </div>
+            <button id="btn-app-settings" class="icon-btn settings-icon-btn" title="Настройки">⚙️</button>
         </div>
         <div class="week-days-container">
             <div class="time-spacer">
@@ -133,31 +133,39 @@
                         <input type="text" id="fixed-student-name" readonly class="readonly-input">
                     </div>
 
-                    <!-- Контакты родителя (несколько мессенджеров) -->
-                    <div class="form-group">
-                        <label>Контакты родителя</label>
-                        <div id="contacts-container">
+                    <!-- Контакты ученика — только при ручном добавлении -->
+                    <div class="form-group hidden" id="student-contacts-group">
+                        <label>Контакт ученика</label>
+                        <div id="student-contacts-container" class="contacts-list">
                             <div class="contact-row" data-type="tg">
-                                <span class="contact-icon">💬</span>
+                                <select class="contact-type-select" aria-label="Мессенджер ученика">
+                                    <option value="tg">✈️</option>
+                                    <option value="wa">🟢</option>
+                                    <option value="phone">☎️</option>
+                                    <option value="max">M</option>
+                                </select>
                                 <input type="text" class="contact-input" placeholder="@username или ID" data-field="tg">
-                                <button class="contact-remove-btn" style="display:none;">✕</button>
+                                <button type="button" class="contact-remove-btn" title="Удалить контакт">✕</button>
                             </div>
-                            <div class="contact-row" data-type="wa">
-                                <span class="contact-icon">📱</span>
-                                <input type="text" class="contact-input" placeholder="WhatsApp номер" data-field="wa">
-                                <button class="contact-remove-btn" style="display:none;">✕</button>
+                            <button type="button" class="secondary-btn add-contact-btn" data-target="student-contacts-container">＋ Добавить контакт</button>
+                        </div>
+                    </div>
+
+                    <!-- Контакты родителя: одно поле по умолчанию + дополнительные по кнопке -->
+                    <div class="form-group">
+                        <label>Контакт родителя</label>
+                        <div id="parent-contacts-container" class="contacts-list">
+                            <div class="contact-row" data-type="tg">
+                                <select class="contact-type-select" aria-label="Мессенджер родителя">
+                                    <option value="tg">✈️</option>
+                                    <option value="wa">🟢</option>
+                                    <option value="phone">☎️</option>
+                                    <option value="max">M</option>
+                                </select>
+                                <input type="text" class="contact-input" placeholder="@username или ID" data-field="tg">
+                                <button type="button" class="contact-remove-btn" title="Удалить контакт">✕</button>
                             </div>
-                            <div class="contact-row" data-type="phone">
-                                <span class="contact-icon">☎️</span>
-                                <input type="text" class="contact-input" placeholder="Телефон" data-field="phone">
-                                <button class="contact-remove-btn" style="display:none;">✕</button>
-                            </div>
-                            <div class="contact-row" data-type="max">
-                                <span class="contact-icon">M</span>
-                                <input type="text" class="contact-input" placeholder="Max (ник)" data-field="max">
-                                <button class="contact-remove-btn" style="display:none;">✕</button>
-                            </div>
-                            <button id="add-contact-btn" class="secondary-btn" style="margin-top:6px;padding:4px 8px;font-size:12px;">➕ Добавить контакт</button>
+                            <button type="button" class="secondary-btn add-contact-btn" data-target="parent-contacts-container">＋ Добавить контакт</button>
                         </div>
                     </div>
 
@@ -187,9 +195,16 @@
                         </select>
                     </div>
 
-                    <div class="form-group">
-                        <label>Напомнить за (минут)</label>
-                        <input type="number" id="reminder-minutes" value="60" min="0" step="5">
+                    <div class="form-group reminder-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="reminder-enabled" checked>
+                            <span>Напоминание</span>
+                        </label>
+                        <div id="reminder-minutes-wrap" class="reminder-minutes-wrap">
+                            <span>за</span>
+                            <input type="number" id="reminder-minutes" value="60" min="0" step="5">
+                            <span>минут</span>
+                        </div>
                     </div>
 
                     <div class="form-group">
@@ -211,6 +226,63 @@
         </div>
     </div>
 
-    <script src="app.js?v=16"></script>
+    <!-- ВСТРОЕННЫЙ КАЛЕНДАРЬ ВЫБОРА ДАТЫ -->
+    <div id="date-picker-overlay" class="hidden">
+        <div class="modal-content date-picker-modal">
+            <header class="modal-header">
+                <button id="date-picker-prev" class="icon-btn" type="button">◀</button>
+                <h2 id="date-picker-title">Месяц</h2>
+                <button id="date-picker-next" class="icon-btn" type="button">▶</button>
+            </header>
+            <div class="date-picker-weekdays">
+                <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+            </div>
+            <div id="date-picker-grid" class="date-picker-grid"></div>
+            <div class="modal-actions">
+                <button id="date-picker-today" class="secondary-btn" type="button">Сегодня</button>
+                <button id="date-picker-close" class="secondary-btn" type="button">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ОБЩИЕ НАСТРОЙКИ -->
+    <div id="app-settings-overlay" class="hidden">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h2>Настройки</h2>
+                <span id="btn-close-app-settings" class="close-modal">&times;</span>
+            </header>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h3>Уведомления</h3>
+                    <label class="checkbox-label settings-checkbox">
+                        <input type="checkbox" id="default-reminders-enabled" checked>
+                        <span>Включать напоминания по умолчанию для новых занятий</span>
+                    </label>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Мои реквизиты</h3>
+                    <p class="settings-note">Пока это заготовка. Позже здесь удобно хранить реквизиты для отправки ученикам.</p>
+                    <label>Получатель</label>
+                    <input type="text" placeholder="ФИО / ИП / самозанятый" disabled>
+                    <label>ИНН</label>
+                    <input type="text" placeholder="ИНН" disabled>
+                    <label>Банк</label>
+                    <input type="text" placeholder="Название банка" disabled>
+                    <label>Телефон / карта / счёт</label>
+                    <input type="text" placeholder="Реквизиты для оплаты" disabled>
+                    <label>Комментарий к оплате</label>
+                    <textarea rows="2" placeholder="Например: оплата занятий за сентябрь" disabled></textarea>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button id="btn-save-app-settings" class="primary-btn" type="button">Сохранить</button>
+                <button id="btn-cancel-app-settings" class="secondary-btn" type="button">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js?v=17"></script>
 </body>
 </html>

@@ -135,15 +135,24 @@ body {
 .event-card.color-7 { background: #00897b; }
 
 /* Галочка Оплаты */
+.event-card.paid-status {
+    box-shadow: inset 0 0 0 2px #22c55e, 0 2px 5px rgba(0,0,0,0.25);
+}
 .event-card.paid-status::after {
     content: "✓";
     position: absolute;
-    bottom: -4px;
-    right: 2px;
-    font-size: 36px;
+    right: 3px;
+    bottom: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.92);
+    color: #0a9f42;
+    font-size: 15px;
     font-weight: 900;
-    color: rgba(0, 230, 118, 0.82);
-    line-height: 1;
+    line-height: 18px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
     pointer-events: none;
 }
 
@@ -249,10 +258,10 @@ body {
 }
 
 /* Modals */
-#modal-overlay, #move-modal-overlay, #action-menu-overlay, #delete-modal-overlay {
+#modal-overlay, #move-modal-overlay, #action-menu-overlay, #delete-modal-overlay, #date-picker-overlay, #app-settings-overlay {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.45); z-index: 1000; display: flex; align-items: center; justify-content: center;
 }
-#modal-overlay.hidden, #move-modal-overlay.hidden, #action-menu-overlay.hidden, #delete-modal-overlay.hidden { display: none; }
+#modal-overlay.hidden, #move-modal-overlay.hidden, #action-menu-overlay.hidden, #delete-modal-overlay.hidden, #date-picker-overlay.hidden, #app-settings-overlay.hidden { display: none; }
 
 .modal-content { background: #ffffff; border-radius: 16px; width: 90%; max-width: 350px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
 .text-center { text-align: center; }
@@ -286,3 +295,74 @@ body {
 :root { --hour-height: 80px; }
 .calendar-grid { min-height: calc(18 * var(--hour-height)); }
 .time-label, .time-slot { height: var(--hour-height); }
+
+/* Общая кнопка настроек */
+.settings-icon-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #f1f3f4;
+    border: 1px solid #dadce0;
+    flex-shrink: 0;
+}
+
+/* Компактные контакты */
+.contacts-list { display: flex; flex-direction: column; gap: 5px; }
+.contact-row { margin-bottom: 0; }
+.contact-type-select {
+    width: 48px;
+    flex: 0 0 48px;
+    height: 34px;
+    border: 1px solid #dadce0;
+    border-radius: 7px;
+    background: #ffffff;
+    font-size: 16px;
+    text-align: center;
+    padding: 2px;
+}
+.add-contact-btn {
+    align-self: flex-start;
+    padding: 5px 9px;
+    font-size: 12px;
+    margin-top: 1px;
+}
+.contact-remove-btn { min-width: 24px; }
+
+/* Напоминание */
+.reminder-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.checkbox-label { display: flex !important; align-items: center; gap: 7px; margin: 0 !important; cursor: pointer; }
+.checkbox-label input[type="checkbox"] { width: 18px; height: 18px; padding: 0; flex: 0 0 18px; }
+.reminder-minutes-wrap { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #5f6368; }
+.reminder-minutes-wrap input { width: 72px !important; padding: 6px 8px !important; }
+.reminder-minutes-wrap.disabled { opacity: 0.45; }
+
+/* Встроенный календарь выбора даты */
+.date-picker-modal { max-width: 330px; }
+.date-picker-weekdays, .date-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    text-align: center;
+}
+.date-picker-weekdays { margin-bottom: 6px; color: #5f6368; font-size: 11px; font-weight: 700; }
+.date-picker-day {
+    border: none;
+    background: #f8f9fa;
+    color: #202124;
+    border-radius: 8px;
+    min-height: 34px;
+    font-size: 13px;
+    cursor: pointer;
+}
+.date-picker-day.other-month { color: #9aa0a6; background: #ffffff; }
+.date-picker-day.today { box-shadow: inset 0 0 0 2px #1a73e8; }
+.date-picker-day.selected { background: #1a73e8; color: #ffffff; font-weight: 700; }
+
+/* Общие настройки */
+.settings-section { padding: 4px 0 14px; border-bottom: 1px solid #e8eaed; margin-bottom: 14px; }
+.settings-section:last-child { border-bottom: none; margin-bottom: 0; }
+.settings-section h3 { font-size: 15px; margin-bottom: 8px; }
+.settings-note { font-size: 12px; color: #5f6368; margin-bottom: 10px; line-height: 1.35; }
+.settings-section label:not(.checkbox-label) { display: block; font-size: 11px; font-weight: 600; color: #5f6368; margin: 8px 0 3px; }
+.settings-section input[type="text"], .settings-section textarea { width: 100%; padding: 8px 10px; border: 1px solid #dadce0; border-radius: 8px; }
+.settings-checkbox { line-height: 1.3; }

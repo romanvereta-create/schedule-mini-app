@@ -18,7 +18,7 @@ const state = {
     isMoving: false,
     pendingMove: null,
     editingExisting: false,
-    settings: { default_reminders_enabled: true },
+    settings: { default_reminders_enabled: true, default_send_receipts: true },
     datePickerMonth: new Date()
 };
 
@@ -57,18 +57,19 @@ function getStudentColor(studentId, name) {
     return Math.abs(hash) % 7;
 }
 
-function apiHeaders(extraHeaders = {}) {
-    return {
-        'Content-Type': 'application/json',
+function apiHeaders(extraHeaders = {}, body = null) {
+    const headers = {
         'X-Telegram-Init-Data': tg.initData || '',
         ...extraHeaders
     };
+    if (!(body instanceof FormData) && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+    return headers;
 }
 
 async function apiFetch(path, options = {}) {
     const response = await fetch(API_URL + path, {
         ...options,
-        headers: apiHeaders(options.headers || {})
+        headers: apiHeaders(options.headers || {}, options.body || null)
     });
     if (response.status === 401) {
         throw new Error('Доступ к API отклонён. Откройте календарь через Telegram-бота.');
@@ -518,7 +519,7 @@ async function saveLesson() {
 }
 
 function closeAllModals() {
-    ['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+    ['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'paid-confirm-overlay'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
 }
 
 // Палитра цветов в меню действий
@@ -577,11 +578,48 @@ document.getElementById('btn-action-settings').onclick = () => { closeActionMenu
 document.getElementById('btn-action-move-trigger').onclick = () => { closeActionMenu(); if (state.selectedLesson) startMove(state.selectedLesson.date, state.selectedLesson); };
 document.getElementById('btn-action-paid').onclick = async () => {
     const lesson = state.selectedLesson;
-    const response = await apiFetch('/mark_paid', { method: 'POST', body: JSON.stringify({ date: lesson.date, id: lesson.id, paid: !lesson.paid }) });
-    const result = await response.json();
-    if (result.status !== 'ok') return alert(result.message || 'Ошибка изменения оплаты');
+    if (!lesson) return;
+
+    if (lesson.paid) {
+        if (!confirm(`Снять отметку об оплате у занятия ${lesson.student || ''} ${lesson.time || ''}?`)) return;
+        const response = await apiFetch('/mark_paid', {
+            method: 'POST',
+            body: JSON.stringify({ date: lesson.date, id: lesson.id, paid: false, send_receipt: false })
+        });
+        const result = await response.json();
+        if (result.status !== 'ok') return alert(result.message || 'Ошибка изменения оплаты');
+        closeActionMenu();
+        fetchData();
+        return;
+    }
+
+    document.getElementById('paid-confirm-title').textContent = `${lesson.student || 'Ученик'} · ${lesson.time || '--:--'}`;
+    document.getElementById('paid-confirm-desc').textContent = `Подтвердить оплату${lesson.price ? ` на ${lesson.price} руб.` : ''}?`;
+    document.getElementById('send-receipt-checkbox').checked = state.settings.default_send_receipts !== false;
     closeActionMenu();
-    fetchData();
+    document.getElementById('paid-confirm-overlay').classList.remove('hidden');
+};
+
+document.getElementById('btn-paid-confirm-cancel').onclick = () => document.getElementById('paid-confirm-overlay').classList.add('hidden');
+document.getElementById('btn-paid-confirm-apply').onclick = async () => {
+    const lesson = state.selectedLesson;
+    if (!lesson) return;
+    const sendReceipt = document.getElementById('send-receipt-checkbox').checked;
+    const button = document.getElementById('btn-paid-confirm-apply');
+    button.disabled = true;
+    try {
+        const response = await apiFetch('/mark_paid', {
+            method: 'POST',
+            body: JSON.stringify({ date: lesson.date, id: lesson.id, paid: true, send_receipt: sendReceipt })
+        });
+        const result = await response.json();
+        if (result.status !== 'ok') return alert(result.message || 'Ошибка изменения оплаты');
+        document.getElementById('paid-confirm-overlay').classList.add('hidden');
+        await fetchData();
+        alert(`Оплата отмечена. Чек № ${result.receipt_number || '—'}. ${result.receipt_message || ''}`);
+    } finally {
+        button.disabled = false;
+    }
 };
 document.getElementById('btn-action-delete').onclick = () => { closeActionMenu(); document.getElementById('delete-modal-overlay').classList.remove('hidden'); };
 document.getElementById('btn-action-close').onclick = closeActionMenu;
@@ -692,7 +730,7 @@ document.getElementById('btn-cancel-move').onclick = cancelMove;
 document.getElementById('btn-save').onclick = saveLesson;
 document.getElementById('btn-cancel-modal').onclick = closeAllModals;
 document.getElementById('btn-close-modal').onclick = closeAllModals;
-['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay'].forEach(id => {
+['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'paid-confirm-overlay'].forEach(id => {
     document.getElementById(id).addEventListener('click', event => { if (event.target.id === id) closeAllModals(); });
 });
 
@@ -760,19 +798,77 @@ document.getElementById('btn-zoom-in').onclick = () => { hourHeight = Math.min(M
 document.getElementById('btn-zoom-out').onclick = () => { hourHeight = Math.max(MIN_HOUR_HEIGHT, hourHeight - ZOOM_STEP); renderCalendar(); };
 
 // Общие настройки
-document.getElementById('btn-app-settings').onclick = () => {
+const receiptSettingFields = [
+    'company_name', 'inn', 'ogrnip', 'address', 'phone', 'service_name', 'tax_system',
+    'email_sender', 'thanks_text', 'website', 'bank_name', 'bik', 'account_number',
+    'corr_account', 'recipient', 'payment_comment'
+];
+
+function fillAppSettingsForm() {
     document.getElementById('default-reminders-enabled').checked = state.settings.default_reminders_enabled !== false;
+    document.getElementById('default-send-receipts').checked = state.settings.default_send_receipts !== false;
+    receiptSettingFields.forEach(key => {
+        const el = document.getElementById(`settings-${key}`);
+        if (el) el.value = state.settings[key] || '';
+    });
+    document.getElementById('current-logo-name').textContent = state.settings.receipt_logo || 'не загружена';
+    document.getElementById('current-signature-name').textContent = state.settings.receipt_signature || 'не загружена';
+    document.getElementById('current-qrcode-name').textContent = state.settings.receipt_qrcode || 'не загружен';
+}
+
+async function uploadReceiptAsset(assetType, inputId) {
+    const input = document.getElementById(inputId);
+    if (!input || !input.files || !input.files[0]) return null;
+    const formData = new FormData();
+    formData.append('asset_type', assetType);
+    formData.append('file', input.files[0]);
+    const response = await apiFetch('/upload_receipt_asset', { method: 'POST', body: formData });
+    const result = await response.json();
+    if (result.status !== 'ok') throw new Error(result.message || 'Ошибка загрузки файла');
+    return result.settings || null;
+}
+
+document.getElementById('btn-app-settings').onclick = () => {
+    fillAppSettingsForm();
     document.getElementById('app-settings-overlay').classList.remove('hidden');
 };
 document.getElementById('btn-close-app-settings').onclick = () => document.getElementById('app-settings-overlay').classList.add('hidden');
 document.getElementById('btn-cancel-app-settings').onclick = () => document.getElementById('app-settings-overlay').classList.add('hidden');
 document.getElementById('btn-save-app-settings').onclick = async () => {
-    const settings = { default_reminders_enabled: document.getElementById('default-reminders-enabled').checked };
-    const response = await apiFetch('/update_settings', { method: 'POST', body: JSON.stringify(settings) });
-    const result = await response.json();
-    if (result.status !== 'ok') return alert(result.message || 'Ошибка сохранения настроек');
-    state.settings = result.settings || settings;
-    document.getElementById('app-settings-overlay').classList.add('hidden');
+    const button = document.getElementById('btn-save-app-settings');
+    button.disabled = true;
+    try {
+        const settings = {
+            default_reminders_enabled: document.getElementById('default-reminders-enabled').checked,
+            default_send_receipts: document.getElementById('default-send-receipts').checked
+        };
+        receiptSettingFields.forEach(key => {
+            const el = document.getElementById(`settings-${key}`);
+            settings[key] = el ? el.value.trim() : '';
+        });
+
+        const response = await apiFetch('/update_settings', { method: 'POST', body: JSON.stringify(settings) });
+        const result = await response.json();
+        if (result.status !== 'ok') return alert(result.message || 'Ошибка сохранения настроек');
+        state.settings = result.settings || settings;
+
+        for (const [type, inputId] of [['logo', 'settings-logo-file'], ['signature', 'settings-signature-file'], ['qrcode', 'settings-qrcode-file']]) {
+            const updated = await uploadReceiptAsset(type, inputId);
+            if (updated) state.settings = updated;
+        }
+
+        ['settings-logo-file', 'settings-signature-file', 'settings-qrcode-file'].forEach(id => {
+            const input = document.getElementById(id);
+            if (input) input.value = '';
+        });
+        fillAppSettingsForm();
+        document.getElementById('app-settings-overlay').classList.add('hidden');
+        alert('Настройки сохранены');
+    } catch (error) {
+        alert(error.message || 'Ошибка сохранения настроек');
+    } finally {
+        button.disabled = false;
+    }
 };
 
 // Pinch + перелистывание недель одним пальцем

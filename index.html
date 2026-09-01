@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Расписание</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css?v=18">
+    <link rel="stylesheet" href="styles.css?v=20">
 </head>
 <body>
     <header class="main-header">
@@ -19,6 +19,7 @@
             <div class="month-label-wrapper">
                 <h1 id="month-label" title="Нажмите для выбора даты">...</h1>
             </div>
+            <button id="btn-work-center" class="icon-btn work-center-btn" title="Помощник">📋<span id="attention-badge" class="attention-badge hidden">0</span></button>
             <button id="btn-app-settings" class="icon-btn settings-icon-btn" title="Настройки">⚙️</button>
         </div>
         <div class="week-days-container">
@@ -58,7 +59,8 @@
                 <button id="btn-action-paid" class="action-menu-btn paid-btn">💳 Оплатил</button>
                 <button id="btn-action-move-trigger" class="action-menu-btn">🔄 Перенести</button>
 
-                <button id="btn-action-settings" class="action-menu-btn">⚙️ Настройки</button>
+                <button id="btn-action-student-card" class="action-menu-btn">👤 Карточка ученика</button>
+                <button id="btn-action-settings" class="action-menu-btn">⚙️ Настройки занятия</button>
                 <button id="btn-action-delete" class="action-menu-btn delete-btn">🗑 Удалить</button>
 
                 <!-- ПАЛИТРА ЦВЕТОВ: 7 быстрых цветов + расширенная палитра -->
@@ -110,6 +112,7 @@
         <div class="modal-content text-center">
             <h2 id="paid-confirm-title">Оплата</h2>
             <p id="paid-confirm-desc" class="modal-desc">Подтвердить оплату?</p>
+            <div id="group-paid-members" class="group-paid-members hidden"></div>
             <label class="checkbox-label receipt-send-checkbox">
                 <input type="checkbox" id="send-receipt-checkbox" checked>
                 <span>Отправить чек родителю</span>
@@ -133,6 +136,22 @@
                 <input type="hidden" id="lesson-date">
 
                 <div id="form-container">
+                    <div class="form-group" id="lesson-type-group">
+                        <label>Кого добавить в слот</label>
+                        <select id="lesson-type-select">
+                            <option value="student">👤 Ученика</option>
+                            <option value="group">👥 Группу</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group hidden" id="group-editor-group">
+                        <label>Группа</label>
+                        <input type="text" id="group-name" placeholder="Название группы, например: 9 класс">
+                        <div class="group-members-head">Ученики группы</div>
+                        <div id="group-members-container" class="group-members-list"></div>
+                        <button type="button" id="btn-add-group-member" class="secondary-btn compact-add-btn">＋ Добавить ученика</button>
+                    </div>
+
                     <!-- Выбор или ввод ученика при СОЗДАНИИ -->
                     <div class="form-group" id="student-select-group">
                         <label>Ученик</label>
@@ -198,7 +217,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label>Стоимость урока (руб.)</label>
+                        <label id="lesson-price-label">Стоимость урока (руб.)</label>
                         <input type="text" id="lesson-price" placeholder="например: 1500">
                     </div>
 
@@ -261,82 +280,98 @@
         </div>
     </div>
 
+    <!-- РАБОЧИЙ ЦЕНТР -->
+    <div id="work-center-overlay" class="hidden">
+        <div class="modal-content compact-modal">
+            <header class="modal-header">
+                <h2>Помощник</h2>
+                <span id="btn-close-work-center" class="close-modal">&times;</span>
+            </header>
+            <div class="modal-body compact-stack">
+                <button class="hub-row" data-hub-section="attention">
+                    <span>⚠️ Требует внимания</span><strong id="hub-attention-count">0</strong>
+                </button>
+                <div id="hub-attention" class="hub-panel hidden"></div>
+
+                <button class="hub-row" data-hub-section="windows">
+                    <span>🕒 Окна этой недели</span><span>›</span>
+                </button>
+                <div id="hub-windows" class="hub-panel hidden"></div>
+
+                <button class="hub-row" data-hub-section="summary">
+                    <span>📊 Сводка недели</span><span>›</span>
+                </button>
+                <div id="hub-summary" class="hub-panel hidden"></div>
+
+                <button class="hub-row" data-hub-section="birthdays">
+                    <span>🎂 Дни рождения</span><span>›</span>
+                </button>
+                <div id="hub-birthdays" class="hub-panel hidden"></div>
+            </div>
+            <div class="modal-actions">
+                <button id="btn-close-work-center-bottom" class="secondary-btn" type="button">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- КАРТОЧКА УЧЕНИКА -->
+    <div id="student-card-overlay" class="hidden">
+        <div class="modal-content compact-modal">
+            <header class="modal-header">
+                <h2 id="student-card-title">Ученик</h2>
+                <span id="btn-close-student-card" class="close-modal">&times;</span>
+            </header>
+            <div class="modal-body">
+                <div class="student-finance-strip">
+                    <div><small>Баланс</small><strong id="student-balance-preview">0 ₽</strong></div>
+                    <div><small>Абонемент</small><strong id="student-subscription-preview">—</strong></div>
+                </div>
+                <div class="form-group">
+                    <label>День рождения</label>
+                    <input type="date" id="student-birthday">
+                </div>
+                <div class="form-group">
+                    <label>Баланс, ₽ <small class="muted-inline">(+ аванс, − долг)</small></label>
+                    <input type="number" id="student-balance" step="1" value="0">
+                </div>
+                <div class="form-group subscription-box">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="student-subscription-enabled">
+                        <span>Абонемент</span>
+                    </label>
+                    <div id="student-subscription-fields" class="compact-grid-two hidden">
+                        <div><label>Всего занятий</label><input type="number" id="student-subscription-total" min="1" step="1"></div>
+                        <div><label>Осталось</label><input type="number" id="student-subscription-remaining" min="0" step="1"></div>
+                        <div class="span-two"><label>Стоимость абонемента, ₽</label><input type="number" id="student-subscription-price" min="0" step="1"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button id="btn-save-student-card" class="primary-btn" type="button">Сохранить</button>
+                <button id="btn-cancel-student-card" class="secondary-btn" type="button">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ОБЩИЕ НАСТРОЙКИ -->
     <div id="app-settings-overlay" class="hidden">
-        <div class="modal-content">
+        <div class="modal-content compact-modal">
             <header class="modal-header">
                 <h2>Настройки</h2>
                 <span id="btn-close-app-settings" class="close-modal">&times;</span>
             </header>
-            <div class="modal-body">
-                <div class="settings-section">
-                    <h3>Уведомления</h3>
-                    <label class="checkbox-label settings-checkbox">
-                        <input type="checkbox" id="default-reminders-enabled" checked>
-                        <span>Включать напоминания по умолчанию для новых занятий</span>
-                    </label>
-                    <label class="checkbox-label settings-checkbox">
-                        <input type="checkbox" id="default-send-receipts" checked>
-                        <span>Отправлять чек по умолчанию при отметке оплаты</span>
-                    </label>
-                </div>
-
-                <div class="settings-section">
-                    <h3>Мои реквизиты и чек</h3>
-                    <p class="settings-note">Эти данные используются для формирования чека после подтверждения оплаты занятия.</p>
-
-                    <label>Наименование / ИП</label>
-                    <input type="text" id="settings-company_name" placeholder="Например: ИП Иванов Иван Иванович">
-                    <label>ИНН</label>
-                    <input type="text" id="settings-inn" placeholder="ИНН">
-                    <label>ОГРНИП</label>
-                    <input type="text" id="settings-ogrnip" placeholder="ОГРНИП">
-                    <label>Адрес</label>
-                    <input type="text" id="settings-address" placeholder="Адрес">
-                    <label>Телефон</label>
-                    <input type="text" id="settings-phone" placeholder="Телефон">
-                    <label>Наименование услуги</label>
-                    <input type="text" id="settings-service_name" placeholder="Например: Индивидуальное занятие">
-                    <label>Система налогообложения</label>
-                    <input type="text" id="settings-tax_system" placeholder="Например: ПСН / УСН">
-                    <label>Email</label>
-                    <input type="text" id="settings-email_sender" placeholder="Email">
-                    <label>Сайт</label>
-                    <input type="text" id="settings-website" placeholder="https://...">
-                    <label>Текст после оплаты</label>
-                    <textarea id="settings-thanks_text" rows="2" placeholder="Спасибо за оплату!"></textarea>
-
-                    <h4 class="settings-subtitle">Банковские реквизиты</h4>
-                    <label>Получатель</label>
-                    <input type="text" id="settings-recipient" placeholder="Получатель платежа">
-                    <label>Банк</label>
-                    <input type="text" id="settings-bank_name" placeholder="Название банка">
-                    <label>БИК</label>
-                    <input type="text" id="settings-bik" placeholder="БИК">
-                    <label>Расчётный счёт</label>
-                    <input type="text" id="settings-account_number" placeholder="Расчётный счёт">
-                    <label>Корреспондентский счёт</label>
-                    <input type="text" id="settings-corr_account" placeholder="Корреспондентский счёт">
-                    <label>Комментарий к оплате</label>
-                    <textarea id="settings-payment_comment" rows="2" placeholder="Например: оплата занятий"></textarea>
-
-                    <h4 class="settings-subtitle">Оформление чека</h4>
-                    <div class="receipt-file-row">
-                        <label>Эмблема / логотип</label>
-                        <input type="file" id="settings-logo-file" accept="image/png,image/jpeg">
-                        <small>Сейчас: <span id="current-logo-name">не загружена</span></small>
-                    </div>
-                    <div class="receipt-file-row">
-                        <label>Подпись</label>
-                        <input type="file" id="settings-signature-file" accept="image/png,image/jpeg">
-                        <small>Сейчас: <span id="current-signature-name">не загружена</span></small>
-                    </div>
-                    <div class="receipt-file-row">
-                        <label>QR-код</label>
-                        <input type="file" id="settings-qrcode-file" accept="image/png,image/jpeg">
-                        <small>Сейчас: <span id="current-qrcode-name">не загружен</span></small>
-                    </div>
-                </div>
+            <div class="modal-body compact-stack">
+                <label class="checkbox-label settings-checkbox compact-setting-row">
+                    <input type="checkbox" id="default-reminders-enabled" checked>
+                    <span>Напоминания для новых занятий</span>
+                </label>
+                <label class="checkbox-label settings-checkbox compact-setting-row">
+                    <input type="checkbox" id="default-send-receipts" checked>
+                    <span>Отправлять чек при оплате</span>
+                </label>
+                <button id="btn-open-receipt-settings" class="settings-link-row" type="button">
+                    <span>🧾 Данные для чека</span><span>›</span>
+                </button>
             </div>
             <div class="modal-actions">
                 <button id="btn-save-app-settings" class="primary-btn" type="button">Сохранить</button>
@@ -345,6 +380,64 @@
         </div>
     </div>
 
-    <script src="app.js?v=18"></script>
+    <!-- ДАННЫЕ ДЛЯ ЧЕКА -->
+    <div id="receipt-settings-overlay" class="hidden">
+        <div class="modal-content receipt-settings-modal">
+            <header class="modal-header">
+                <button id="btn-back-receipt-settings" class="icon-btn" type="button">‹</button>
+                <h2>Данные для чека</h2>
+                <span id="btn-close-receipt-settings" class="close-modal">&times;</span>
+            </header>
+            <div class="modal-body">
+                <div class="settings-section receipt-fields-section">
+                    <label>Наименование / ИП</label><input type="text" id="settings-company_name" placeholder="Например: ИП Иванов Иван Иванович">
+                    <div class="compact-grid-two">
+                        <div><label>ИНН</label><input type="text" id="settings-inn" placeholder="ИНН"></div>
+                        <div><label>ОГРНИП</label><input type="text" id="settings-ogrnip" placeholder="ОГРНИП"></div>
+                    </div>
+                    <label>Адрес</label><input type="text" id="settings-address" placeholder="Адрес">
+                    <div class="compact-grid-two">
+                        <div><label>Телефон</label><input type="text" id="settings-phone" placeholder="Телефон"></div>
+                        <div><label>Email</label><input type="text" id="settings-email_sender" placeholder="Email"></div>
+                    </div>
+                    <label>Наименование услуги</label><input type="text" id="settings-service_name" placeholder="Например: Индивидуальное занятие">
+                    <div class="compact-grid-two">
+                        <div><label>Система налогообложения</label><input type="text" id="settings-tax_system" placeholder="ПСН / УСН"></div>
+                        <div><label>Сайт</label><input type="text" id="settings-website" placeholder="https://..."></div>
+                    </div>
+                    <label>Текст после оплаты</label><textarea id="settings-thanks_text" rows="2" placeholder="Спасибо за оплату!"></textarea>
+                </div>
+
+                <details class="settings-details">
+                    <summary>Банковские реквизиты</summary>
+                    <div class="details-body">
+                        <label>Получатель</label><input type="text" id="settings-recipient" placeholder="Получатель платежа">
+                        <label>Банк</label><input type="text" id="settings-bank_name" placeholder="Название банка">
+                        <div class="compact-grid-two">
+                            <div><label>БИК</label><input type="text" id="settings-bik" placeholder="БИК"></div>
+                            <div><label>Корр. счёт</label><input type="text" id="settings-corr_account" placeholder="Корреспондентский счёт"></div>
+                        </div>
+                        <label>Расчётный счёт</label><input type="text" id="settings-account_number" placeholder="Расчётный счёт">
+                        <label>Комментарий к оплате</label><textarea id="settings-payment_comment" rows="2" placeholder="Например: оплата занятий"></textarea>
+                    </div>
+                </details>
+
+                <details class="settings-details">
+                    <summary>Оформление чека</summary>
+                    <div class="details-body">
+                        <div class="receipt-file-row"><label>Эмблема / логотип</label><input type="file" id="settings-logo-file" accept="image/png,image/jpeg"><small>Сейчас: <span id="current-logo-name">не загружена</span></small></div>
+                        <div class="receipt-file-row"><label>Подпись</label><input type="file" id="settings-signature-file" accept="image/png,image/jpeg"><small>Сейчас: <span id="current-signature-name">не загружена</span></small></div>
+                        <div class="receipt-file-row"><label>QR-код</label><input type="file" id="settings-qrcode-file" accept="image/png,image/jpeg"><small>Сейчас: <span id="current-qrcode-name">не загружен</span></small></div>
+                    </div>
+                </details>
+            </div>
+            <div class="modal-actions">
+                <button id="btn-save-receipt-settings" class="primary-btn" type="button">Сохранить</button>
+                <button id="btn-cancel-receipt-settings" class="secondary-btn" type="button">Назад</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js?v=20"></script>
 </body>
 </html>

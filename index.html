@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Расписание</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css?v=23-receipts-names">
+    <link rel="stylesheet" href="styles.css?v=24-simple-payments">
 </head>
 <body>
     <header class="main-header">
@@ -56,7 +56,10 @@
             <div class="modal-actions-column">
                 <button id="btn-action-chat-student" class="action-menu-btn">💬 Написать ученику</button>
                 <button id="btn-action-chat-parent" class="action-menu-btn">💬 Написать родителю</button>
-                <button id="btn-action-paid" class="action-menu-btn paid-btn">💳 Оплатил</button>
+                <div class="payment-actions-row">
+                    <button id="btn-action-paid" class="action-menu-btn paid-btn">💳 Оплатил</button>
+                    <button id="btn-action-subscription" class="action-menu-btn subscription-pay-btn">🎟 Абонемент</button>
+                </div>
                 <button id="btn-action-move-trigger" class="action-menu-btn">🔄 Перенести</button>
 
                 <button id="btn-action-student-card" class="action-menu-btn">👤 Карточка ученика</button>
@@ -124,6 +127,27 @@
         </div>
     </div>
 
+    <!-- ОПЛАТА АБОНЕМЕНТА -->
+    <div id="subscription-pay-overlay" class="hidden">
+        <div class="modal-content text-center">
+            <h2 id="subscription-pay-title">Абонемент</h2>
+            <p id="subscription-pay-desc" class="modal-desc">Укажите сумму оплаты.</p>
+            <div class="form-group text-left">
+                <label>Сумма абонемента, ₽</label>
+                <input type="number" id="subscription-pay-amount" min="0" step="1" inputmode="decimal" placeholder="Например: 3000">
+                <small id="subscription-pay-hint" class="field-hint"></small>
+            </div>
+            <label class="checkbox-label receipt-send-checkbox">
+                <input type="checkbox" id="subscription-send-receipt-checkbox" checked>
+                <span>Отправить чек родителю</span>
+            </label>
+            <div class="modal-actions-column">
+                <button id="btn-subscription-pay-apply" class="primary-btn">✅ Оплатить абонемент</button>
+                <button id="btn-subscription-pay-cancel" class="secondary-btn">Отмена</button>
+            </div>
+        </div>
+    </div>
+
     <!-- МОДАЛЬНОЕ ОКНО НАСТРОЕК / ДОБАВЛЕНИЯ ЗАНЯТИЯ -->
     <div id="modal-overlay" class="hidden">
         <div class="modal-content">
@@ -168,42 +192,6 @@
                         <input type="text" id="fixed-student-name" readonly class="readonly-input">
                     </div>
 
-                    <!-- Контакты ученика — только при ручном добавлении -->
-                    <div class="form-group hidden" id="student-contacts-group">
-                        <label>Контакт ученика</label>
-                        <div id="student-contacts-container" class="contacts-list">
-                            <div class="contact-row" data-type="tg">
-                                <select class="contact-type-select" aria-label="Мессенджер ученика">
-                                    <option value="tg">✈️</option>
-                                    <option value="wa">🟢</option>
-                                    <option value="phone">☎️</option>
-                                    <option value="max">M</option>
-                                </select>
-                                <input type="text" class="contact-input" placeholder="@username или ID" data-field="tg">
-                                <button type="button" class="contact-remove-btn" title="Удалить контакт">✕</button>
-                            </div>
-                            <button type="button" class="secondary-btn add-contact-btn" data-target="student-contacts-container">＋ Добавить контакт</button>
-                        </div>
-                    </div>
-
-                    <!-- Контакты родителя: одно поле по умолчанию + дополнительные по кнопке -->
-                    <div class="form-group">
-                        <label>Контакт родителя</label>
-                        <div id="parent-contacts-container" class="contacts-list">
-                            <div class="contact-row" data-type="tg">
-                                <select class="contact-type-select" aria-label="Мессенджер родителя">
-                                    <option value="tg">✈️</option>
-                                    <option value="wa">🟢</option>
-                                    <option value="phone">☎️</option>
-                                    <option value="max">M</option>
-                                </select>
-                                <input type="text" class="contact-input" placeholder="@username или ID" data-field="tg">
-                                <button type="button" class="contact-remove-btn" title="Удалить контакт">✕</button>
-                            </div>
-                            <button type="button" class="secondary-btn add-contact-btn" data-target="parent-contacts-container">＋ Добавить контакт</button>
-                        </div>
-                    </div>
-
                     <!-- Время и Длительность -->
                     <div class="form-row" id="time-duration-group">
                         <div class="form-group flex-1">
@@ -214,11 +202,6 @@
                             <label>Длительность (мин)</label>
                             <input type="number" id="lesson-duration" value="60" min="15" step="5">
                         </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label id="lesson-price-label">Стоимость урока (руб.)</label>
-                        <input type="text" id="lesson-price" placeholder="например: 1500">
                     </div>
 
                     <div class="form-group" id="repeat-group">
@@ -322,33 +305,34 @@
                 <span id="btn-close-student-card" class="close-modal">&times;</span>
             </header>
             <div class="modal-body">
-                <div class="student-finance-strip">
-                    <div><small>Баланс</small><strong id="student-balance-preview">0 ₽</strong></div>
-                    <div><small>Абонемент</small><strong id="student-subscription-preview">—</strong></div>
+                <div class="student-lesson-stats">
+                    <span>Оплачено / проведено</span>
+                    <strong id="student-lessons-ratio">— / —</strong>
                 </div>
                 <div class="form-group">
                     <label>Имя в календаре <small class="muted-inline">(необязательно)</small></label>
                     <input type="text" id="student-calendar-name" maxlength="24" placeholder="Например: Саша">
                     <small class="field-hint">Если оставить пустым, в календаре будет обычное имя.</small>
                 </div>
-                <div class="form-group">
-                    <label>День рождения</label>
-                    <input type="date" id="student-birthday">
-                </div>
-                <div class="form-group">
-                    <label>Баланс, ₽ <small class="muted-inline">(+ аванс, − долг)</small></label>
-                    <input type="number" id="student-balance" step="1" value="0">
-                </div>
-                <div class="form-group subscription-box">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="student-subscription-enabled">
-                        <span>Абонемент</span>
-                    </label>
-                    <div id="student-subscription-fields" class="compact-grid-two hidden">
-                        <div><label>Всего занятий</label><input type="number" id="student-subscription-total" min="1" step="1"></div>
-                        <div><label>Осталось</label><input type="number" id="student-subscription-remaining" min="0" step="1"></div>
-                        <div class="span-two"><label>Стоимость абонемента, ₽</label><input type="number" id="student-subscription-price" min="0" step="1"></div>
+                <div class="form-row">
+                    <div class="form-group flex-1">
+                        <label>День рождения</label>
+                        <input type="date" id="student-birthday">
                     </div>
+                    <div class="form-group flex-1">
+                        <label>Стоимость урока, ₽</label>
+                        <input type="number" id="student-default-price" min="0" step="1" inputmode="decimal" placeholder="1500">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Контакт ученика</label>
+                    <div id="student-card-student-contacts" class="contacts-list"></div>
+                    <button type="button" class="secondary-btn add-contact-btn" data-target="student-card-student-contacts">＋ Добавить контакт</button>
+                </div>
+                <div class="form-group">
+                    <label>Контакт родителя</label>
+                    <div id="student-card-parent-contacts" class="contacts-list"></div>
+                    <button type="button" class="secondary-btn add-contact-btn" data-target="student-card-parent-contacts">＋ Добавить контакт</button>
                 </div>
             </div>
             <div class="modal-actions">
@@ -454,6 +438,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=23-receipts-names"></script>
+    <script src="app.js?v=24-simple-payments"></script>
 </body>
 </html>

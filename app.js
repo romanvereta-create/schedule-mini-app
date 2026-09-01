@@ -253,11 +253,6 @@ function updateLessonTypeUI() {
     document.getElementById('group-editor-group').classList.toggle('hidden', !isGroup);
     document.getElementById('student-select-group').classList.toggle('hidden', isGroup || state.editingExisting);
     document.getElementById('student-fixed-group').classList.toggle('hidden', isGroup || !state.editingExisting);
-    document.getElementById('student-contacts-group').classList.add('hidden');
-    const parentContactsGroup = document.getElementById('parent-contacts-container')?.closest('.form-group');
-    if (parentContactsGroup) parentContactsGroup.classList.toggle('hidden', isGroup);
-    const priceLabel = document.getElementById('lesson-price-label');
-    if (priceLabel) priceLabel.textContent = isGroup ? 'Стоимость с ученика (руб.)' : 'Стоимость урока (руб.)';
 }
 
 function renderCalendar() {
@@ -430,6 +425,7 @@ function openActionMenu(date, lesson) {
     const isGroup = lesson.lesson_type === 'group';
     document.getElementById('action-menu-title').textContent = `${isGroup ? (lesson.group_name || lesson.student || 'Группа') : (lesson.student || 'Ученик')} · ${lesson.time || '--:--'}`;
     document.getElementById('btn-action-paid').textContent = isGroup ? '💳 Оплата группы' : (lesson.paid ? '✅ Оплачено (снять)' : '💳 Оплатил');
+    document.getElementById('btn-action-subscription').classList.toggle('hidden', isGroup);
     document.getElementById('btn-action-student-card').classList.toggle('hidden', isGroup);
     document.getElementById('btn-action-chat-student').classList.toggle('hidden', isGroup);
     document.getElementById('action-menu-overlay').classList.remove('hidden');
@@ -579,9 +575,6 @@ function resetAddForm() {
     document.getElementById('student-select').value = '';
     document.getElementById('manual-student-name').value = '';
     document.getElementById('manual-student-name').classList.add('hidden');
-    document.getElementById('student-contacts-group').classList.add('hidden');
-    renderContacts('student-contacts-container', {});
-    renderContacts('parent-contacts-container', {});
     document.getElementById('lesson-repeat').value = 'no';
     document.getElementById('reminder-enabled').checked = state.settings.default_reminders_enabled !== false;
     document.getElementById('reminder-minutes').value = '60';
@@ -604,7 +597,6 @@ function openAddModal(date, time) {
     document.getElementById('lesson-date').value = date;
     document.getElementById('lesson-time').value = time;
     document.getElementById('lesson-duration').value = '60';
-    document.getElementById('lesson-price').value = '';
     document.getElementById('modal-overlay').classList.remove('hidden');
 }
 
@@ -617,26 +609,19 @@ function openEditModal(date, lesson) {
     document.getElementById('lesson-type-group').classList.add('hidden');
     document.getElementById('group-name').value = lesson.group_name || lesson.student || '';
     renderGroupMembers(lesson.group_members || []);
-    const isManualStudent = !isGroup && String(lesson.student_id || '').startsWith('manual');
-    document.getElementById('student-contacts-group').classList.toggle('hidden', !isManualStudent);
     document.getElementById('fixed-student-name').value = lesson.student || '';
     updateLessonTypeUI();
-    if (!isGroup && isManualStudent) document.getElementById('student-contacts-group').classList.remove('hidden');
     document.getElementById('time-duration-group').classList.add('hidden');
     document.getElementById('repeat-group').classList.add('hidden');
     document.getElementById('lesson-date').value = date;
     document.getElementById('lesson-time').value = lesson.time || '10:00';
     document.getElementById('lesson-duration').value = lesson.duration || 60;
     document.getElementById('lesson-id').value = lesson.id || '';
-    document.getElementById('lesson-price').value = lesson.price || '';
     document.getElementById('reminder-enabled').checked = lesson.reminder_enabled !== false;
     document.getElementById('reminder-minutes').value = lesson.reminder_minutes ?? 60;
     document.getElementById('reminder-text').value = lesson.reminder_text || '';
     document.getElementById('zoom-link').value = lesson.zoom_link || '';
 
-    const info = getStudentInfo(lesson.student_id);
-    renderContacts('parent-contacts-container', info.contacts || lesson.contacts || {});
-    renderContacts('student-contacts-container', isManualStudent ? (info.student_contacts || {}) : {});
     updateReminderControls();
     document.getElementById('modal-overlay').classList.remove('hidden');
 }
@@ -645,10 +630,7 @@ async function saveLesson() {
     const date = document.getElementById('lesson-date').value;
     const time = document.getElementById('lesson-time').value;
     const duration = parseInt(document.getElementById('lesson-duration').value || 60, 10);
-    const price = document.getElementById('lesson-price').value;
     const lessonType = document.getElementById('lesson-type-select').value === 'group' ? 'group' : 'student';
-    const contacts = getContacts('parent-contacts-container');
-    const studentContacts = getContacts('student-contacts-container');
     let student = '';
     let studentId = '';
     let groupName = '';
@@ -678,7 +660,6 @@ async function saveLesson() {
         date, time, duration, lesson_type: lessonType,
         student, student_id: studentId,
         group_name: groupName, group_members: groupMembers,
-        price, contacts, student_contacts: studentContacts,
         reminder_enabled: document.getElementById('reminder-enabled').checked,
         reminder_minutes: document.getElementById('reminder-minutes').value || 60,
         reminder_text: document.getElementById('reminder-text').value,
@@ -696,7 +677,7 @@ async function saveLesson() {
 }
 
 function closeAllModals() {
-    ['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+    ['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay', 'subscription-pay-overlay'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
 }
 
 // Палитра цветов в меню действий
@@ -746,11 +727,7 @@ document.getElementById('student-select').addEventListener('change', event => {
     const input = document.getElementById('manual-student-name');
     const manual = event.target.value === 'manual';
     input.classList.toggle('hidden', !manual);
-    document.getElementById('student-contacts-group').classList.toggle('hidden', !manual);
-    if (manual) {
-        renderContacts('student-contacts-container', {});
-        input.focus();
-    }
+    if (manual) input.focus();
 });
 
 // Меню действий
@@ -777,8 +754,8 @@ document.getElementById('btn-action-paid').onclick = async () => {
 
     document.getElementById('paid-confirm-title').textContent = `${isGroup ? (lesson.group_name || 'Группа') : (lesson.student || 'Ученик')} · ${lesson.time || '--:--'}`;
     document.getElementById('paid-confirm-desc').textContent = isGroup
-        ? `Отметьте учеников, которые оплатили${lesson.price ? ` по ${lesson.price} руб.` : ''}.`
-        : `Подтвердить оплату${lesson.price ? ` на ${lesson.price} руб.` : ''}?`;
+        ? 'Отметьте учеников, которые оплатили. Сумма берётся из карточки каждого ученика.'
+        : (() => { const price = Number(getStudentInfo(lesson.student_id).default_price || lesson.price || 0); return `Подтвердить оплату${price > 0 ? ` на ${price.toLocaleString('ru-RU')} ₽` : ''}?`; })();
     const membersBox = document.getElementById('group-paid-members');
     membersBox.innerHTML = '';
     membersBox.classList.toggle('hidden', !isGroup);
@@ -786,13 +763,71 @@ document.getElementById('btn-action-paid').onclick = async () => {
         (lesson.group_members || []).forEach(member => {
             const label = document.createElement('label');
             label.className = 'group-paid-member-row';
-            label.innerHTML = `<input type="checkbox" value="${escapeHtml(member.student_id || '')}" ${member.paid ? 'checked' : ''}><span>${escapeHtml(member.name || 'Ученик')}</span>`;
+            const memberPrice = Number(getStudentInfo(member.student_id).default_price || lesson.price || 0);
+            label.innerHTML = `<input type="checkbox" value="${escapeHtml(member.student_id || '')}" ${member.paid ? 'checked' : ''}><span>${escapeHtml(member.name || 'Ученик')}${memberPrice > 0 ? ` · ${memberPrice.toLocaleString('ru-RU')} ₽` : ' · цена не указана'}</span>`;
             membersBox.appendChild(label);
         });
     }
     document.getElementById('send-receipt-checkbox').checked = state.settings.default_send_receipts !== false;
     closeActionMenu();
     document.getElementById('paid-confirm-overlay').classList.remove('hidden');
+};
+
+document.getElementById('btn-action-subscription').onclick = () => {
+    const lesson = state.selectedLesson;
+    if (!lesson || lesson.lesson_type === 'group') return;
+    const info = getStudentInfo(lesson.student_id);
+    const price = Number(info.default_price || lesson.price || 0);
+    if (!(price > 0)) {
+        closeActionMenu();
+        alert('Сначала укажите стоимость урока в карточке ученика.');
+        return;
+    }
+    document.getElementById('subscription-pay-title').textContent = `Абонемент · ${info.calendar_name || lesson.student || info.name || 'Ученик'}`;
+    document.getElementById('subscription-pay-desc').textContent = `Стоимость одного урока: ${price.toLocaleString('ru-RU')} ₽. Укажите общую сумму абонемента.`;
+    const amountInput = document.getElementById('subscription-pay-amount');
+    amountInput.value = String(price * 3);
+    document.getElementById('subscription-send-receipt-checkbox').checked = state.settings.default_send_receipts !== false;
+    updateSubscriptionPayHint();
+    closeActionMenu();
+    document.getElementById('subscription-pay-overlay').classList.remove('hidden');
+    setTimeout(() => amountInput.focus(), 50);
+};
+
+function updateSubscriptionPayHint() {
+    const lesson = state.selectedLesson;
+    const hint = document.getElementById('subscription-pay-hint');
+    if (!lesson || !hint) return;
+    const price = Number(getStudentInfo(lesson.student_id).default_price || lesson.price || 0);
+    const amount = Number(document.getElementById('subscription-pay-amount').value || 0);
+    if (!(price > 0) || !(amount > 0)) { hint.textContent = ''; return; }
+    const count = amount / price;
+    if (Math.abs(count - Math.round(count)) > 0.0001) hint.textContent = `Сумма должна делиться на ${price.toLocaleString('ru-RU')} ₽ без остатка.`;
+    else hint.textContent = `Будет оплачено занятий: ${Math.round(count)}.`;
+}
+
+document.getElementById('subscription-pay-amount').addEventListener('input', updateSubscriptionPayHint);
+document.getElementById('btn-subscription-pay-cancel').onclick = () => document.getElementById('subscription-pay-overlay').classList.add('hidden');
+document.getElementById('btn-subscription-pay-apply').onclick = async () => {
+    const lesson = state.selectedLesson;
+    if (!lesson) return;
+    const amount = Number(document.getElementById('subscription-pay-amount').value || 0);
+    const sendReceipt = document.getElementById('subscription-send-receipt-checkbox').checked;
+    const button = document.getElementById('btn-subscription-pay-apply');
+    button.disabled = true;
+    try {
+        const response = await apiFetch('/pay_subscription', {
+            method: 'POST',
+            body: JSON.stringify({ date: lesson.date, id: lesson.id, amount, send_receipt: sendReceipt })
+        });
+        const result = await response.json();
+        if (result.status !== 'ok') return alert(result.message || 'Ошибка оплаты абонемента');
+        document.getElementById('subscription-pay-overlay').classList.add('hidden');
+        await Promise.all([refreshScheduleOnly(), refreshStudentsOnly()]);
+        alert(`Абонемент оплачен: ${result.lessons_paid} занятий. Чек № ${result.receipt_number || '—'}. ${result.receipt_message || ''}`);
+    } finally {
+        button.disabled = false;
+    }
 };
 
 document.getElementById('btn-paid-confirm-cancel').onclick = () => document.getElementById('paid-confirm-overlay').classList.add('hidden');
@@ -930,7 +965,7 @@ document.getElementById('btn-cancel-move').onclick = cancelMove;
 document.getElementById('btn-save').onclick = saveLesson;
 document.getElementById('btn-cancel-modal').onclick = closeAllModals;
 document.getElementById('btn-close-modal').onclick = closeAllModals;
-['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay'].forEach(id => {
+['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay', 'subscription-pay-overlay'].forEach(id => {
     document.getElementById(id).addEventListener('click', event => { if (event.target.id === id) closeAllModals(); });
 });
 
@@ -1281,15 +1316,18 @@ document.getElementById('btn-save-receipt-settings').onclick = async () => {
     }
 };
 
-// Карточка ученика: баланс, абонемент, день рождения
-function updateStudentCardPreview() {
-    const balance = Number(document.getElementById('student-balance').value || 0);
-    const enabled = document.getElementById('student-subscription-enabled').checked;
-    const remaining = Number(document.getElementById('student-subscription-remaining').value || 0);
-    const total = Number(document.getElementById('student-subscription-total').value || 0);
-    document.getElementById('student-balance-preview').textContent = `${balance > 0 ? '+' : ''}${balance.toLocaleString('ru-RU')} ₽`;
-    document.getElementById('student-subscription-preview').textContent = enabled ? `${remaining} из ${total || '—'}` : '—';
-    document.getElementById('student-subscription-fields').classList.toggle('hidden', !enabled);
+// Карточка ученика: имя, стоимость, контакты и статистика оплат
+async function loadStudentLessonStats(studentId) {
+    const ratio = document.getElementById('student-lessons-ratio');
+    ratio.textContent = '… / …';
+    try {
+        const response = await apiFetch('/get_student_stats', { method: 'POST', body: JSON.stringify({ student_id: studentId }) });
+        const result = await response.json();
+        if (result.status !== 'ok') throw new Error(result.message || 'Ошибка статистики');
+        ratio.textContent = `${result.paid_lessons || 0} / ${result.conducted_lessons || 0}`;
+    } catch (error) {
+        ratio.textContent = '— / —';
+    }
 }
 
 function openStudentCard(studentId) {
@@ -1299,16 +1337,13 @@ function openStudentCard(studentId) {
     document.getElementById('student-card-title').textContent = info.name || 'Ученик';
     document.getElementById('student-calendar-name').value = info.calendar_name || '';
     document.getElementById('student-birthday').value = info.birthday || '';
-    document.getElementById('student-balance').value = info.balance ?? 0;
-    document.getElementById('student-subscription-enabled').checked = info.subscription_enabled === true;
-    document.getElementById('student-subscription-total').value = info.subscription_total || '';
-    document.getElementById('student-subscription-remaining').value = info.subscription_remaining ?? '';
-    document.getElementById('student-subscription-price').value = info.subscription_price || '';
-    updateStudentCardPreview();
+    document.getElementById('student-default-price').value = info.default_price || '';
+    renderContacts('student-card-student-contacts', info.student_contacts || {});
+    renderContacts('student-card-parent-contacts', info.contacts || {});
     document.getElementById('student-card-overlay').classList.remove('hidden');
+    loadStudentLessonStats(studentId);
 }
-['student-balance', 'student-subscription-total', 'student-subscription-remaining'].forEach(id => document.getElementById(id).addEventListener('input', updateStudentCardPreview));
-document.getElementById('student-subscription-enabled').addEventListener('change', updateStudentCardPreview);
+
 document.getElementById('btn-close-student-card').onclick = () => document.getElementById('student-card-overlay').classList.add('hidden');
 document.getElementById('btn-cancel-student-card').onclick = () => document.getElementById('student-card-overlay').classList.add('hidden');
 document.getElementById('btn-save-student-card').onclick = async () => {
@@ -1317,11 +1352,9 @@ document.getElementById('btn-save-student-card').onclick = async () => {
         student_id: studentId,
         calendar_name: document.getElementById('student-calendar-name').value.trim(),
         birthday: document.getElementById('student-birthday').value,
-        balance: Number(document.getElementById('student-balance').value || 0),
-        subscription_enabled: document.getElementById('student-subscription-enabled').checked,
-        subscription_total: Number(document.getElementById('student-subscription-total').value || 0),
-        subscription_remaining: Number(document.getElementById('student-subscription-remaining').value || 0),
-        subscription_price: Number(document.getElementById('student-subscription-price').value || 0)
+        default_price: Number(document.getElementById('student-default-price').value || 0),
+        student_contacts: getContacts('student-card-student-contacts'),
+        contacts: getContacts('student-card-parent-contacts')
     };
     const response = await apiFetch('/update_student_profile', { method: 'POST', body: JSON.stringify(payload) });
     const result = await response.json();

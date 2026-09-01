@@ -6,10 +6,12 @@ const START_HOUR = 6;
 const END_HOUR = 23;
 const MIN_HOUR_HEIGHT = 40;
 const MAX_HOUR_HEIGHT = 160;
+const DEFAULT_HOUR_HEIGHT = 80;
 const ZOOM_STEP = 20;
 
-let hourHeight = 80;
+let hourHeight = DEFAULT_HOUR_HEIGHT;
 let weekTransitioning = false;
+let autoFitWeekPending = true;
 
 const state = {
     currentMonday: getMonday(new Date()),
@@ -257,6 +259,67 @@ function updateLessonTypeUI() {
     document.getElementById('student-fixed-group').classList.toggle('hidden', isGroup || !state.editingExisting);
 }
 
+function lessonBoundsForCurrentWeek() {
+    let earliest = null;
+    let latest = null;
+
+    Object.values(state.schedule || {}).forEach(lessons => {
+        (lessons || []).forEach(lesson => {
+            const [hourRaw, minuteRaw] = String(lesson.time || '').split(':');
+            const hour = Number(hourRaw);
+            const minute = Number(minuteRaw);
+            if (!Number.isFinite(hour) || !Number.isFinite(minute)) return;
+
+            const start = hour * 60 + minute;
+            if (start < START_HOUR * 60 || start > END_HOUR * 60 + 59) return;
+            const duration = Math.max(1, Number(lesson.duration || 60));
+            const end = Math.min((END_HOUR + 1) * 60, start + duration);
+
+            earliest = earliest === null ? start : Math.min(earliest, start);
+            latest = latest === null ? end : Math.max(latest, end);
+        });
+    });
+
+    return earliest === null || latest === null ? null : { earliest, latest };
+}
+
+function autoFitCalendarToWeek() {
+    if (!autoFitWeekPending) return;
+    autoFitWeekPending = false;
+
+    const container = document.getElementById('calendar-container');
+    if (!container) return;
+
+    const bounds = lessonBoundsForCurrentWeek();
+    if (!bounds) {
+        applyHourHeightSmooth(DEFAULT_HOUR_HEIGHT);
+        container.scrollTop = 0;
+        return;
+    }
+
+    // Небольшой воздух сверху/снизу, чтобы первое и последнее занятие не прилипали к краям.
+    const paddingMinutes = 15;
+    const visibleStart = Math.max(START_HOUR * 60, bounds.earliest - paddingMinutes);
+    const visibleEnd = Math.min((END_HOUR + 1) * 60, bounds.latest + paddingMinutes);
+    const spanMinutes = Math.max(60, visibleEnd - visibleStart);
+    const viewportHeight = Math.max(1, container.clientHeight - 12);
+
+    // Автоподбор только сжимает стандартный масштаб. Если диапазон небольшой,
+    // привычный масштаб 80 px/час сохраняется и календарь просто прокручивается к первому уроку.
+    const fitHeight = viewportHeight * 60 / spanMinutes;
+    const targetHeight = Math.max(MIN_HOUR_HEIGHT, Math.min(DEFAULT_HOUR_HEIGHT, fitHeight));
+    applyHourHeightSmooth(targetHeight);
+
+    const offsetMinutes = Math.max(0, visibleStart - START_HOUR * 60);
+    const desiredTop = offsetMinutes * hourHeight / 60;
+    const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight);
+    container.scrollTop = Math.min(maxScroll, Math.max(0, desiredTop));
+}
+
+function scheduleCalendarAutoFit() {
+    requestAnimationFrame(() => requestAnimationFrame(autoFitCalendarToWeek));
+}
+
 function renderCalendar() {
     const labels = document.getElementById('time-labels');
     const grid = document.getElementById('week-grid');
@@ -393,6 +456,8 @@ function renderEvents() {
             layer.appendChild(card);
         });
     }
+
+    if (autoFitWeekPending) scheduleCalendarAutoFit();
 }
 
 function updateCurrentTimeLine() {
@@ -1087,6 +1152,8 @@ async function shiftWeek(days, { fromSwipe = false } = {}) {
         const data = await fetchWeekSchedule(targetMonday);
         state.currentMonday = targetMonday;
         state.schedule = data.schedule;
+        // Во время анимации сохраняем геометрию старой недели; автоподбор запускаем после слайда.
+        autoFitWeekPending = false;
         clearWeekDragStyles();
         renderCalendar();
 
@@ -1121,6 +1188,8 @@ async function shiftWeek(days, { fromSwipe = false } = {}) {
             headerSnapshot?.remove();
             clearWeekDragStyles();
             weekTransitioning = false;
+            autoFitWeekPending = true;
+            scheduleCalendarAutoFit();
         }, 270);
         scheduleWorkCenterRefresh();
     } catch (error) {
@@ -1165,6 +1234,7 @@ function renderDatePicker() {
         button.textContent = date.getDate();
         button.onclick = () => {
             state.currentMonday = getMonday(date);
+            autoFitWeekPending = true;
             document.getElementById('date-picker-overlay').classList.add('hidden');
             refreshScheduleOnly();
         };
@@ -1178,12 +1248,13 @@ document.getElementById('date-picker-next').onclick = () => { state.datePickerMo
 document.getElementById('date-picker-today').onclick = () => {
     const today = new Date();
     state.currentMonday = getMonday(today);
+    autoFitWeekPending = true;
     document.getElementById('date-picker-overlay').classList.add('hidden');
     refreshScheduleOnly();
 };
 document.getElementById('date-picker-close').onclick = () => document.getElementById('date-picker-overlay').classList.add('hidden');
 
-document.getElementById('btn-today').onclick = () => { state.currentMonday = getMonday(new Date()); refreshScheduleOnly(); };
+document.getElementById('btn-today').onclick = () => { state.currentMonday = getMonday(new Date()); autoFitWeekPending = true; refreshScheduleOnly(); };
 document.getElementById('btn-prev-week').onclick = () => shiftWeek(-7);
 document.getElementById('btn-next-week').onclick = () => shiftWeek(7);
 document.getElementById('btn-zoom-in').onclick = () => applyHourHeightSmooth(Math.min(MAX_HOUR_HEIGHT, hourHeight + ZOOM_STEP));
@@ -1533,8 +1604,13 @@ function applyHourHeightSmooth(nextHeight) {
     document.querySelectorAll('#events-layer .event-card').forEach(card => {
         const startMinutes = Number(card.dataset.startMinutes || 0);
         const duration = Number(card.dataset.durationMinutes || 60);
+        const cardHeight = Math.max(18, duration * hourHeight / 60 - 2);
         card.style.top = `${startMinutes * hourHeight / 60}px`;
-        card.style.height = `${Math.max(18, duration * hourHeight / 60 - 2)}px`;
+        card.style.height = `${cardHeight}px`;
+        card.classList.remove('event-card-compact', 'event-card-medium', 'event-card-tall');
+        if (cardHeight < 34) card.classList.add('event-card-compact');
+        else if (cardHeight < 54) card.classList.add('event-card-medium');
+        else card.classList.add('event-card-tall');
     });
 
     if (pinchAnchorHours !== null && pinchAnchorLocalY !== null) {

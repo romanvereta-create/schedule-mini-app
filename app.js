@@ -210,10 +210,12 @@ function addGroupMemberRow(member = null) {
     const memberId = member?.student_id || '';
     const known = memberId && state.students[memberId];
     const manual = member && !known;
+    const memberPrice = Number(member?.price || 0);
     row.innerHTML = `
         <select class="group-member-select">${groupMemberOptions(manual ? 'manual' : memberId)}</select>
-        <input type="text" class="group-member-manual ${manual ? '' : 'hidden'}" placeholder="Имя ученика" value="${escapeHtml(manual ? (member?.name || '') : '')}">
+        <input type="number" class="group-member-price" min="0" step="1" inputmode="decimal" placeholder="Цена, ₽" value="${memberPrice > 0 ? escapeHtml(String(memberPrice)) : ''}">
         <button type="button" class="contact-remove-btn group-member-remove" title="Удалить">✕</button>
+        <input type="text" class="group-member-manual ${manual ? '' : 'hidden'}" placeholder="Имя ученика" value="${escapeHtml(manual ? (member?.name || '') : '')}">
     `;
     const select = row.querySelector('.group-member-select');
     const input = row.querySelector('.group-member-manual');
@@ -239,13 +241,16 @@ function collectGroupMembers() {
     document.querySelectorAll('#group-members-container .group-member-row').forEach(row => {
         const select = row.querySelector('.group-member-select');
         const manualInput = row.querySelector('.group-member-manual');
+        const priceInput = row.querySelector('.group-member-price');
         if (!select?.value) return;
+        const price = Number(String(priceInput?.value || '').replace(',', '.'));
+        const normalizedPrice = Number.isFinite(price) && price > 0 ? price : 0;
         if (select.value === 'manual') {
             const name = manualInput?.value.trim() || '';
-            if (name) result.push({ student_id: 'manual', name });
+            if (name) result.push({ student_id: 'manual', name, price: normalizedPrice });
         } else {
             const option = select.options[select.selectedIndex];
-            result.push({ student_id: select.value, name: option?.dataset.name || option?.textContent || select.value });
+            result.push({ student_id: select.value, name: option?.dataset.name || option?.textContent || select.value, price: normalizedPrice });
         }
     });
     return result;
@@ -863,7 +868,7 @@ document.getElementById('btn-action-paid').onclick = async () => {
 
     document.getElementById('paid-confirm-title').textContent = `${isGroup ? (lesson.group_name || 'Группа') : (lesson.student || 'Ученик')} · ${lesson.time || '--:--'}`;
     document.getElementById('paid-confirm-desc').textContent = isGroup
-        ? 'Отметьте учеников, которые оплатили. Сумма берётся из карточки каждого ученика.'
+        ? 'Отметьте учеников, которые оплатили. Для каждого используется цена, указанная в этой группе.'
         : (() => { const price = Number(getStudentInfo(lesson.student_id).default_price || lesson.price || 0); return `Подтвердить оплату${price > 0 ? ` на ${price.toLocaleString('ru-RU')} ₽` : ''}?`; })();
     const membersBox = document.getElementById('group-paid-members');
     membersBox.innerHTML = '';
@@ -872,7 +877,7 @@ document.getElementById('btn-action-paid').onclick = async () => {
         (lesson.group_members || []).forEach(member => {
             const label = document.createElement('label');
             label.className = 'group-paid-member-row';
-            const memberPrice = Number(getStudentInfo(member.student_id).default_price || lesson.price || 0);
+            const memberPrice = Number(member.price || 0);
             label.innerHTML = `<input type="checkbox" value="${escapeHtml(member.student_id || '')}" ${member.paid ? 'checked' : ''}><span>${escapeHtml(member.name || 'Ученик')}${memberPrice > 0 ? ` · ${memberPrice.toLocaleString('ru-RU')} ₽` : ' · цена не указана'}</span>`;
             membersBox.appendChild(label);
         });
@@ -1016,7 +1021,7 @@ function renderGroupActionDetails(lesson) {
     const members = Array.isArray(lesson.group_members) ? lesson.group_members : [];
     box.innerHTML = members.length ? members.map(member => {
         const info = getStudentInfo(member.student_id);
-        const price = Number(info.default_price || lesson.price || 0);
+        const price = Number(member.price || 0);
         const priceText = price > 0 ? `${price.toLocaleString('ru-RU')} ₽` : 'стоимость не указана';
         const paidText = member.paid ? 'оплачено' : 'не оплачено';
         return `<div class="group-action-member"><span class="group-action-member-name">${escapeHtml(member.name || info.name || 'Ученик')}</span><span class="group-action-member-price">${priceText} · ${paidText}</span></div>`;

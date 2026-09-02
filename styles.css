@@ -566,12 +566,20 @@ body {
 }
 .group-member-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) 110px auto;
     gap: 6px;
     align-items: center;
 }
 .group-member-row .group-member-manual {
-    grid-column: 1 / -1;
+    grid-column: 1 / 3;
+}
+.group-member-row .group-member-price {
+    text-align: right;
+}
+@media (max-width: 480px) {
+    .group-member-row {
+        grid-template-columns: minmax(0, 1fr) 92px auto;
+    }
 }
 .group-member-row select,
 .group-member-row input {

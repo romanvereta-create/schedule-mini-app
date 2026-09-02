@@ -262,6 +262,7 @@ function updateLessonTypeUI() {
     document.getElementById('group-editor-group').classList.toggle('hidden', !isGroup);
     document.getElementById('student-select-group').classList.toggle('hidden', isGroup || state.editingExisting);
     document.getElementById('student-fixed-group').classList.toggle('hidden', isGroup || !state.editingExisting);
+    document.getElementById('student-lesson-price-group').classList.toggle('hidden', isGroup);
 }
 
 function lessonBoundsForCurrentWeek() {
@@ -659,6 +660,7 @@ function resetAddForm() {
     document.getElementById('student-select').value = '';
     document.getElementById('manual-student-name').value = '';
     document.getElementById('manual-student-name').classList.add('hidden');
+    document.getElementById('lesson-price').value = '';
     document.getElementById('lesson-repeat').value = 'no';
     document.getElementById('reminder-enabled').checked = state.settings.default_reminders_enabled !== false;
     document.getElementById('reminder-minutes').value = '60';
@@ -692,6 +694,9 @@ function openEditModal(date, lesson) {
     document.getElementById('group-name').value = lesson.group_name || lesson.student || '';
     renderGroupMembers(lesson.group_members || []);
     document.getElementById('fixed-student-name').value = lesson.student || '';
+    const legacyPrice = Number(getStudentInfo(lesson.student_id).default_price || 0);
+    const lessonPrice = Number(lesson.price || 0);
+    document.getElementById('lesson-price').value = !isGroup && (lessonPrice > 0 || legacyPrice > 0) ? String(lessonPrice > 0 ? lessonPrice : legacyPrice) : '';
     updateLessonTypeUI();
     document.getElementById('time-duration-group').classList.add('hidden');
     document.getElementById('repeat-group').classList.add('hidden');
@@ -734,11 +739,14 @@ async function saveLesson() {
     }
 
     if (lessonType === 'student' && !student) return alert('Укажите ученика');
+    const lessonPrice = lessonType === 'student' ? Number(String(document.getElementById('lesson-price').value || '').replace(',', '.')) : 0;
+    if (lessonType === 'student' && (!(lessonPrice > 0) || !Number.isFinite(lessonPrice))) return alert('Укажите стоимость занятия');
+    if (lessonType === 'group' && groupMembers.some(member => !(Number(member.price) > 0))) return alert('Укажите стоимость занятия для каждого ученика группы');
     if (!time) return alert('Укажите время');
 
     const payload = {
         date, time, duration, lesson_type: lessonType,
-        student, student_id: studentId,
+        student, student_id: studentId, price: lessonPrice,
         group_name: groupName, group_members: groupMembers,
         reminder_enabled: document.getElementById('reminder-enabled').checked,
         reminder_minutes: document.getElementById('reminder-minutes').value || 60,
@@ -869,7 +877,7 @@ document.getElementById('btn-action-paid').onclick = async () => {
     document.getElementById('paid-confirm-title').textContent = `${isGroup ? (lesson.group_name || 'Группа') : (lesson.student || 'Ученик')} · ${lesson.time || '--:--'}`;
     document.getElementById('paid-confirm-desc').textContent = isGroup
         ? 'Отметьте учеников, которые оплатили. Для каждого используется цена, указанная в этой группе.'
-        : (() => { const price = Number(getStudentInfo(lesson.student_id).default_price || lesson.price || 0); return `Подтвердить оплату${price > 0 ? ` на ${price.toLocaleString('ru-RU')} ₽` : ''}?`; })();
+        : (() => { const price = Number(lesson.price || getStudentInfo(lesson.student_id).default_price || 0); return `Подтвердить оплату${price > 0 ? ` на ${price.toLocaleString('ru-RU')} ₽` : ''}?`; })();
     const membersBox = document.getElementById('group-paid-members');
     membersBox.innerHTML = '';
     membersBox.classList.toggle('hidden', !isGroup);
@@ -891,10 +899,10 @@ document.getElementById('btn-action-subscription').onclick = () => {
     const lesson = state.selectedLesson;
     if (!lesson || lesson.lesson_type === 'group') return;
     const info = getStudentInfo(lesson.student_id);
-    const price = Number(info.default_price || lesson.price || 0);
+    const price = Number(lesson.price || info.default_price || 0);
     if (!(price > 0)) {
         closeActionMenu();
-        alert('Сначала укажите стоимость урока в карточке ученика.');
+        alert('Сначала укажите стоимость в настройках занятия.');
         return;
     }
     document.getElementById('subscription-pay-title').textContent = `Абонемент · ${info.calendar_name || lesson.student || info.name || 'Ученик'}`;
@@ -937,7 +945,7 @@ function updateSubscriptionPayHint() {
     const lesson = state.selectedLesson;
     const hint = document.getElementById('subscription-pay-hint');
     if (!lesson || !hint) return;
-    const price = Number(getStudentInfo(lesson.student_id).default_price || lesson.price || 0);
+    const price = Number(lesson.price || getStudentInfo(lesson.student_id).default_price || 0);
     const amount = Number(document.getElementById('subscription-pay-amount').value || 0);
     const lessonCount = getSubscriptionLessonCount();
     if (!(price > 0) || !(amount > 0)) { hint.textContent = ''; return; }
@@ -950,7 +958,7 @@ function updateSubscriptionPayHint() {
 
 document.getElementById('subscription-pay-amount').addEventListener('input', () => {
     const lesson = state.selectedLesson;
-    const price = Number(getStudentInfo(lesson?.student_id).default_price || lesson?.price || 0);
+    const price = Number(lesson?.price || getStudentInfo(lesson?.student_id).default_price || 0);
     const amount = Number(document.getElementById('subscription-pay-amount').value || 0);
     if (price > 0 && amount > 0) setSubscriptionLessonCount(Math.max(2, Math.round(amount / price)));
     else updateSubscriptionPayHint();
@@ -1553,7 +1561,6 @@ function openStudentCard(studentId) {
     document.getElementById('student-card-title').textContent = info.name || 'Ученик';
     document.getElementById('student-calendar-name').value = info.calendar_name || '';
     document.getElementById('student-birthday').value = info.birthday || '';
-    document.getElementById('student-default-price').value = info.default_price || '';
     document.getElementById('student-note').value = info.note || '';
     document.getElementById('student-board-link').value = info.board_link || '';
     document.getElementById('student-zoom-link').value = info.zoom_link || '';
@@ -1572,7 +1579,6 @@ document.getElementById('btn-save-student-card').onclick = async () => {
         student_id: studentId,
         calendar_name: document.getElementById('student-calendar-name').value.trim(),
         birthday: document.getElementById('student-birthday').value,
-        default_price: Number(document.getElementById('student-default-price').value || 0),
         status: document.getElementById('student-card-overlay').dataset.studentStatus || 'active',
         note: document.getElementById('student-note').value.trim(),
         board_link: document.getElementById('student-board-link').value.trim(),

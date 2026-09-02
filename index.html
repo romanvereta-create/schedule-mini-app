@@ -202,6 +202,11 @@
                         <input type="text" id="fixed-student-name" readonly class="readonly-input">
                     </div>
 
+                    <div class="form-group" id="student-lesson-price-group">
+                        <label>Стоимость занятия, ₽</label>
+                        <input type="number" id="lesson-price" min="0" step="1" inputmode="decimal" placeholder="1500">
+                    </div>
+
                     <!-- Время и Длительность -->
                     <div class="form-row" id="time-duration-group">
                         <div class="form-group flex-1">
@@ -345,15 +350,9 @@
                     <input type="text" id="student-calendar-name" maxlength="24" placeholder="Например: Саша">
                     <small class="field-hint">Если оставить пустым, в календаре будет обычное имя.</small>
                 </div>
-                <div class="form-row">
-                    <div class="form-group flex-1">
-                        <label>День рождения</label>
-                        <input type="date" id="student-birthday">
-                    </div>
-                    <div class="form-group flex-1">
-                        <label>Стоимость урока, ₽</label>
-                        <input type="number" id="student-default-price" min="0" step="1" inputmode="decimal" placeholder="1500">
-                    </div>
+                <div class="form-group">
+                    <label>День рождения</label>
+                    <input type="date" id="student-birthday">
                 </div>
                 <div class="form-group">
                     <label>Статус</label>
@@ -505,6 +504,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=30.4-group-member-prices"></script>
+    <script src="app.js?v=30.5-lesson-prices"></script>
 </body>
 </html>

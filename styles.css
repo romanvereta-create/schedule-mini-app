@@ -722,3 +722,19 @@ body {
 .student-history-paid { font-size: 12px; opacity: 0.68; white-space: nowrap; }
 .student-history-paid.is-paid { opacity: 1; }
 .student-history-empty { padding: 10px; font-size: 13px; opacity: 0.65; text-align: center; }
+
+
+/* v30: workflow helpers without adding controls to the main calendar */
+.compact-setting-field { margin: 2px 0 4px; }
+.next-lesson-card { border: 1px solid #e7e9ec; border-radius: 14px; padding: 12px; background: #fafbfc; }
+.next-lesson-head { display: flex; flex-direction: column; gap: 4px; }
+.next-lesson-head span { font-size: 12px; opacity: .68; }
+.next-lesson-head strong { font-size: 15px; }
+.next-lesson-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.next-link-btn { border: 1px solid #d9dde3; border-radius: 10px; background: #fff; min-height: 38px; font: inherit; font-weight: 600; cursor: pointer; }
+.next-link-btn:active { background: #f1f3f4; }
+.hub-debt-total { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #eceff2; }
+.hub-debt-total span { font-size: 13px; opacity: .72; }
+.student-history-row-report { display: block; }
+.student-history-main { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.student-history-report { margin-top: 5px; font-size: 12px; line-height: 1.35; opacity: .78; white-space: pre-wrap; }

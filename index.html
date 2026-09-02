@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Расписание</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css?v=29-tenant-autofit">
+    <link rel="stylesheet" href="styles.css?v=30-workflow">
 </head>
 <body>
     <header class="main-header">
@@ -63,6 +63,7 @@
                 <button id="btn-action-move-trigger" class="action-menu-btn">🔄 Перенести</button>
 
                 <button id="btn-action-student-card" class="action-menu-btn">👤 Карточка ученика</button>
+                <button id="btn-action-report" class="action-menu-btn">📝 Итог занятия</button>
                 <button id="btn-action-settings" class="action-menu-btn">⚙️ Настройки занятия</button>
                 <button id="btn-action-delete" class="action-menu-btn delete-btn">🗑 Удалить</button>
 
@@ -233,21 +234,33 @@
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label>Ссылка на Zoom / Telemost</label>
-                        <input type="text" id="zoom-link" placeholder="https://zoom.us/...">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Текст сообщения для ученика</label>
-                        <textarea id="reminder-text" rows="2" placeholder="Например: Встречаемся в Zoom!"></textarea>
-                    </div>
                 </div>
 
                 <div class="modal-actions">
                     <button id="btn-save" class="primary-btn">Сохранить</button>
                     <button id="btn-cancel-modal" class="secondary-btn">Отмена</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- МИКРООТЧЁТ ПО ЗАНЯТИЮ -->
+    <div id="lesson-report-overlay" class="hidden">
+        <div class="modal-content compact-modal">
+            <header class="modal-header">
+                <h2 id="lesson-report-title">Итог занятия</h2>
+                <span id="btn-close-lesson-report" class="close-modal">&times;</span>
+            </header>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Коротко: что прошли / результат</label>
+                    <textarea id="lesson-report-text" rows="4" maxlength="1000" placeholder="Например: квадратные неравенства, №15; стало лучше с ОДЗ"></textarea>
+                    <small class="field-hint">Сохраняется в истории ученика. Можно оставить пустым.</small>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button id="btn-save-lesson-report" class="primary-btn" type="button">Сохранить</button>
+                <button id="btn-cancel-lesson-report" class="secondary-btn" type="button">Закрыть</button>
             </div>
         </div>
     </div>
@@ -279,10 +292,19 @@
                 <span id="btn-close-work-center" class="close-modal">&times;</span>
             </header>
             <div class="modal-body compact-stack">
+                <div id="hub-next-lesson" class="next-lesson-card">
+                    <div class="hub-empty">Ищу ближайшее занятие…</div>
+                </div>
+
                 <button class="hub-row" data-hub-section="attention">
                     <span>⚠️ Требует внимания</span><strong id="hub-attention-count">0</strong>
                 </button>
                 <div id="hub-attention" class="hub-panel hidden"></div>
+
+                <button class="hub-row" data-hub-section="debts">
+                    <span>💳 Кто должен</span><strong id="hub-debts-count">0</strong>
+                </button>
+                <div id="hub-debts" class="hub-panel hidden"></div>
 
                 <button class="hub-row" data-hub-section="windows">
                     <span>🕒 Окна этой недели</span><span>›</span>
@@ -345,6 +367,16 @@
                     <textarea id="student-note" rows="3" maxlength="1000" placeholder="Например: готовится к ЕГЭ, по средам только после 18:00"></textarea>
                 </div>
                 <div class="form-group">
+                    <label>Ссылка на доску</label>
+                    <input type="url" id="student-board-link" placeholder="https://...">
+                    <small class="field-hint">Индивидуальная ссылка этого ученика.</small>
+                </div>
+                <div class="form-group">
+                    <label>Своя ссылка Zoom <small class="muted-inline">(необязательно)</small></label>
+                    <input type="url" id="student-zoom-link" placeholder="Если пусто — используется общая ссылка">
+                    <small class="field-hint">Заполняйте только если этому ученику нужна другая ссылка.</small>
+                </div>
+                <div class="form-group">
                     <label>Контакт ученика</label>
                     <div id="student-card-student-contacts" class="contacts-list"></div>
                     <button type="button" class="secondary-btn add-contact-btn" data-target="student-card-student-contacts">＋ Добавить контакт</button>
@@ -383,6 +415,11 @@
                     <input type="checkbox" id="default-reminders-enabled" checked>
                     <span>Напоминания для новых занятий</span>
                 </label>
+                <div class="form-group compact-setting-field">
+                    <label>Общая ссылка Zoom / Telemost</label>
+                    <input type="url" id="default-zoom-link" placeholder="https://zoom.us/...">
+                    <small class="field-hint">Используется для всех учеников, у которых не указана своя ссылка.</small>
+                </div>
                 <label class="checkbox-label settings-checkbox compact-setting-row">
                     <input type="checkbox" id="default-send-receipts" checked>
                     <span>Отправлять чек родителю</span>
@@ -467,6 +504,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=29-tenant-autofit"></script>
+    <script src="app.js?v=30-workflow"></script>
 </body>
 </html>

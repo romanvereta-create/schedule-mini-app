@@ -21,7 +21,7 @@ const state = {
     isMoving: false,
     pendingMove: null,
     editingExisting: false,
-    settings: { default_reminders_enabled: true, default_send_receipts: true, default_send_receipt_copy: true },
+    settings: { default_reminders_enabled: true, default_send_receipts: true, default_send_receipt_copy: true, zoom_link: '' },
     datePickerMonth: new Date(),
     workCenter: null
 };
@@ -487,6 +487,11 @@ function updateCurrentTimeLine() {
 
 setInterval(updateCurrentTimeLine, 5 * 60 * 1000);
 
+function lessonHasStarted(date, lesson) {
+    const start = new Date(`${date}T${lesson.time || '00:00'}:00`);
+    return !Number.isNaN(start.getTime()) && start.getTime() <= Date.now();
+}
+
 function openActionMenu(date, lesson) {
     state.selectedLesson = { date, ...lesson };
     const isGroup = lesson.lesson_type === 'group';
@@ -495,6 +500,7 @@ function openActionMenu(date, lesson) {
     document.getElementById('btn-action-subscription').classList.toggle('hidden', isGroup);
     document.getElementById('btn-action-student-card').classList.toggle('hidden', isGroup);
     document.getElementById('btn-action-chat-student').classList.toggle('hidden', isGroup);
+    document.getElementById('btn-action-report').classList.toggle('hidden', !lessonHasStarted(date, lesson));
     document.getElementById('action-menu-overlay').classList.remove('hidden');
 }
 
@@ -645,8 +651,6 @@ function resetAddForm() {
     document.getElementById('lesson-repeat').value = 'no';
     document.getElementById('reminder-enabled').checked = state.settings.default_reminders_enabled !== false;
     document.getElementById('reminder-minutes').value = '60';
-    document.getElementById('reminder-text').value = '';
-    document.getElementById('zoom-link').value = '';
     updateReminderControls();
     updateLessonTypeUI();
 }
@@ -686,8 +690,6 @@ function openEditModal(date, lesson) {
     document.getElementById('lesson-id').value = lesson.id || '';
     document.getElementById('reminder-enabled').checked = lesson.reminder_enabled !== false;
     document.getElementById('reminder-minutes').value = lesson.reminder_minutes ?? 60;
-    document.getElementById('reminder-text').value = lesson.reminder_text || '';
-    document.getElementById('zoom-link').value = lesson.zoom_link || '';
 
     updateReminderControls();
     document.getElementById('modal-overlay').classList.remove('hidden');
@@ -729,8 +731,6 @@ async function saveLesson() {
         group_name: groupName, group_members: groupMembers,
         reminder_enabled: document.getElementById('reminder-enabled').checked,
         reminder_minutes: document.getElementById('reminder-minutes').value || 60,
-        reminder_text: document.getElementById('reminder-text').value,
-        zoom_link: document.getElementById('zoom-link').value,
         repeat: document.getElementById('lesson-repeat').value
     };
     const endpoint = state.editingExisting ? '/update_lesson' : '/add_lesson';
@@ -744,7 +744,7 @@ async function saveLesson() {
 }
 
 function closeAllModals() {
-    ['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay', 'subscription-pay-overlay'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+    ['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay', 'subscription-pay-overlay', 'lesson-report-overlay'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
 }
 
 // Палитра цветов в меню действий
@@ -797,8 +797,44 @@ document.getElementById('student-select').addEventListener('change', event => {
     if (manual) input.focus();
 });
 
+// Микроотчёт по проведённому занятию
+function openLessonReport() {
+    const lesson = state.selectedLesson;
+    if (!lesson) return;
+    const title = lesson.lesson_type === 'group' ? (lesson.group_name || lesson.student || 'Группа') : (lesson.student || 'Ученик');
+    document.getElementById('lesson-report-title').textContent = `Итог · ${title} · ${lesson.time || ''}`;
+    document.getElementById('lesson-report-text').value = lesson.report || '';
+    document.getElementById('lesson-report-overlay').classList.remove('hidden');
+}
+
+document.getElementById('btn-close-lesson-report').onclick = () => document.getElementById('lesson-report-overlay').classList.add('hidden');
+document.getElementById('btn-cancel-lesson-report').onclick = () => document.getElementById('lesson-report-overlay').classList.add('hidden');
+document.getElementById('btn-save-lesson-report').onclick = async () => {
+    const lesson = state.selectedLesson;
+    if (!lesson) return;
+    const button = document.getElementById('btn-save-lesson-report');
+    button.disabled = true;
+    try {
+        const report = document.getElementById('lesson-report-text').value.trim();
+        const response = await apiFetch('/update_lesson_report', {
+            method: 'POST',
+            body: JSON.stringify({ date: lesson.date, id: lesson.id, report })
+        });
+        const result = await response.json();
+        if (result.status !== 'ok') return alert(result.message || 'Ошибка сохранения итога');
+        state.selectedLesson.report = report;
+        document.getElementById('lesson-report-overlay').classList.add('hidden');
+        await refreshScheduleOnly();
+    } catch (error) {
+        alert(error.message || 'Ошибка сохранения итога');
+    } finally {
+        button.disabled = false;
+    }
+};
+
 // Меню действий
 document.getElementById('btn-action-student-card').onclick = () => { closeActionMenu(); if (state.selectedLesson) openStudentCard(state.selectedLesson.student_id); };
+document.getElementById('btn-action-report').onclick = () => { closeActionMenu(); openLessonReport(); };
 document.getElementById('btn-action-settings').onclick = () => { closeActionMenu(); if (state.selectedLesson) openEditModal(state.selectedLesson.date, state.selectedLesson); };
 document.getElementById('btn-action-move-trigger').onclick = () => { closeActionMenu(); if (state.selectedLesson) startMove(state.selectedLesson.date, state.selectedLesson); };
 document.getElementById('btn-action-paid').onclick = async () => {
@@ -1069,7 +1105,7 @@ document.getElementById('btn-cancel-move').onclick = cancelMove;
 document.getElementById('btn-save').onclick = saveLesson;
 document.getElementById('btn-cancel-modal').onclick = closeAllModals;
 document.getElementById('btn-close-modal').onclick = closeAllModals;
-['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay', 'subscription-pay-overlay'].forEach(id => {
+['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay', 'subscription-pay-overlay', 'lesson-report-overlay'].forEach(id => {
     document.getElementById(id).addEventListener('click', event => { if (event.target.id === id) closeAllModals(); });
 });
 
@@ -1339,6 +1375,7 @@ const receiptSettingFields = [
 
 function fillAppSettingsForm() {
     document.getElementById('default-reminders-enabled').checked = state.settings.default_reminders_enabled !== false;
+    document.getElementById('default-zoom-link').value = state.settings.zoom_link || '';
     document.getElementById('default-send-receipts').checked = state.settings.default_send_receipts !== false;
     document.getElementById('default-send-receipt-copy').checked = state.settings.default_send_receipt_copy !== false;
 }
@@ -1377,6 +1414,7 @@ document.getElementById('btn-save-app-settings').onclick = async () => {
     try {
         const settings = {
             default_reminders_enabled: document.getElementById('default-reminders-enabled').checked,
+            zoom_link: document.getElementById('default-zoom-link').value.trim(),
             default_send_receipts: document.getElementById('default-send-receipts').checked,
             default_send_receipt_copy: document.getElementById('default-send-receipt-copy').checked
         };
@@ -1453,7 +1491,8 @@ async function loadStudentLessonStats(studentId) {
             historyList.innerHTML = history.length ? history.map(item => {
                 const dateLabel = shortDateRu(item.date);
                 const paidLabel = item.paid ? '✓ оплачено' : 'не оплачено';
-                return `<div class="student-history-row"><span>${escapeHtml(dateLabel)} · ${escapeHtml(item.time || '')}</span><span class="student-history-paid ${item.paid ? 'is-paid' : ''}">${paidLabel}</span></div>`;
+                const report = String(item.report || '').trim();
+                return `<div class="student-history-row student-history-row-report"><div class="student-history-main"><span>${escapeHtml(dateLabel)} · ${escapeHtml(item.time || '')}</span><span class="student-history-paid ${item.paid ? 'is-paid' : ''}">${paidLabel}</span></div>${report ? `<div class="student-history-report">${escapeHtml(report)}</div>` : ''}</div>`;
             }).join('') : '<div class="student-history-empty">Занятий пока нет</div>';
         }
     } catch (error) {
@@ -1481,6 +1520,8 @@ function openStudentCard(studentId) {
     document.getElementById('student-birthday').value = info.birthday || '';
     document.getElementById('student-default-price').value = info.default_price || '';
     document.getElementById('student-note').value = info.note || '';
+    document.getElementById('student-board-link').value = info.board_link || '';
+    document.getElementById('student-zoom-link').value = info.zoom_link || '';
     setStudentStatus(info.status || 'active');
     renderContacts('student-card-student-contacts', info.student_contacts || {});
     renderContacts('student-card-parent-contacts', info.contacts || {});
@@ -1499,6 +1540,8 @@ document.getElementById('btn-save-student-card').onclick = async () => {
         default_price: Number(document.getElementById('student-default-price').value || 0),
         status: document.getElementById('student-card-overlay').dataset.studentStatus || 'active',
         note: document.getElementById('student-note').value.trim(),
+        board_link: document.getElementById('student-board-link').value.trim(),
+        zoom_link: document.getElementById('student-zoom-link').value.trim(),
         student_contacts: getContacts('student-card-student-contacts'),
         contacts: getContacts('student-card-parent-contacts')
     };
@@ -1534,17 +1577,46 @@ async function loadWorkCenter() {
     return result;
 }
 
+function openExternalLink(url) {
+    const value = String(url || '').trim();
+    if (!/^https?:\/\//i.test(value)) return alert('Ссылка не указана или некорректна');
+    try { tg.openLink(value); } catch (e) { window.open(value, '_blank', 'noopener,noreferrer'); }
+}
+
 function renderWorkCenter() {
-    const data = state.workCenter || { attention: [], windows: [], birthdays: [], summary: {} };
+    const data = state.workCenter || { attention: [], debts: [], windows: [], birthdays: [], summary: {}, next_lesson: null };
     document.getElementById('hub-attention-count').textContent = data.attention.length;
     const badge = document.getElementById('attention-badge');
     badge.textContent = data.attention.length;
     badge.classList.toggle('hidden', !data.attention.length);
 
+    const next = data.next_lesson;
+    const nextBox = document.getElementById('hub-next-lesson');
+    if (!next) {
+        nextBox.innerHTML = '<div class="next-lesson-head"><strong>Ближайшее занятие</strong></div><div class="hub-empty">Ближайших занятий нет.</div>';
+    } else {
+        const when = next.status === 'now'
+            ? 'Сейчас'
+            : (next.minutes_until < 60 ? `Через ${Math.max(1, next.minutes_until)} мин` : `${shortDateRu(next.date)} · ${next.time}`);
+        const buttons = [
+            next.board_link ? `<button type="button" class="next-link-btn" data-next-link="board">Доска</button>` : '',
+            next.zoom_link ? `<button type="button" class="next-link-btn" data-next-link="zoom">Zoom</button>` : ''
+        ].filter(Boolean).join('');
+        nextBox.innerHTML = `<div class="next-lesson-head"><span>${escapeHtml(when)}</span><strong>${escapeHtml(next.student || 'Ученик')} · ${escapeHtml(next.time || '')}</strong></div>${buttons ? `<div class="next-lesson-actions">${buttons}</div>` : '<small class="field-hint">Ссылки можно указать в карточке ученика и общих настройках.</small>'}`;
+        nextBox.querySelector('[data-next-link="board"]')?.addEventListener('click', () => openExternalLink(next.board_link));
+        nextBox.querySelector('[data-next-link="zoom"]')?.addEventListener('click', () => openExternalLink(next.zoom_link));
+    }
+
     const attentionInfo = `<div class="hub-explainer"><strong>Что отслеживается</strong><span>Просроченные неоплаченные занятия · дни рождения в ближайшие 7 дней · задолженность, если она сохранена в данных ученика.</span></div>`;
     document.getElementById('hub-attention').innerHTML = attentionInfo + (data.attention.length
         ? data.attention.map(item => `<div class="hub-item">${escapeHtml(item.text || '')}</div>`).join('')
         : '<div class="hub-empty">Сейчас всё спокойно — ничего из этого не требует внимания.</div>');
+
+    const debts = Array.isArray(data.debts) ? data.debts : [];
+    document.getElementById('hub-debts-count').textContent = debts.length;
+    document.getElementById('hub-debts').innerHTML = debts.length
+        ? `<div class="hub-debt-total"><span>Всего к оплате</span><strong>${money(data.debt_total || 0)}</strong></div>` + debts.map(item => `<div class="hub-item"><strong>${escapeHtml(item.name || 'Ученик')}</strong><span>${item.unpaid_count || 0} зан. · ${money(item.amount || 0)}</span></div>`).join('')
+        : '<div class="hub-empty">Просроченных неоплаченных занятий нет.</div>';
 
     document.getElementById('hub-windows').innerHTML = data.windows.length
         ? data.windows.map(item => `<div class="hub-item"><strong>${shortDateRu(item.date)}</strong><span>${item.from}–${item.to}</span></div>`).join('')

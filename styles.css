@@ -265,10 +265,10 @@ body {
 }
 
 /* Modals */
-#modal-overlay, #move-modal-overlay, #action-menu-overlay, #delete-modal-overlay, #date-picker-overlay, #app-settings-overlay, #receipt-settings-overlay, #student-card-overlay, #work-center-overlay, #paid-confirm-overlay, #subscription-pay-overlay, #lesson-report-overlay {
+#modal-overlay, #move-modal-overlay, #action-menu-overlay, #delete-modal-overlay, #date-picker-overlay, #app-settings-overlay, #receipt-settings-overlay, #student-card-overlay, #work-center-overlay, #paid-confirm-overlay, #subscription-pay-overlay {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.45); z-index: 1000; display: flex; align-items: center; justify-content: center;
 }
-#modal-overlay.hidden, #move-modal-overlay.hidden, #action-menu-overlay.hidden, #delete-modal-overlay.hidden, #date-picker-overlay.hidden, #app-settings-overlay.hidden, #receipt-settings-overlay.hidden, #student-card-overlay.hidden, #work-center-overlay.hidden, #paid-confirm-overlay.hidden, #subscription-pay-overlay.hidden, #lesson-report-overlay.hidden { display: none; }
+#modal-overlay.hidden, #move-modal-overlay.hidden, #action-menu-overlay.hidden, #delete-modal-overlay.hidden, #date-picker-overlay.hidden, #app-settings-overlay.hidden, #receipt-settings-overlay.hidden, #student-card-overlay.hidden, #work-center-overlay.hidden, #paid-confirm-overlay.hidden, #subscription-pay-overlay.hidden { display: none; }
 
 .modal-content { background: #ffffff; border-radius: 16px; width: 90%; max-width: 350px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
 .text-center { text-align: center; }
@@ -740,32 +740,27 @@ body {
 .student-history-report { margin-top: 5px; font-size: 12px; line-height: 1.35; opacity: .78; white-space: pre-wrap; }
 
 
-/* v30.1: mobile fit for debt details */
-@media (max-width: 480px) {
-    #hub-debts .hub-item {
-        align-items: flex-start;
-        flex-wrap: wrap;
-    }
-    #hub-debts .hub-item strong,
-    #hub-debts .hub-item span {
-        min-width: 0;
-        max-width: 100%;
-        overflow-wrap: anywhere;
-    }
-    #hub-debts .hub-item span {
-        margin-left: auto;
-        white-space: normal;
-    }
-    #hub-debts .hub-debt-total {
-        gap: 8px;
-        flex-wrap: wrap;
-    }
+/* v30.3: участники, стоимость и контакты в меню группового занятия */
+.group-action-details {
+    width: 100%;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    overflow: hidden;
+    text-align: left;
 }
-
-/* v30.2: on phones debt details expand naturally; the Work Center itself scrolls */
+.group-action-member {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 11px;
+    border-bottom: 1px solid #eeeeee;
+}
+.group-action-member:last-child { border-bottom: 0; }
+.group-action-member-name { font-weight: 600; min-width: 0; }
+.group-action-member-price { font-size: 13px; color: #5f6368; text-align: right; flex: 0 0 auto; }
+.group-action-empty { padding: 9px 11px; color: #5f6368; }
 @media (max-width: 480px) {
-    #hub-debts.hub-panel {
-        max-height: none;
-        overflow-y: visible;
-    }
+    .group-action-member { align-items: flex-start; flex-direction: column; gap: 3px; }
+    .group-action-member-price { text-align: left; }
 }

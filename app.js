@@ -499,7 +499,13 @@ function openActionMenu(date, lesson) {
     document.getElementById('btn-action-paid').textContent = isGroup ? '💳 Оплата группы' : (lesson.paid ? '✅ Оплачено (снять)' : '💳 Оплатил');
     document.getElementById('btn-action-subscription').classList.toggle('hidden', isGroup);
     document.getElementById('btn-action-student-card').classList.toggle('hidden', isGroup);
-    document.getElementById('btn-action-chat-student').classList.toggle('hidden', isGroup);
+    const chatStudentButton = document.getElementById('btn-action-chat-student');
+    const chatParentButton = document.getElementById('btn-action-chat-parent');
+    chatStudentButton.classList.remove('hidden');
+    chatParentButton.classList.remove('hidden');
+    chatStudentButton.textContent = isGroup ? '💬 Написать ученикам' : '💬 Написать ученику';
+    chatParentButton.textContent = isGroup ? '💬 Написать родителям' : '💬 Написать родителю';
+    renderGroupActionDetails(lesson);
     document.getElementById('btn-action-report').classList.toggle('hidden', !lessonHasStarted(date, lesson));
     document.getElementById('action-menu-overlay').classList.remove('hidden');
 }
@@ -999,9 +1005,35 @@ document.getElementById('btn-paid-confirm-apply').onclick = async () => {
 document.getElementById('btn-action-delete').onclick = () => { closeActionMenu(); document.getElementById('delete-modal-overlay').classList.remove('hidden'); };
 document.getElementById('btn-action-close').onclick = closeActionMenu;
 
-// Написать ученику
-document.getElementById('btn-action-chat-student').onclick = () => {
-    const id = state.selectedLesson?.student_id;
+function renderGroupActionDetails(lesson) {
+    const box = document.getElementById('group-action-details');
+    if (!box) return;
+    if (!lesson || lesson.lesson_type !== 'group') {
+        box.innerHTML = '';
+        box.classList.add('hidden');
+        return;
+    }
+    const members = Array.isArray(lesson.group_members) ? lesson.group_members : [];
+    box.innerHTML = members.length ? members.map(member => {
+        const info = getStudentInfo(member.student_id);
+        const price = Number(info.default_price || lesson.price || 0);
+        const priceText = price > 0 ? `${price.toLocaleString('ru-RU')} ₽` : 'стоимость не указана';
+        const paidText = member.paid ? 'оплачено' : 'не оплачено';
+        return `<div class="group-action-member"><span class="group-action-member-name">${escapeHtml(member.name || info.name || 'Ученик')}</span><span class="group-action-member-price">${priceText} · ${paidText}</span></div>`;
+    }).join('') : '<div class="group-action-empty">В группе нет участников</div>';
+    box.classList.remove('hidden');
+}
+
+function chooseGroupMember(lesson, title) {
+    const members = Array.isArray(lesson?.group_members) ? lesson.group_members : [];
+    if (!members.length) return null;
+    if (members.length === 1) return members[0];
+    const choice = prompt(title + '\n' + members.map((member, i) => `${i + 1}. ${member.name || getStudentInfo(member.student_id).name || 'Ученик'}`).join('\n') + '\n\nВведите номер:');
+    const idx = parseInt(choice, 10) - 1;
+    return idx >= 0 && idx < members.length ? members[idx] : null;
+}
+
+function openStudentContactForId(id) {
     const info = getStudentInfo(id);
     if (info.username) tg.openTelegramLink(`https://t.me/${info.username}`);
     else if (info.student_contacts && Object.keys(info.student_contacts).length) {
@@ -1014,41 +1046,39 @@ document.getElementById('btn-action-chat-student').onclick = () => {
         }
     } else if (id && !String(id).startsWith('manual')) tg.openTelegramLink(`tg://user?id=${id}`);
     else alert('Нет контакта ученика');
+}
+
+function openParentContactForId(id) {
+    const info = getStudentInfo(id);
+    const contacts = info.contacts || {};
+    const available = Object.keys(contacts).filter(k => contacts[k]);
+    if (!available.length) return alert('Нет сохранённых контактов родителя');
+    if (available.length === 1) return openContact(available[0], contacts[available[0]]);
+    const choice = prompt('Выберите мессенджер:\n' + available.map((t, i) => `${i + 1}. ${t.toUpperCase()}: ${contacts[t]}`).join('\n') + '\n\nВведите номер:');
+    const idx = parseInt(choice, 10) - 1;
+    if (idx >= 0 && idx < available.length) openContact(available[idx], contacts[available[idx]]);
+}
+
+// Написать ученику
+document.getElementById('btn-action-chat-student').onclick = () => {
+    const lesson = state.selectedLesson;
+    if (lesson?.lesson_type === 'group') {
+        const member = chooseGroupMember(lesson, 'Кому написать?');
+        if (member) openStudentContactForId(member.student_id);
+    } else {
+        openStudentContactForId(lesson?.student_id);
+    }
     closeActionMenu();
 };
 
 // Написать родителю (выбор мессенджера)
 document.getElementById('btn-action-chat-parent').onclick = () => {
     const lesson = state.selectedLesson;
-    const info = getStudentInfo(lesson?.student_id);
-    const contacts = info.contacts || {};
-    const available = Object.keys(contacts).filter(k => contacts[k]);
-    
-    if (available.length === 0) {
-        alert('Нет сохранённых контактов родителя');
-        closeActionMenu();
-        return;
-    }
-    
-    if (available.length === 1) {
-        const type = available[0];
-        const value = contacts[type];
-        openContact(type, value);
-        closeActionMenu();
-        return;
-    }
-    
-    // Если несколько — показываем выбор
-    const menu = document.getElementById('action-menu-overlay');
-    // Простой выбор через alert (можно расширить)
-    const msg = 'Выберите мессенджер:\n' + available.map((t, i) => `${i+1}. ${t.toUpperCase()}: ${contacts[t]}`).join('\n');
-    const choice = prompt(msg + '\n\nВведите номер:');
-    if (choice) {
-        const idx = parseInt(choice) - 1;
-        if (idx >= 0 && idx < available.length) {
-            const type = available[idx];
-            openContact(type, contacts[type]);
-        }
+    if (lesson?.lesson_type === 'group') {
+        const member = chooseGroupMember(lesson, 'Родителю какого ученика написать?');
+        if (member) openParentContactForId(member.student_id);
+    } else {
+        openParentContactForId(lesson?.student_id);
     }
     closeActionMenu();
 };
@@ -1414,7 +1444,7 @@ document.getElementById('btn-save-app-settings').onclick = async () => {
     try {
         const settings = {
             default_reminders_enabled: document.getElementById('default-reminders-enabled').checked,
-            zoom_link: normalizeExternalUrl(document.getElementById('default-zoom-link').value),
+            zoom_link: document.getElementById('default-zoom-link').value.trim(),
             default_send_receipts: document.getElementById('default-send-receipts').checked,
             default_send_receipt_copy: document.getElementById('default-send-receipt-copy').checked
         };
@@ -1540,8 +1570,8 @@ document.getElementById('btn-save-student-card').onclick = async () => {
         default_price: Number(document.getElementById('student-default-price').value || 0),
         status: document.getElementById('student-card-overlay').dataset.studentStatus || 'active',
         note: document.getElementById('student-note').value.trim(),
-        board_link: normalizeExternalUrl(document.getElementById('student-board-link').value),
-        zoom_link: normalizeExternalUrl(document.getElementById('student-zoom-link').value),
+        board_link: document.getElementById('student-board-link').value.trim(),
+        zoom_link: document.getElementById('student-zoom-link').value.trim(),
         student_contacts: getContacts('student-card-student-contacts'),
         contacts: getContacts('student-card-parent-contacts')
     };
@@ -1577,20 +1607,9 @@ async function loadWorkCenter() {
     return result;
 }
 
-function normalizeExternalUrl(url) {
-    const value = String(url || '').trim();
-    if (!value) return '';
-    return /^https?:\/\//i.test(value) ? value : `https://${value}`;
-}
-
 function openExternalLink(url) {
-    const value = normalizeExternalUrl(url);
-    if (!value) return alert('Ссылка не указана');
-    try {
-        new URL(value);
-    } catch (e) {
-        return alert('Ссылка некорректна');
-    }
+    const value = String(url || '').trim();
+    if (!/^https?:\/\//i.test(value)) return alert('Ссылка не указана или некорректна');
     try { tg.openLink(value); } catch (e) { window.open(value, '_blank', 'noopener,noreferrer'); }
 }
 

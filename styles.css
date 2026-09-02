@@ -761,3 +761,11 @@ body {
         flex-wrap: wrap;
     }
 }
+
+/* v30.2: on phones debt details expand naturally; the Work Center itself scrolls */
+@media (max-width: 480px) {
+    #hub-debts.hub-panel {
+        max-height: none;
+        overflow-y: visible;
+    }
+}

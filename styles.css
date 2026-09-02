@@ -265,10 +265,10 @@ body {
 }
 
 /* Modals */
-#modal-overlay, #move-modal-overlay, #action-menu-overlay, #delete-modal-overlay, #date-picker-overlay, #app-settings-overlay, #receipt-settings-overlay, #student-card-overlay, #work-center-overlay, #paid-confirm-overlay, #subscription-pay-overlay {
+#modal-overlay, #move-modal-overlay, #action-menu-overlay, #delete-modal-overlay, #date-picker-overlay, #app-settings-overlay, #receipt-settings-overlay, #student-card-overlay, #work-center-overlay, #paid-confirm-overlay, #subscription-pay-overlay, #lesson-report-overlay {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.45); z-index: 1000; display: flex; align-items: center; justify-content: center;
 }
-#modal-overlay.hidden, #move-modal-overlay.hidden, #action-menu-overlay.hidden, #delete-modal-overlay.hidden, #date-picker-overlay.hidden, #app-settings-overlay.hidden, #receipt-settings-overlay.hidden, #student-card-overlay.hidden, #work-center-overlay.hidden, #paid-confirm-overlay.hidden, #subscription-pay-overlay.hidden { display: none; }
+#modal-overlay.hidden, #move-modal-overlay.hidden, #action-menu-overlay.hidden, #delete-modal-overlay.hidden, #date-picker-overlay.hidden, #app-settings-overlay.hidden, #receipt-settings-overlay.hidden, #student-card-overlay.hidden, #work-center-overlay.hidden, #paid-confirm-overlay.hidden, #subscription-pay-overlay.hidden, #lesson-report-overlay.hidden { display: none; }
 
 .modal-content { background: #ffffff; border-radius: 16px; width: 90%; max-width: 350px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
 .text-center { text-align: center; }
@@ -738,3 +738,26 @@ body {
 .student-history-row-report { display: block; }
 .student-history-main { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .student-history-report { margin-top: 5px; font-size: 12px; line-height: 1.35; opacity: .78; white-space: pre-wrap; }
+
+
+/* v30.1: mobile fit for debt details */
+@media (max-width: 480px) {
+    #hub-debts .hub-item {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+    #hub-debts .hub-item strong,
+    #hub-debts .hub-item span {
+        min-width: 0;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+    }
+    #hub-debts .hub-item span {
+        margin-left: auto;
+        white-space: normal;
+    }
+    #hub-debts .hub-debt-total {
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+}

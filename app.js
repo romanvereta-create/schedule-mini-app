@@ -1414,7 +1414,7 @@ document.getElementById('btn-save-app-settings').onclick = async () => {
     try {
         const settings = {
             default_reminders_enabled: document.getElementById('default-reminders-enabled').checked,
-            zoom_link: document.getElementById('default-zoom-link').value.trim(),
+            zoom_link: normalizeExternalUrl(document.getElementById('default-zoom-link').value),
             default_send_receipts: document.getElementById('default-send-receipts').checked,
             default_send_receipt_copy: document.getElementById('default-send-receipt-copy').checked
         };
@@ -1540,8 +1540,8 @@ document.getElementById('btn-save-student-card').onclick = async () => {
         default_price: Number(document.getElementById('student-default-price').value || 0),
         status: document.getElementById('student-card-overlay').dataset.studentStatus || 'active',
         note: document.getElementById('student-note').value.trim(),
-        board_link: document.getElementById('student-board-link').value.trim(),
-        zoom_link: document.getElementById('student-zoom-link').value.trim(),
+        board_link: normalizeExternalUrl(document.getElementById('student-board-link').value),
+        zoom_link: normalizeExternalUrl(document.getElementById('student-zoom-link').value),
         student_contacts: getContacts('student-card-student-contacts'),
         contacts: getContacts('student-card-parent-contacts')
     };
@@ -1577,9 +1577,20 @@ async function loadWorkCenter() {
     return result;
 }
 
-function openExternalLink(url) {
+function normalizeExternalUrl(url) {
     const value = String(url || '').trim();
-    if (!/^https?:\/\//i.test(value)) return alert('Ссылка не указана или некорректна');
+    if (!value) return '';
+    return /^https?:\/\//i.test(value) ? value : `https://${value}`;
+}
+
+function openExternalLink(url) {
+    const value = normalizeExternalUrl(url);
+    if (!value) return alert('Ссылка не указана');
+    try {
+        new URL(value);
+    } catch (e) {
+        return alert('Ссылка некорректна');
+    }
     try { tg.openLink(value); } catch (e) { window.open(value, '_blank', 'noopener,noreferrer'); }
 }
 

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Расписание</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css?v=30.4-group-member-prices">
+    <link rel="stylesheet" href="styles.css?v=30.7-accumulated">
 </head>
 <body>
     <header class="main-header">
@@ -19,9 +19,14 @@
             <div class="month-label-wrapper">
                 <h1 id="month-label" title="Нажмите для выбора даты">...</h1>
             </div>
-            <button id="btn-work-center" class="icon-btn work-center-btn" title="Помощник">📋<span id="attention-badge" class="attention-badge hidden">0</span></button>
+            <button id="btn-students" class="icon-btn" title="Ученики">👥</button>
+            <button id="btn-work-center" class="icon-btn work-center-btn" title="Помощник">📋</button>
             <button id="btn-app-settings" class="icon-btn settings-icon-btn" title="Настройки">⚙️</button>
         </div>
+        <button id="top-next-lesson" class="top-next-lesson" type="button">
+            <span id="top-next-lesson-summary">Ближайшее занятие…</span><span class="top-next-chevron">⌄</span>
+        </button>
+        <div id="top-next-lesson-details" class="top-next-lesson-details hidden"></div>
         <div class="week-days-container">
             <div class="time-spacer">
                 <button id="btn-zoom-in" class="zoom-btn" title="Увеличить высоту">🔍+</button>
@@ -60,8 +65,12 @@
                 <div class="payment-actions-row">
                     <button id="btn-action-paid" class="action-menu-btn paid-btn">💳 Оплатил</button>
                     <button id="btn-action-subscription" class="action-menu-btn subscription-pay-btn">🎟 Абонемент</button>
+                    <button id="btn-action-free" class="action-menu-btn free-btn">🎁 Бесплатно</button>
                 </div>
-                <button id="btn-action-move-trigger" class="action-menu-btn">🔄 Перенести</button>
+                <div class="payment-actions-row">
+                    <button id="btn-action-move-trigger" class="action-menu-btn">🔄 Перенести</button>
+                    <button id="btn-action-cancel-once" class="action-menu-btn">🚫 Отменить</button>
+                </div>
 
                 <button id="btn-action-student-card" class="action-menu-btn">👤 Карточка ученика</button>
                 <button id="btn-action-report" class="action-menu-btn">📝 Итог занятия</button>
@@ -224,8 +233,12 @@
                         <select id="lesson-repeat">
                             <option value="no">Только сегодня (разово)</option>
                             <option value="month">Каждую неделю на месяц</option>
-                            <option value="year">На учебный год (до 31 мая)</option>
+                            <option value="year">На учебный год</option>
                         </select>
+                        <div id="repeat-until-wrap" class="form-group hidden">
+                            <label>Повторять до</label>
+                            <input type="date" id="repeat-until">
+                        </div>
                     </div>
 
                     <div class="form-group reminder-group">
@@ -298,15 +311,6 @@
                 <span id="btn-close-work-center" class="close-modal">&times;</span>
             </header>
             <div class="modal-body compact-stack">
-                <div id="hub-next-lesson" class="next-lesson-card">
-                    <div class="hub-empty">Ищу ближайшее занятие…</div>
-                </div>
-
-                <button class="hub-row" data-hub-section="attention">
-                    <span>⚠️ Требует внимания</span><strong id="hub-attention-count">0</strong>
-                </button>
-                <div id="hub-attention" class="hub-panel hidden"></div>
-
                 <button class="hub-row" data-hub-section="debts">
                     <span>💳 Кто должен</span><strong id="hub-debts-count">0</strong>
                 </button>
@@ -333,6 +337,23 @@
         </div>
     </div>
 
+    <!-- УЧЕНИКИ -->
+    <div id="students-overlay" class="hidden">
+        <div class="modal-content compact-modal">
+            <header class="modal-header">
+                <h2>Ученики</h2>
+                <span id="btn-close-students" class="close-modal">&times;</span>
+            </header>
+            <div class="modal-body">
+                <input type="search" id="students-search" placeholder="Найти ученика">
+                <div id="students-list" class="students-list"></div>
+            </div>
+            <div class="modal-actions">
+                <button id="btn-close-students-bottom" class="secondary-btn" type="button">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
     <!-- КАРТОЧКА УЧЕНИКА -->
     <div id="student-card-overlay" class="hidden">
         <div class="modal-content compact-modal">
@@ -344,6 +365,9 @@
                 <div class="student-lesson-stats">
                     <span>Оплачено / проведено</span>
                     <strong id="student-lessons-ratio">— / —</strong>
+                </div>
+                <div class="student-payment-box">
+                    <button id="btn-student-payment" class="primary-btn" type="button">💳 Оплатил</button>
                 </div>
                 <div class="form-group">
                     <label>Имя в календаре <small class="muted-inline">(необязательно)</small></label>
@@ -403,6 +427,30 @@
         </div>
     </div>
 
+    <!-- ОПЛАТА ОТ УЧЕНИКА / РОДИТЕЛЯ -->
+    <div id="student-payment-overlay" class="hidden">
+        <div class="modal-content compact-modal">
+            <header class="modal-header">
+                <h2 id="student-payment-title">Оплата</h2>
+                <span id="btn-close-student-payment" class="close-modal">&times;</span>
+            </header>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Сумма, ₽</label>
+                    <input type="number" id="student-payment-amount" min="1" step="1" inputmode="decimal" placeholder="Например: 15000">
+                </div>
+                <label class="checkbox-label receipt-send-checkbox">
+                    <input type="checkbox" id="student-payment-send-receipt" checked>
+                    <span>Отправить чек родителю</span>
+                </label>
+            </div>
+            <div class="modal-actions-column">
+                <button id="btn-apply-student-payment" class="primary-btn" type="button">Зачесть оплату</button>
+                <button id="btn-cancel-student-payment" class="secondary-btn" type="button">Отмена</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ОБЩИЕ НАСТРОЙКИ -->
     <div id="app-settings-overlay" class="hidden">
         <div class="modal-content compact-modal">
@@ -415,6 +463,14 @@
                     <input type="checkbox" id="default-reminders-enabled" checked>
                     <span>Напоминания для новых занятий</span>
                 </label>
+                <div class="form-group compact-setting-field">
+                    <label>Рабочие часы</label>
+                    <div class="working-hours-row">
+                        <input type="time" id="work-start" step="300">
+                        <span>—</span>
+                        <input type="time" id="work-end" step="300">
+                    </div>
+                </div>
                 <div class="form-group compact-setting-field">
                     <label>Общая ссылка Zoom / Telemost</label>
                     <input type="url" id="default-zoom-link" placeholder="https://zoom.us/...">
@@ -504,6 +560,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=30.5-lesson-prices"></script>
+    <script src="app.js?v=30.7-accumulated"></script>
 </body>
 </html>

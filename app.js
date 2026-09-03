@@ -2,8 +2,8 @@ const tg = window.Telegram.WebApp;
 tg.expand();
 
 const API_URL = 'https://bot-1787954043-4984-solo1986.bothost.tech/api';
-const START_HOUR = 6;
-const END_HOUR = 23;
+let START_HOUR = 10;
+let END_HOUR = 21;
 const MIN_HOUR_HEIGHT = 40;
 const MAX_HOUR_HEIGHT = 160;
 const DEFAULT_HOUR_HEIGHT = 80;
@@ -21,9 +21,11 @@ const state = {
     isMoving: false,
     pendingMove: null,
     editingExisting: false,
-    settings: { default_reminders_enabled: true, default_send_receipts: true, default_send_receipt_copy: true, zoom_link: '' },
+    settings: { default_reminders_enabled: true, default_send_receipts: true, default_send_receipt_copy: true, zoom_link: '', work_start: '10:00', work_end: '21:00' },
     datePickerMonth: new Date(),
-    workCenter: null
+    workCenter: null,
+    subscriptionStudentId: '',
+    subscriptionPrice: 0
 };
 
 function getMonday(date) {
@@ -47,6 +49,62 @@ function haptic(type = 'light') {
 function getStudentInfo(studentId) {
     const raw = state.students[studentId];
     return typeof raw === 'string' ? { name: raw } : (raw || {});
+}
+
+function teacherTelegramId() {
+    return String(tg?.initDataUnsafe?.user?.id || '');
+}
+
+function visibleStudentEntries() {
+    const teacherId = teacherTelegramId();
+    return Object.entries(state.students)
+        .filter(([id]) => String(id) !== teacherId)
+        .sort((a, b) => {
+            const aInfo = typeof a[1] === 'string' ? { name: a[1] } : (a[1] || {});
+            const bInfo = typeof b[1] === 'string' ? { name: b[1] } : (b[1] || {});
+            return String(aInfo.name || a[0]).localeCompare(String(bInfo.name || b[0]), 'ru', { sensitivity: 'base' });
+        });
+}
+
+function lessonPriceValue(lesson, member = null) {
+    const raw = member ? (member.price ?? lesson?.price) : lesson?.price;
+    const value = Number(raw || 0);
+    return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function updateVisibleHoursFromSettingsAndLessons() {
+    const parseHour = (value, fallback) => {
+        const [h] = String(value || '').split(':').map(Number);
+        return Number.isFinite(h) ? h : fallback;
+    };
+    let start = parseHour(state.settings.work_start, 10);
+    let end = parseHour(state.settings.work_end, 21);
+    const endMinutesSetting = (() => {
+        const [h, m] = String(state.settings.work_end || '21:00').split(':').map(Number);
+        return (Number.isFinite(h) ? h : 21) * 60 + (Number.isFinite(m) ? m : 0);
+    })();
+    if (end <= start && endMinutesSetting <= start * 60) { start = 10; end = 21; }
+    let visibleStart = start;
+    let visibleEndExclusive = end;
+    Object.values(state.schedule || {}).forEach(lessons => (lessons || []).forEach(lesson => {
+        const [h, m] = String(lesson.time || '').split(':').map(Number);
+        if (!Number.isFinite(h)) return;
+        const duration = Math.max(5, Number(lesson.duration || 60));
+        const startMinutes = h * 60 + (Number.isFinite(m) ? m : 0);
+        const endMinutes = startMinutes + duration;
+        visibleStart = Math.min(visibleStart, Math.floor(startMinutes / 60));
+        visibleEndExclusive = Math.max(visibleEndExclusive, Math.ceil(endMinutes / 60));
+    }));
+    START_HOUR = Math.max(0, visibleStart);
+    END_HOUR = Math.min(23, Math.max(START_HOUR, visibleEndExclusive - 1));
+}
+
+function schoolYearEndFor(dateValue) {
+    const d = dateValue ? new Date(`${dateValue}T12:00:00`) : new Date();
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    const targetYear = month <= 5 ? year : year + 1;
+    return `${targetYear}-05-31`;
 }
 
 function getStudentColor(studentId, name) {
@@ -117,7 +175,7 @@ async function loadSettings() {
         const response = await apiFetch('/get_settings');
         if (!response.ok) return false;
         const data = await response.json();
-        if (data.status === 'ok') state.settings = data.settings || state.settings;
+        if (data.status === 'ok') { state.settings = data.settings || state.settings; updateVisibleHoursFromSettingsAndLessons(); }
         return true;
     } catch (error) {
         console.warn('Настройки пока недоступны:', error);
@@ -177,7 +235,7 @@ function fillStudentsDropdown() {
     if (!select) return;
     select.innerHTML = '<option value="">-- Выбрать ученика --</option><option value="manual">Вписать вручную...</option>';
 
-    Object.entries(state.students).forEach(([id, raw]) => {
+    visibleStudentEntries().forEach(([id, raw]) => {
         const info = typeof raw === 'string' ? { name: raw } : (raw || {});
         if (info.status === 'paused') return;
         const option = document.createElement('option');
@@ -190,7 +248,7 @@ function fillStudentsDropdown() {
 
 function groupMemberOptions(selectedId = '') {
     const options = ['<option value="">-- Выбрать ученика --</option>', '<option value="manual">Вписать вручную...</option>'];
-    Object.entries(state.students).forEach(([id, raw]) => {
+    visibleStudentEntries().forEach(([id, raw]) => {
         const info = typeof raw === 'string' ? { name: raw } : (raw || {});
         if (info.status === 'paused' && String(id) !== String(selectedId)) return;
         const selected = String(id) === String(selectedId) ? ' selected' : '';
@@ -210,12 +268,11 @@ function addGroupMemberRow(member = null) {
     const memberId = member?.student_id || '';
     const known = memberId && state.students[memberId];
     const manual = member && !known;
-    const memberPrice = Number(member?.price || 0);
     row.innerHTML = `
         <select class="group-member-select">${groupMemberOptions(manual ? 'manual' : memberId)}</select>
-        <input type="number" class="group-member-price" min="0" step="1" inputmode="decimal" placeholder="Цена, ₽" value="${memberPrice > 0 ? escapeHtml(String(memberPrice)) : ''}">
-        <button type="button" class="contact-remove-btn group-member-remove" title="Удалить">✕</button>
         <input type="text" class="group-member-manual ${manual ? '' : 'hidden'}" placeholder="Имя ученика" value="${escapeHtml(manual ? (member?.name || '') : '')}">
+        <input type="number" class="group-member-price" min="0" step="1" inputmode="decimal" placeholder="Цена, ₽" value="${escapeHtml(member?.price ?? '')}">
+        <button type="button" class="contact-remove-btn group-member-remove" title="Удалить">✕</button>
     `;
     const select = row.querySelector('.group-member-select');
     const input = row.querySelector('.group-member-manual');
@@ -242,15 +299,14 @@ function collectGroupMembers() {
         const select = row.querySelector('.group-member-select');
         const manualInput = row.querySelector('.group-member-manual');
         const priceInput = row.querySelector('.group-member-price');
+        const price = Number(priceInput?.value || 0);
         if (!select?.value) return;
-        const price = Number(String(priceInput?.value || '').replace(',', '.'));
-        const normalizedPrice = Number.isFinite(price) && price > 0 ? price : 0;
         if (select.value === 'manual') {
             const name = manualInput?.value.trim() || '';
-            if (name) result.push({ student_id: 'manual', name, price: normalizedPrice });
+            if (name) result.push({ student_id: 'manual', name, price: price > 0 ? price : '' });
         } else {
             const option = select.options[select.selectedIndex];
-            result.push({ student_id: select.value, name: option?.dataset.name || option?.textContent || select.value, price: normalizedPrice });
+            result.push({ student_id: select.value, name: option?.dataset.name || option?.textContent || select.value, price: price > 0 ? price : '' });
         }
     });
     return result;
@@ -262,7 +318,7 @@ function updateLessonTypeUI() {
     document.getElementById('group-editor-group').classList.toggle('hidden', !isGroup);
     document.getElementById('student-select-group').classList.toggle('hidden', isGroup || state.editingExisting);
     document.getElementById('student-fixed-group').classList.toggle('hidden', isGroup || !state.editingExisting);
-    document.getElementById('student-lesson-price-group').classList.toggle('hidden', isGroup);
+    document.getElementById('student-lesson-price-group')?.classList.toggle('hidden', isGroup);
 }
 
 function lessonBoundsForCurrentWeek() {
@@ -327,6 +383,7 @@ function scheduleCalendarAutoFit() {
 }
 
 function renderCalendar() {
+    updateVisibleHoursFromSettingsAndLessons();
     const labels = document.getElementById('time-labels');
     const grid = document.getElementById('week-grid');
     const layer = document.getElementById('events-layer');
@@ -406,9 +463,9 @@ function renderEvents() {
             const colorClass = typeof color === 'number' ? `color-${color}` : '';
             const isGroup = lesson.lesson_type === 'group';
             const groupMembers = Array.isArray(lesson.group_members) ? lesson.group_members : [];
-            const groupPaidCount = groupMembers.filter(member => member.paid).length;
+            const groupPaidCount = groupMembers.filter(member => member.paid || member.free).length;
             const partiallyPaid = isGroup && groupPaidCount > 0 && groupPaidCount < groupMembers.length;
-            card.className = `event-card ${colorClass} ${lesson.paid ? 'paid-status' : ''} ${partiallyPaid ? 'partial-paid-status' : ''} ${isGroup ? 'group-event' : ''} ${isActiveMove ? 'moving-active' : ''}`;
+            card.className = `event-card ${colorClass} ${lesson.paid ? 'paid-status' : ''} ${partiallyPaid ? 'partial-paid-status' : ''} ${isGroup ? 'group-event' : ''} ${lesson.cancelled ? 'cancelled-event' : ''} ${isActiveMove ? 'moving-active' : ''}`;
             if (typeof color === 'string') card.style.backgroundColor = color;
 
             const top = ((hour - START_HOUR) * 60 + minute) * hourHeight / 60;
@@ -501,18 +558,45 @@ function lessonHasStarted(date, lesson) {
 function openActionMenu(date, lesson) {
     state.selectedLesson = { date, ...lesson };
     const isGroup = lesson.lesson_type === 'group';
+    const cancelled = !!lesson.cancelled;
     document.getElementById('action-menu-title').textContent = `${isGroup ? (lesson.group_name || lesson.student || 'Группа') : (lesson.student || 'Ученик')} · ${lesson.time || '--:--'}`;
-    document.getElementById('btn-action-paid').textContent = isGroup ? '💳 Оплата группы' : (lesson.paid ? '✅ Оплачено (снять)' : '💳 Оплатил');
-    document.getElementById('btn-action-subscription').classList.toggle('hidden', isGroup);
+    document.getElementById('btn-action-paid').textContent = isGroup ? '💳 Оплата группы' : (lesson.paid && !lesson.free ? '✅ Оплачено (снять)' : '💳 Оплатил');
     document.getElementById('btn-action-student-card').classList.toggle('hidden', isGroup);
-    const chatStudentButton = document.getElementById('btn-action-chat-student');
-    const chatParentButton = document.getElementById('btn-action-chat-parent');
-    chatStudentButton.classList.remove('hidden');
-    chatParentButton.classList.remove('hidden');
-    chatStudentButton.textContent = isGroup ? '💬 Написать ученикам' : '💬 Написать ученику';
-    chatParentButton.textContent = isGroup ? '💬 Написать родителям' : '💬 Написать родителю';
-    renderGroupActionDetails(lesson);
-    document.getElementById('btn-action-report').classList.toggle('hidden', !lessonHasStarted(date, lesson));
+    document.getElementById('btn-action-chat-student').classList.remove('hidden');
+    document.getElementById('btn-action-chat-parent').classList.remove('hidden');
+    document.getElementById('btn-action-chat-student').textContent = isGroup ? '💬 Написать ученикам' : '💬 Написать ученику';
+    document.getElementById('btn-action-chat-parent').textContent = isGroup ? '💬 Написать родителям' : '💬 Написать родителю';
+    document.getElementById('btn-action-subscription').classList.toggle('hidden', isGroup);
+    document.getElementById('btn-action-free').classList.toggle('hidden', isGroup);
+    document.getElementById('btn-action-free').textContent = lesson.free ? '↩️ Убрать «Бесплатно»' : '🎁 Бесплатно';
+    document.getElementById('btn-action-cancel-once').textContent = cancelled ? '↩️ Вернуть занятие' : '🚫 Отменить';
+    document.getElementById('btn-action-report').classList.toggle('hidden', cancelled || !lessonHasStarted(date, lesson));
+    document.getElementById('btn-action-paid').classList.toggle('hidden', cancelled);
+    document.getElementById('btn-action-subscription').classList.toggle('hidden', cancelled || isGroup);
+    document.getElementById('btn-action-free').classList.toggle('hidden', cancelled || isGroup);
+
+    const details = document.getElementById('group-action-details');
+    details.innerHTML = '';
+    details.classList.toggle('hidden', !isGroup);
+    if (isGroup) {
+        (lesson.group_members || []).forEach(member => {
+            const row = document.createElement('div');
+            row.className = 'group-action-member';
+            const price = lessonPriceValue(lesson, member);
+            const status = member.free ? 'Бесплатно' : (member.paid ? 'Оплачено' : 'Не оплачено');
+            row.innerHTML = `
+                <div class="group-action-member-head"><strong>${escapeHtml(member.name || 'Ученик')}</strong><span>${price > 0 ? `${price.toLocaleString('ru-RU')} ₽ · ` : ''}${status}</span></div>
+                <div class="group-member-actions">
+                    <button type="button" data-member-action="subscription">🎟 Абонемент</button>
+                    <button type="button" data-member-action="free">${member.free ? '↩️ Не бесплатно' : '🎁 Бесплатно'}</button>
+                    <button type="button" data-member-action="card">Карточка</button>
+                </div>`;
+            row.querySelector('[data-member-action="card"]').onclick = () => { closeActionMenu(); openStudentCard(member.student_id); };
+            row.querySelector('[data-member-action="subscription"]').onclick = () => openSubscriptionForStudent(lesson, member.student_id);
+            row.querySelector('[data-member-action="free"]').onclick = () => setFreeStateForSelected(member.student_id, !member.free);
+            details.appendChild(row);
+        });
+    }
     document.getElementById('action-menu-overlay').classList.remove('hidden');
 }
 
@@ -660,8 +744,11 @@ function resetAddForm() {
     document.getElementById('student-select').value = '';
     document.getElementById('manual-student-name').value = '';
     document.getElementById('manual-student-name').classList.add('hidden');
-    document.getElementById('lesson-price').value = '';
     document.getElementById('lesson-repeat').value = 'no';
+    document.getElementById('lesson-price').value = '';
+    const dateValue = document.getElementById('lesson-date')?.value || dateKey(new Date());
+    document.getElementById('repeat-until').value = schoolYearEndFor(dateValue);
+    document.getElementById('repeat-until-wrap').classList.add('hidden');
     document.getElementById('reminder-enabled').checked = state.settings.default_reminders_enabled !== false;
     document.getElementById('reminder-minutes').value = '60';
     updateReminderControls();
@@ -677,8 +764,8 @@ function openAddModal(date, time) {
     document.getElementById('student-fixed-group').classList.add('hidden');
     document.getElementById('time-duration-group').classList.remove('hidden');
     document.getElementById('repeat-group').classList.remove('hidden');
-    resetAddForm();
     document.getElementById('lesson-date').value = date;
+    resetAddForm();
     document.getElementById('lesson-time').value = time;
     document.getElementById('lesson-duration').value = '60';
     document.getElementById('modal-overlay').classList.remove('hidden');
@@ -694,9 +781,6 @@ function openEditModal(date, lesson) {
     document.getElementById('group-name').value = lesson.group_name || lesson.student || '';
     renderGroupMembers(lesson.group_members || []);
     document.getElementById('fixed-student-name').value = lesson.student || '';
-    const legacyPrice = Number(getStudentInfo(lesson.student_id).default_price || 0);
-    const lessonPrice = Number(lesson.price || 0);
-    document.getElementById('lesson-price').value = !isGroup && (lessonPrice > 0 || legacyPrice > 0) ? String(lessonPrice > 0 ? lessonPrice : legacyPrice) : '';
     updateLessonTypeUI();
     document.getElementById('time-duration-group').classList.add('hidden');
     document.getElementById('repeat-group').classList.add('hidden');
@@ -704,6 +788,7 @@ function openEditModal(date, lesson) {
     document.getElementById('lesson-time').value = lesson.time || '10:00';
     document.getElementById('lesson-duration').value = lesson.duration || 60;
     document.getElementById('lesson-id').value = lesson.id || '';
+    document.getElementById('lesson-price').value = lesson.price ?? '';
     document.getElementById('reminder-enabled').checked = lesson.reminder_enabled !== false;
     document.getElementById('reminder-minutes').value = lesson.reminder_minutes ?? 60;
 
@@ -739,18 +824,17 @@ async function saveLesson() {
     }
 
     if (lessonType === 'student' && !student) return alert('Укажите ученика');
-    const lessonPrice = lessonType === 'student' ? Number(String(document.getElementById('lesson-price').value || '').replace(',', '.')) : 0;
-    if (lessonType === 'student' && (!(lessonPrice > 0) || !Number.isFinite(lessonPrice))) return alert('Укажите стоимость занятия');
-    if (lessonType === 'group' && groupMembers.some(member => !(Number(member.price) > 0))) return alert('Укажите стоимость занятия для каждого ученика группы');
     if (!time) return alert('Укажите время');
 
     const payload = {
         date, time, duration, lesson_type: lessonType,
-        student, student_id: studentId, price: lessonPrice,
+        student, student_id: studentId,
         group_name: groupName, group_members: groupMembers,
+        price: lessonType === 'student' ? Number(document.getElementById('lesson-price').value || 0) : '',
         reminder_enabled: document.getElementById('reminder-enabled').checked,
         reminder_minutes: document.getElementById('reminder-minutes').value || 60,
-        repeat: document.getElementById('lesson-repeat').value
+        repeat: document.getElementById('lesson-repeat').value,
+        repeat_until: document.getElementById('repeat-until').value
     };
     const endpoint = state.editingExisting ? '/update_lesson' : '/add_lesson';
     if (state.editingExisting) payload.id = state.selectedLesson.id;
@@ -763,7 +847,7 @@ async function saveLesson() {
 }
 
 function closeAllModals() {
-    ['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay', 'subscription-pay-overlay', 'lesson-report-overlay'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+    ['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay', 'subscription-pay-overlay', 'lesson-report-overlay', 'students-overlay', 'student-payment-overlay'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
 }
 
 // Палитра цветов в меню действий
@@ -851,11 +935,99 @@ document.getElementById('btn-save-lesson-report').onclick = async () => {
     }
 };
 
+function openStudentContactFor(studentId) {
+    const info = getStudentInfo(studentId);
+    if (info.username) return tg.openTelegramLink(`https://t.me/${info.username}`);
+    const entries = Object.entries(info.student_contacts || {}).filter(([, value]) => value);
+    if (entries.length === 1) return openContact(entries[0][0], entries[0][1]);
+    if (entries.length > 1) {
+        const choice = prompt('Выберите контакт ученика:\n' + entries.map(([type, value], i) => `${i + 1}. ${type.toUpperCase()}: ${value}`).join('\n') + '\n\nВведите номер:');
+        const idx = parseInt(choice, 10) - 1;
+        if (idx >= 0 && idx < entries.length) return openContact(entries[idx][0], entries[idx][1]);
+    }
+    if (studentId && !String(studentId).startsWith('manual')) return tg.openTelegramLink(`tg://user?id=${studentId}`);
+    alert('Контакт ученика не указан.');
+}
+
+function openParentContactFor(studentId) {
+    const info = getStudentInfo(studentId);
+    const entries = Object.entries(info.contacts || {}).filter(([, value]) => value);
+    if (entries.length === 1) return openContact(entries[0][0], entries[0][1]);
+    if (entries.length > 1) {
+        const choice = prompt('Выберите контакт родителя:\n' + entries.map(([type, value], i) => `${i + 1}. ${type.toUpperCase()}: ${value}`).join('\n') + '\n\nВведите номер:');
+        const idx = parseInt(choice, 10) - 1;
+        if (idx >= 0 && idx < entries.length) return openContact(entries[idx][0], entries[idx][1]);
+    }
+    alert('Контакт родителя не указан.');
+}
+
+async function setFreeStateForSelected(studentId = '', makeFree = true) {
+    const lesson = state.selectedLesson;
+    if (!lesson) return;
+    const response = await apiFetch('/set_lesson_state', {
+        method: 'POST',
+        body: JSON.stringify({ date: lesson.date, id: lesson.id, action: makeFree ? 'free' : 'unfree', student_id: studentId })
+    });
+    const result = await response.json();
+    if (result.status !== 'ok') return alert(result.message || 'Ошибка');
+    closeActionMenu();
+    await refreshScheduleOnly();
+}
+
+function openSubscriptionForStudent(lesson, studentId) {
+    if (!lesson) return;
+    let price = 0;
+    let name = '';
+    if (lesson.lesson_type === 'group') {
+        const member = (lesson.group_members || []).find(m => String(m.student_id) === String(studentId));
+        if (!member) return;
+        price = lessonPriceValue(lesson, member);
+        name = member.name || getStudentInfo(studentId).name || 'Ученик';
+    } else {
+        studentId = lesson.student_id;
+        price = lessonPriceValue(lesson);
+        name = getStudentInfo(studentId).calendar_name || lesson.student || getStudentInfo(studentId).name || 'Ученик';
+    }
+    if (!(price > 0)) {
+        closeActionMenu();
+        alert('Сначала укажите стоимость этого занятия.');
+        return;
+    }
+    state.subscriptionStudentId = String(studentId || '');
+    state.subscriptionPrice = price;
+    document.getElementById('subscription-pay-title').textContent = `Абонемент · ${name}`;
+    document.getElementById('subscription-pay-desc').textContent = `Стоимость одного урока: ${price.toLocaleString('ru-RU')} ₽. Укажите общую сумму абонемента.`;
+    const amountInput = document.getElementById('subscription-pay-amount');
+    amountInput.value = String(price * 3);
+    document.getElementById('subscription-custom-count').dataset.count = '3';
+    document.getElementById('subscription-custom-count').textContent = '3 занятия';
+    document.getElementById('subscription-send-receipt-checkbox').checked = state.settings.default_send_receipts !== false;
+    updateSubscriptionPayHint();
+    closeActionMenu();
+    document.getElementById('subscription-pay-overlay').classList.remove('hidden');
+    setTimeout(() => amountInput.focus(), 50);
+}
+
 // Меню действий
 document.getElementById('btn-action-student-card').onclick = () => { closeActionMenu(); if (state.selectedLesson) openStudentCard(state.selectedLesson.student_id); };
 document.getElementById('btn-action-report').onclick = () => { closeActionMenu(); openLessonReport(); };
 document.getElementById('btn-action-settings').onclick = () => { closeActionMenu(); if (state.selectedLesson) openEditModal(state.selectedLesson.date, state.selectedLesson); };
 document.getElementById('btn-action-move-trigger').onclick = () => { closeActionMenu(); if (state.selectedLesson) startMove(state.selectedLesson.date, state.selectedLesson); };
+document.getElementById('btn-action-free').onclick = () => {
+    const lesson = state.selectedLesson;
+    if (!lesson || lesson.lesson_type === 'group') return;
+    setFreeStateForSelected('', !lesson.free);
+};
+document.getElementById('btn-action-cancel-once').onclick = async () => {
+    const lesson = state.selectedLesson;
+    if (!lesson) return;
+    const action = lesson.cancelled ? 'restore' : 'cancel';
+    const response = await apiFetch('/set_lesson_state', { method: 'POST', body: JSON.stringify({ date: lesson.date, id: lesson.id, action }) });
+    const result = await response.json();
+    if (result.status !== 'ok') return alert(result.message || 'Ошибка');
+    closeActionMenu();
+    await refreshScheduleOnly();
+};
 document.getElementById('btn-action-paid').onclick = async () => {
     const lesson = state.selectedLesson;
     if (!lesson) return;
@@ -876,8 +1048,8 @@ document.getElementById('btn-action-paid').onclick = async () => {
 
     document.getElementById('paid-confirm-title').textContent = `${isGroup ? (lesson.group_name || 'Группа') : (lesson.student || 'Ученик')} · ${lesson.time || '--:--'}`;
     document.getElementById('paid-confirm-desc').textContent = isGroup
-        ? 'Отметьте учеников, которые оплатили. Для каждого используется цена, указанная в этой группе.'
-        : (() => { const price = Number(lesson.price || getStudentInfo(lesson.student_id).default_price || 0); return `Подтвердить оплату${price > 0 ? ` на ${price.toLocaleString('ru-RU')} ₽` : ''}?`; })();
+        ? 'Отметьте учеников, которые оплатили. Сумма берётся из стоимости каждого участника в этом занятии.'
+        : (() => { const price = Number(state.subscriptionPrice || lessonPriceValue(lesson)); return `Подтвердить оплату${price > 0 ? ` на ${price.toLocaleString('ru-RU')} ₽` : ''}?`; })();
     const membersBox = document.getElementById('group-paid-members');
     membersBox.innerHTML = '';
     membersBox.classList.toggle('hidden', !isGroup);
@@ -885,7 +1057,7 @@ document.getElementById('btn-action-paid').onclick = async () => {
         (lesson.group_members || []).forEach(member => {
             const label = document.createElement('label');
             label.className = 'group-paid-member-row';
-            const memberPrice = Number(member.price || 0);
+            const memberPrice = lessonPriceValue(lesson, member);
             label.innerHTML = `<input type="checkbox" value="${escapeHtml(member.student_id || '')}" ${member.paid ? 'checked' : ''}><span>${escapeHtml(member.name || 'Ученик')}${memberPrice > 0 ? ` · ${memberPrice.toLocaleString('ru-RU')} ₽` : ' · цена не указана'}</span>`;
             membersBox.appendChild(label);
         });
@@ -897,26 +1069,10 @@ document.getElementById('btn-action-paid').onclick = async () => {
 
 document.getElementById('btn-action-subscription').onclick = () => {
     const lesson = state.selectedLesson;
-    if (!lesson || lesson.lesson_type === 'group') return;
-    const info = getStudentInfo(lesson.student_id);
-    const price = Number(lesson.price || info.default_price || 0);
-    if (!(price > 0)) {
-        closeActionMenu();
-        alert('Сначала укажите стоимость в настройках занятия.');
-        return;
-    }
-    document.getElementById('subscription-pay-title').textContent = `Абонемент · ${info.calendar_name || lesson.student || info.name || 'Ученик'}`;
-    document.getElementById('subscription-pay-desc').textContent = `Стоимость одного урока: ${price.toLocaleString('ru-RU')} ₽. Укажите общую сумму абонемента.`;
-    const amountInput = document.getElementById('subscription-pay-amount');
-    amountInput.value = String(price * 3);
-    document.getElementById('subscription-custom-count').dataset.count = '3';
-    document.getElementById('subscription-custom-count').textContent = '3 занятия';
-    document.getElementById('subscription-send-receipt-checkbox').checked = state.settings.default_send_receipts !== false;
-    updateSubscriptionPayHint();
-    closeActionMenu();
-    document.getElementById('subscription-pay-overlay').classList.remove('hidden');
-    setTimeout(() => amountInput.focus(), 50);
+    if (!lesson) return;
+    openSubscriptionForStudent(lesson, lesson.student_id);
 };
+
 
 function subscriptionCountWord(count) {
     const mod100 = count % 100;
@@ -945,7 +1101,7 @@ function updateSubscriptionPayHint() {
     const lesson = state.selectedLesson;
     const hint = document.getElementById('subscription-pay-hint');
     if (!lesson || !hint) return;
-    const price = Number(lesson.price || getStudentInfo(lesson.student_id).default_price || 0);
+    const price = Number(state.subscriptionPrice || lessonPriceValue(lesson));
     const amount = Number(document.getElementById('subscription-pay-amount').value || 0);
     const lessonCount = getSubscriptionLessonCount();
     if (!(price > 0) || !(amount > 0)) { hint.textContent = ''; return; }
@@ -958,7 +1114,7 @@ function updateSubscriptionPayHint() {
 
 document.getElementById('subscription-pay-amount').addEventListener('input', () => {
     const lesson = state.selectedLesson;
-    const price = Number(lesson?.price || getStudentInfo(lesson?.student_id).default_price || 0);
+    const price = Number(state.subscriptionPrice || lessonPriceValue(lesson));
     const amount = Number(document.getElementById('subscription-pay-amount').value || 0);
     if (price > 0 && amount > 0) setSubscriptionLessonCount(Math.max(2, Math.round(amount / price)));
     else updateSubscriptionPayHint();
@@ -977,7 +1133,7 @@ document.getElementById('btn-subscription-pay-apply').onclick = async () => {
     try {
         const response = await apiFetch('/pay_subscription', {
             method: 'POST',
-            body: JSON.stringify({ date: lesson.date, id: lesson.id, amount, lesson_count: lessonCount, send_receipt: sendReceipt })
+            body: JSON.stringify({ date: lesson.date, id: lesson.id, student_id: state.subscriptionStudentId, amount, lesson_count: lessonCount, send_receipt: sendReceipt })
         });
         const result = await response.json();
         if (result.status !== 'ok') return alert(result.message || 'Ошибка оплаты абонемента');
@@ -1018,68 +1174,18 @@ document.getElementById('btn-paid-confirm-apply').onclick = async () => {
 document.getElementById('btn-action-delete').onclick = () => { closeActionMenu(); document.getElementById('delete-modal-overlay').classList.remove('hidden'); };
 document.getElementById('btn-action-close').onclick = closeActionMenu;
 
-function renderGroupActionDetails(lesson) {
-    const box = document.getElementById('group-action-details');
-    if (!box) return;
-    if (!lesson || lesson.lesson_type !== 'group') {
-        box.innerHTML = '';
-        box.classList.add('hidden');
-        return;
-    }
-    const members = Array.isArray(lesson.group_members) ? lesson.group_members : [];
-    box.innerHTML = members.length ? members.map(member => {
-        const info = getStudentInfo(member.student_id);
-        const price = Number(member.price || 0);
-        const priceText = price > 0 ? `${price.toLocaleString('ru-RU')} ₽` : 'стоимость не указана';
-        const paidText = member.paid ? 'оплачено' : 'не оплачено';
-        return `<div class="group-action-member"><span class="group-action-member-name">${escapeHtml(member.name || info.name || 'Ученик')}</span><span class="group-action-member-price">${priceText} · ${paidText}</span></div>`;
-    }).join('') : '<div class="group-action-empty">В группе нет участников</div>';
-    box.classList.remove('hidden');
-}
-
-function chooseGroupMember(lesson, title) {
-    const members = Array.isArray(lesson?.group_members) ? lesson.group_members : [];
-    if (!members.length) return null;
-    if (members.length === 1) return members[0];
-    const choice = prompt(title + '\n' + members.map((member, i) => `${i + 1}. ${member.name || getStudentInfo(member.student_id).name || 'Ученик'}`).join('\n') + '\n\nВведите номер:');
-    const idx = parseInt(choice, 10) - 1;
-    return idx >= 0 && idx < members.length ? members[idx] : null;
-}
-
-function openStudentContactForId(id) {
-    const info = getStudentInfo(id);
-    if (info.username) tg.openTelegramLink(`https://t.me/${info.username}`);
-    else if (info.student_contacts && Object.keys(info.student_contacts).length) {
-        const entries = Object.entries(info.student_contacts).filter(([, value]) => value);
-        if (entries.length === 1) openContact(entries[0][0], entries[0][1]);
-        else {
-            const choice = prompt('Выберите контакт ученика:\n' + entries.map(([type, value], i) => `${i + 1}. ${type.toUpperCase()}: ${value}`).join('\n') + '\n\nВведите номер:');
-            const idx = parseInt(choice, 10) - 1;
-            if (idx >= 0 && idx < entries.length) openContact(entries[idx][0], entries[idx][1]);
-        }
-    } else if (id && !String(id).startsWith('manual')) tg.openTelegramLink(`tg://user?id=${id}`);
-    else alert('Нет контакта ученика');
-}
-
-function openParentContactForId(id) {
-    const info = getStudentInfo(id);
-    const contacts = info.contacts || {};
-    const available = Object.keys(contacts).filter(k => contacts[k]);
-    if (!available.length) return alert('Нет сохранённых контактов родителя');
-    if (available.length === 1) return openContact(available[0], contacts[available[0]]);
-    const choice = prompt('Выберите мессенджер:\n' + available.map((t, i) => `${i + 1}. ${t.toUpperCase()}: ${contacts[t]}`).join('\n') + '\n\nВведите номер:');
-    const idx = parseInt(choice, 10) - 1;
-    if (idx >= 0 && idx < available.length) openContact(available[idx], contacts[available[idx]]);
-}
-
 // Написать ученику
 document.getElementById('btn-action-chat-student').onclick = () => {
     const lesson = state.selectedLesson;
-    if (lesson?.lesson_type === 'group') {
-        const member = chooseGroupMember(lesson, 'Кому написать?');
-        if (member) openStudentContactForId(member.student_id);
+    if (!lesson) return;
+    if (lesson.lesson_type === 'group') {
+        const members = lesson.group_members || [];
+        if (!members.length) return alert('В группе нет учеников.');
+        const choice = prompt('Кому написать?\n' + members.map((m, i) => `${i + 1}. ${m.name || 'Ученик'}`).join('\n') + '\n\nВведите номер:');
+        const idx = parseInt(choice, 10) - 1;
+        if (idx >= 0 && idx < members.length) openStudentContactFor(members[idx].student_id);
     } else {
-        openStudentContactForId(lesson?.student_id);
+        openStudentContactFor(lesson.student_id);
     }
     closeActionMenu();
 };
@@ -1087,11 +1193,15 @@ document.getElementById('btn-action-chat-student').onclick = () => {
 // Написать родителю (выбор мессенджера)
 document.getElementById('btn-action-chat-parent').onclick = () => {
     const lesson = state.selectedLesson;
-    if (lesson?.lesson_type === 'group') {
-        const member = chooseGroupMember(lesson, 'Родителю какого ученика написать?');
-        if (member) openParentContactForId(member.student_id);
+    if (!lesson) return;
+    if (lesson.lesson_type === 'group') {
+        const members = lesson.group_members || [];
+        if (!members.length) return alert('В группе нет учеников.');
+        const choice = prompt('Родителю какого ученика написать?\n' + members.map((m, i) => `${i + 1}. ${m.name || 'Ученик'}`).join('\n') + '\n\nВведите номер:');
+        const idx = parseInt(choice, 10) - 1;
+        if (idx >= 0 && idx < members.length) openParentContactFor(members[idx].student_id);
     } else {
-        openParentContactForId(lesson?.student_id);
+        openParentContactFor(lesson.student_id);
     }
     closeActionMenu();
 };
@@ -1148,7 +1258,7 @@ document.getElementById('btn-cancel-move').onclick = cancelMove;
 document.getElementById('btn-save').onclick = saveLesson;
 document.getElementById('btn-cancel-modal').onclick = closeAllModals;
 document.getElementById('btn-close-modal').onclick = closeAllModals;
-['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay', 'subscription-pay-overlay', 'lesson-report-overlay'].forEach(id => {
+['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay', 'subscription-pay-overlay', 'lesson-report-overlay', 'students-overlay', 'student-payment-overlay'].forEach(id => {
     document.getElementById(id).addEventListener('click', event => { if (event.target.id === id) closeAllModals(); });
 });
 
@@ -1419,6 +1529,8 @@ const receiptSettingFields = [
 function fillAppSettingsForm() {
     document.getElementById('default-reminders-enabled').checked = state.settings.default_reminders_enabled !== false;
     document.getElementById('default-zoom-link').value = state.settings.zoom_link || '';
+    document.getElementById('work-start').value = state.settings.work_start || '10:00';
+    document.getElementById('work-end').value = state.settings.work_end || '21:00';
     document.getElementById('default-send-receipts').checked = state.settings.default_send_receipts !== false;
     document.getElementById('default-send-receipt-copy').checked = state.settings.default_send_receipt_copy !== false;
 }
@@ -1457,7 +1569,9 @@ document.getElementById('btn-save-app-settings').onclick = async () => {
     try {
         const settings = {
             default_reminders_enabled: document.getElementById('default-reminders-enabled').checked,
-            zoom_link: document.getElementById('default-zoom-link').value.trim(),
+            zoom_link: normalizeExternalUrl(document.getElementById('default-zoom-link').value),
+            work_start: document.getElementById('work-start').value || '10:00',
+            work_end: document.getElementById('work-end').value || '21:00',
             default_send_receipts: document.getElementById('default-send-receipts').checked,
             default_send_receipt_copy: document.getElementById('default-send-receipt-copy').checked
         };
@@ -1465,6 +1579,8 @@ document.getElementById('btn-save-app-settings').onclick = async () => {
         const result = await response.json();
         if (result.status !== 'ok') return alert(result.message || 'Ошибка сохранения настроек');
         state.settings = result.settings || { ...state.settings, ...settings };
+        updateVisibleHoursFromSettingsAndLessons();
+        renderCalendar();
         document.getElementById('app-settings-overlay').classList.add('hidden');
     } catch (error) {
         alert(error.message || 'Ошибка сохранения настроек');
@@ -1581,8 +1697,8 @@ document.getElementById('btn-save-student-card').onclick = async () => {
         birthday: document.getElementById('student-birthday').value,
         status: document.getElementById('student-card-overlay').dataset.studentStatus || 'active',
         note: document.getElementById('student-note').value.trim(),
-        board_link: document.getElementById('student-board-link').value.trim(),
-        zoom_link: document.getElementById('student-zoom-link').value.trim(),
+        board_link: normalizeExternalUrl(document.getElementById('student-board-link').value),
+        zoom_link: normalizeExternalUrl(document.getElementById('student-zoom-link').value),
         student_contacts: getContacts('student-card-student-contacts'),
         contacts: getContacts('student-card-parent-contacts')
     };
@@ -1618,61 +1734,83 @@ async function loadWorkCenter() {
     return result;
 }
 
-function openExternalLink(url) {
+function normalizeExternalUrl(url) {
     const value = String(url || '').trim();
-    if (!/^https?:\/\//i.test(value)) return alert('Ссылка не указана или некорректна');
+    if (!value) return '';
+    if (/^https?:\/\//i.test(value)) return value;
+    return `https://${value}`;
+}
+
+function openExternalLink(url) {
+    const value = normalizeExternalUrl(url);
+    if (!value) return alert('Ссылка не указана');
     try { tg.openLink(value); } catch (e) { window.open(value, '_blank', 'noopener,noreferrer'); }
 }
 
-function renderWorkCenter() {
-    const data = state.workCenter || { attention: [], debts: [], windows: [], birthdays: [], summary: {}, next_lesson: null };
-    document.getElementById('hub-attention-count').textContent = data.attention.length;
-    const badge = document.getElementById('attention-badge');
-    badge.textContent = data.attention.length;
-    badge.classList.toggle('hidden', !data.attention.length);
+function renderTopLesson() {
+    const data = state.workCenter || {};
+    const current = data.current_lesson || null;
+    const next = data.next_lesson || null;
+    const summary = document.getElementById('top-next-lesson-summary');
+    const details = document.getElementById('top-next-lesson-details');
+    if (!summary || !details) return;
 
-    const next = data.next_lesson;
-    const nextBox = document.getElementById('hub-next-lesson');
-    if (!next) {
-        nextBox.innerHTML = '<div class="next-lesson-head"><strong>Ближайшее занятие</strong></div><div class="hub-empty">Ближайших занятий нет.</div>';
-    } else {
-        const when = next.status === 'now'
-            ? 'Сейчас'
-            : (next.minutes_until < 60 ? `Через ${Math.max(1, next.minutes_until)} мин` : `${shortDateRu(next.date)} · ${next.time}`);
-        const buttons = [
-            next.board_link ? `<button type="button" class="next-link-btn" data-next-link="board">Доска</button>` : '',
-            next.zoom_link ? `<button type="button" class="next-link-btn" data-next-link="zoom">Zoom</button>` : ''
-        ].filter(Boolean).join('');
-        nextBox.innerHTML = `<div class="next-lesson-head"><span>${escapeHtml(when)}</span><strong>${escapeHtml(next.student || 'Ученик')} · ${escapeHtml(next.time || '')}</strong></div>${buttons ? `<div class="next-lesson-actions">${buttons}</div>` : '<small class="field-hint">Ссылки можно указать в карточке ученика и общих настройках.</small>'}`;
-        nextBox.querySelector('[data-next-link="board"]')?.addEventListener('click', () => openExternalLink(next.board_link));
-        nextBox.querySelector('[data-next-link="zoom"]')?.addEventListener('click', () => openExternalLink(next.zoom_link));
+    const nowMs = Date.now();
+    let showNextBesideCurrent = false;
+    if (current && next) {
+        const end = new Date(`${current.date}T${current.end_time || current.time}:00`);
+        showNextBesideCurrent = !Number.isNaN(end.getTime()) && (end.getTime() - nowMs) <= 10 * 60 * 1000;
     }
 
-    const attentionInfo = `<div class="hub-explainer"><strong>Что отслеживается</strong><span>Просроченные неоплаченные занятия · дни рождения в ближайшие 7 дней · задолженность, если она сохранена в данных ученика.</span></div>`;
-    document.getElementById('hub-attention').innerHTML = attentionInfo + (data.attention.length
-        ? data.attention.map(item => `<div class="hub-item">${escapeHtml(item.text || '')}</div>`).join('')
-        : '<div class="hub-empty">Сейчас всё спокойно — ничего из этого не требует внимания.</div>');
+    if (current) {
+        summary.textContent = showNextBesideCurrent && next
+            ? `${current.student} · сейчас → ${next.student} · ${next.time}`
+            : `${current.student} · сейчас`;
+    } else if (next) {
+        summary.textContent = `${next.student} · ${next.time}`;
+    } else {
+        summary.textContent = 'Ближайших занятий нет';
+    }
 
+    const items = [];
+    if (current) items.push({ label: 'Сейчас', item: current });
+    if (next && (!current || showNextBesideCurrent)) items.push({ label: 'Далее', item: next });
+    details.innerHTML = items.map(({label, item}, i) => {
+        const buttons = [
+            item.board_link ? `<button type="button" class="next-link-btn" data-top-link="${i}-board">Доска</button>` : '',
+            item.zoom_link ? `<button type="button" class="next-link-btn" data-top-link="${i}-zoom">Zoom</button>` : ''
+        ].filter(Boolean).join('');
+        return `<div class="top-next-detail-row"><div><small>${label}</small><strong>${escapeHtml(item.student || 'Ученик')} · ${escapeHtml(item.time || '')}</strong></div>${buttons ? `<div class="next-lesson-actions">${buttons}</div>` : ''}</div>`;
+    }).join('') || '<div class="hub-empty">Ближайших занятий нет.</div>';
+    items.forEach(({item}, i) => {
+        details.querySelector(`[data-top-link="${i}-board"]`)?.addEventListener('click', e => { e.stopPropagation(); openExternalLink(item.board_link); });
+        details.querySelector(`[data-top-link="${i}-zoom"]`)?.addEventListener('click', e => { e.stopPropagation(); openExternalLink(item.zoom_link); });
+    });
+}
+
+function renderWorkCenter() {
+    const data = state.workCenter || { debts: [], windows: [], birthdays: [], summary: {} };
+    renderTopLesson();
     const debts = Array.isArray(data.debts) ? data.debts : [];
     document.getElementById('hub-debts-count').textContent = debts.length;
     document.getElementById('hub-debts').innerHTML = debts.length
         ? `<div class="hub-debt-total"><span>Всего к оплате</span><strong>${money(data.debt_total || 0)}</strong></div>` + debts.map(item => `<div class="hub-item"><strong>${escapeHtml(item.name || 'Ученик')}</strong><span>${item.unpaid_count || 0} зан. · ${money(item.amount || 0)}</span></div>`).join('')
         : '<div class="hub-empty">Просроченных неоплаченных занятий нет.</div>';
 
-    document.getElementById('hub-windows').innerHTML = data.windows.length
+    document.getElementById('hub-windows').innerHTML = (data.windows || []).length
         ? data.windows.map(item => `<div class="hub-item"><strong>${shortDateRu(item.date)}</strong><span>${item.from}–${item.to}</span></div>`).join('')
         : '<div class="hub-empty">Свободных окон от 60 минут нет.</div>';
 
-    const summary = data.summary || {};
+    const summaryData = data.summary || {};
     document.getElementById('hub-summary').innerHTML = `
         <div class="summary-grid">
-            <div><small>Занятий</small><strong>${summary.lessons || 0}</strong></div>
-            <div><small>Оплачено</small><strong>${summary.paid || 0}</strong></div>
-            <div><small>План</small><strong>${money(summary.planned_sum)}</strong></div>
-            <div><small>Получено</small><strong>${money(summary.paid_sum)}</strong></div>
+            <div><small>Занятий</small><strong>${summaryData.lessons || 0}</strong></div>
+            <div><small>Оплачено</small><strong>${summaryData.paid || 0}</strong></div>
+            <div><small>План</small><strong>${money(summaryData.planned_sum)}</strong></div>
+            <div><small>Получено</small><strong>${money(summaryData.paid_sum)}</strong></div>
         </div>`;
 
-    document.getElementById('hub-birthdays').innerHTML = data.birthdays.length
+    document.getElementById('hub-birthdays').innerHTML = (data.birthdays || []).length
         ? data.birthdays.map(item => `<div class="hub-item"><strong>${escapeHtml(item.name)}</strong><span>${item.days === 0 ? 'сегодня' : `${shortDateRu(item.date)} · через ${item.days} дн.`}</span></div>`).join('')
         : '<div class="hub-empty">В ближайшие 30 дней дней рождения нет.</div>';
 }
@@ -1834,3 +1972,91 @@ calendarContainer.addEventListener('touchcancel', () => {
 
 window.addEventListener('resize', () => requestAnimationFrame(() => renderCalendar()));
 fetchData();
+
+// v30.7: единый раздел учеников и оплата произвольной суммой
+function renderStudentsList(filter = '') {
+    const box = document.getElementById('students-list');
+    if (!box) return;
+    const q = String(filter || '').trim().toLocaleLowerCase('ru');
+    const rows = visibleStudentEntries().filter(([id, raw]) => {
+        const info = typeof raw === 'string' ? { name: raw } : (raw || {});
+        return !q || String(info.name || id).toLocaleLowerCase('ru').includes(q);
+    });
+    box.innerHTML = '';
+    if (!rows.length) {
+        box.innerHTML = '<div class="hub-empty">Ученики не найдены.</div>';
+        return;
+    }
+    rows.forEach(([id, raw]) => {
+        const info = typeof raw === 'string' ? { name: raw } : (raw || {});
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'student-list-row';
+        btn.innerHTML = `<strong>${escapeHtml(info.name || id)}</strong><span>›</span>`;
+        btn.onclick = () => {
+            document.getElementById('students-overlay').classList.add('hidden');
+            openStudentCard(id);
+        };
+        box.appendChild(btn);
+    });
+}
+
+document.getElementById('btn-students').onclick = () => {
+    document.getElementById('students-search').value = '';
+    renderStudentsList('');
+    document.getElementById('students-overlay').classList.remove('hidden');
+};
+document.getElementById('students-search').addEventListener('input', e => renderStudentsList(e.target.value));
+document.getElementById('btn-close-students').onclick = () => document.getElementById('students-overlay').classList.add('hidden');
+document.getElementById('btn-close-students-bottom').onclick = () => document.getElementById('students-overlay').classList.add('hidden');
+
+document.getElementById('btn-student-payment').onclick = () => {
+    const studentId = document.getElementById('student-card-overlay').dataset.studentId;
+    if (!studentId) return;
+    const info = getStudentInfo(studentId);
+    document.getElementById('student-payment-overlay').dataset.studentId = studentId;
+    document.getElementById('student-payment-title').textContent = `Оплата · ${info.name || 'Ученик'}`;
+    document.getElementById('student-payment-amount').value = '';
+    document.getElementById('student-payment-send-receipt').checked = state.settings.default_send_receipts !== false;
+    document.getElementById('student-payment-overlay').classList.remove('hidden');
+};
+document.getElementById('btn-close-student-payment').onclick =
+document.getElementById('btn-cancel-student-payment').onclick = () => document.getElementById('student-payment-overlay').classList.add('hidden');
+document.getElementById('btn-apply-student-payment').onclick = async () => {
+    const overlay = document.getElementById('student-payment-overlay');
+    const studentId = overlay.dataset.studentId;
+    const amount = Number(document.getElementById('student-payment-amount').value || 0);
+    if (!(amount > 0)) return alert('Укажите сумму оплаты.');
+    const button = document.getElementById('btn-apply-student-payment');
+    button.disabled = true;
+    try {
+        const response = await apiFetch('/apply_student_payment', {
+            method: 'POST',
+            body: JSON.stringify({
+                student_id: studentId,
+                amount,
+                send_receipt: document.getElementById('student-payment-send-receipt').checked
+            })
+        });
+        const result = await response.json();
+        if (result.status !== 'ok') return alert(result.message || 'Ошибка оплаты');
+        overlay.classList.add('hidden');
+        await Promise.all([refreshScheduleOnly(), loadStudentLessonStats(studentId)]);
+        const restText = Number(result.unallocated || 0) > 0 ? ` Не распределено: ${money(result.unallocated)}.` : '';
+        alert(`Оплата распределена.${restText} ${result.receipt_message || ''}`.trim());
+    } finally {
+        button.disabled = false;
+    }
+};
+
+document.getElementById('lesson-repeat').addEventListener('change', e => {
+    const year = e.target.value === 'year';
+    document.getElementById('repeat-until-wrap').classList.toggle('hidden', !year);
+    if (year && !document.getElementById('repeat-until').value) {
+        document.getElementById('repeat-until').value = schoolYearEndFor(document.getElementById('lesson-date').value);
+    }
+});
+
+document.getElementById('top-next-lesson').onclick = () => {
+    document.getElementById('top-next-lesson-details').classList.toggle('hidden');
+};

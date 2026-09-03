@@ -814,3 +814,187 @@ body {
     .group-action-member-head span { white-space:normal; }
     .top-next-lesson, .top-next-lesson-details { width: calc(100% - 14px); }
 }
+
+/* v30.8 — compact header and group actions */
+.header-top {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 7px 4px;
+    min-height: 45px;
+}
+.header-top .header-btn {
+    padding: 5px 8px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+.header-top .nav-arrows {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1fr) 26px;
+    align-items: center;
+    gap: 1px;
+    padding: 1px 2px;
+}
+.header-top .nav-arrows > .icon-btn {
+    width: 26px;
+    height: 30px;
+    padding: 0;
+    font-size: 23px;
+    line-height: 28px;
+}
+.header-center-stack {
+    position: relative;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+}
+.month-label-wrapper { min-width: 0; max-width: 100%; }
+.header-top h1 {
+    font-size: 12px;
+    line-height: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-decoration: none;
+}
+.header-actions {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+}
+.header-actions .icon-btn {
+    width: 29px;
+    min-width: 29px;
+    height: 31px;
+    padding: 3px;
+    font-size: 15px;
+}
+.top-next-lesson {
+    width: 100%;
+    min-height: 15px;
+    max-width: 210px;
+    margin: 0;
+    padding: 0 2px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+}
+#top-next-lesson-summary {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.top-next-chevron { font-size: 9px; }
+.top-next-lesson-details {
+    position: absolute;
+    z-index: 1500;
+    top: calc(100% + 5px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(310px, calc(100vw - 18px));
+    margin: 0;
+    padding: 8px;
+    background: #fff;
+}
+
+.group-action-details {
+    gap: 4px;
+    margin: 3px 0;
+}
+.group-action-member {
+    padding: 0;
+    overflow: hidden;
+    border-radius: 9px;
+}
+.group-action-member-head {
+    width: 100%;
+    min-height: 38px;
+    margin: 0;
+    padding: 6px 8px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+}
+.group-action-member-head strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+}
+.group-member-summary {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    font-size: 11px;
+    opacity: .82;
+}
+.group-member-summary b {
+    font-size: 18px;
+    line-height: 1;
+    font-weight: 500;
+    transition: transform .15s ease;
+}
+.group-action-member-head[aria-expanded="true"] .group-member-summary b { transform: rotate(90deg); }
+.group-member-status {
+    font-style: normal;
+    font-size: 10px;
+    font-weight: 700;
+}
+.group-member-status.is-paid { color: #188038; }
+.group-member-status.is-debt { color: #d93025; }
+.group-member-status.is-free { color: #5f6368; }
+.group-member-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+    padding: 0 7px 7px;
+}
+.group-member-actions.hidden { display: none; }
+.group-member-actions button {
+    min-width: 0;
+    min-height: 31px;
+    padding: 4px 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.group-member-actions button:disabled { opacity: .45; cursor: default; }
+
+@media (max-width: 420px) {
+    .header-top { gap: 3px; padding-left: 4px; padding-right: 4px; }
+    .header-top .header-btn { padding: 5px 6px; font-size: 11px; }
+    .header-actions .icon-btn { width: 27px; min-width: 27px; }
+    .header-top .nav-arrows { grid-template-columns: 23px minmax(0, 1fr) 23px; }
+    .header-top .nav-arrows > .icon-btn { width: 23px; }
+    .header-top h1 { font-size: 11px; }
+    .top-next-lesson { max-width: 145px; font-size: 9px; }
+    .group-action-member-head { grid-template-columns: minmax(0, 1fr) auto; }
+    .group-action-member-head span { white-space: nowrap; }
+}
+
+@media (max-width: 350px) {
+    .header-top .header-btn { width: 30px; overflow: hidden; color: transparent; position: relative; }
+    .header-top .header-btn::after { content: "●"; color: #202124; position: absolute; inset: 0; display:flex; align-items:center; justify-content:center; }
+    .header-actions .icon-btn { width: 25px; min-width: 25px; font-size: 14px; }
+    .top-next-lesson { max-width: 112px; }
+}

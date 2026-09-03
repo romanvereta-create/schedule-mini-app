@@ -5,28 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Расписание</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css?v=30.7-accumulated">
+    <link rel="stylesheet" href="styles.css?v=30.8">
 </head>
 <body>
     <header class="main-header">
         <div class="header-top">
             <button id="btn-today" class="header-btn">Сегодня</button>
             <div class="nav-arrows">
-                <button id="btn-prev-week" class="icon-btn">◀</button>
-                <span id="week-label-indicator">неделя</span>
-                <button id="btn-next-week" class="icon-btn">▶</button>
+                <button id="btn-prev-week" class="icon-btn" aria-label="Предыдущая неделя">‹</button>
+                <div class="header-center-stack">
+                    <div class="month-label-wrapper">
+                        <h1 id="month-label" title="Нажмите для выбора даты">...</h1>
+                    </div>
+                    <button id="top-next-lesson" class="top-next-lesson" type="button">
+                        <span id="top-next-lesson-summary">Ближайшее занятие…</span><span class="top-next-chevron">⌄</span>
+                    </button>
+                    <div id="top-next-lesson-details" class="top-next-lesson-details hidden"></div>
+                </div>
+                <button id="btn-next-week" class="icon-btn" aria-label="Следующая неделя">›</button>
             </div>
-            <div class="month-label-wrapper">
-                <h1 id="month-label" title="Нажмите для выбора даты">...</h1>
+            <div class="header-actions">
+                <button id="btn-students" class="icon-btn" title="Ученики">👥</button>
+                <button id="btn-work-center" class="icon-btn work-center-btn" title="Помощник">📋</button>
+                <button id="btn-app-settings" class="icon-btn settings-icon-btn" title="Настройки">⚙️</button>
             </div>
-            <button id="btn-students" class="icon-btn" title="Ученики">👥</button>
-            <button id="btn-work-center" class="icon-btn work-center-btn" title="Помощник">📋</button>
-            <button id="btn-app-settings" class="icon-btn settings-icon-btn" title="Настройки">⚙️</button>
         </div>
-        <button id="top-next-lesson" class="top-next-lesson" type="button">
-            <span id="top-next-lesson-summary">Ближайшее занятие…</span><span class="top-next-chevron">⌄</span>
-        </button>
-        <div id="top-next-lesson-details" class="top-next-lesson-details hidden"></div>
         <div class="week-days-container">
             <div class="time-spacer">
                 <button id="btn-zoom-in" class="zoom-btn" title="Увеличить высоту">🔍+</button>
@@ -560,6 +563,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=30.7-accumulated"></script>
+    <script src="app.js?v=30.8"></script>
 </body>
 </html>

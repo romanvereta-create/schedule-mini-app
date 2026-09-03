@@ -42,6 +42,17 @@ function dateKey(date) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function formatWeekRange(monday) {
+    const months = ['янв.', 'февр.', 'мар.', 'апр.', 'мая', 'июн.', 'июл.', 'авг.', 'сен.', 'окт.', 'нояб.', 'дек.'];
+    const start = new Date(monday);
+    const end = new Date(monday);
+    end.setDate(end.getDate() + 6);
+    if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+        return `${start.getDate()}–${end.getDate()} ${months[end.getMonth()]}`;
+    }
+    return `${start.getDate()} ${months[start.getMonth()]}–${end.getDate()} ${months[end.getMonth()]}`;
+}
+
 function haptic(type = 'light') {
     try { tg.HapticFeedback.impactOccurred(type); } catch (e) {}
 }
@@ -394,9 +405,7 @@ function renderCalendar() {
     layer.innerHTML = '<div id="current-time-line" class="current-time-line hidden"><div class="time-line-dot"></div></div>';
     document.documentElement.style.setProperty('--hour-height', `${hourHeight}px`);
 
-    const middleDate = new Date(state.currentMonday);
-    middleDate.setDate(middleDate.getDate() + 3);
-    document.getElementById('month-label').textContent = middleDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+    document.getElementById('month-label').textContent = formatWeekRange(state.currentMonday);
 
     const todayKey = dateKey(new Date());
     const header = document.getElementById('days-header');
@@ -560,20 +569,23 @@ function openActionMenu(date, lesson) {
     const isGroup = lesson.lesson_type === 'group';
     const cancelled = !!lesson.cancelled;
     document.getElementById('action-menu-title').textContent = `${isGroup ? (lesson.group_name || lesson.student || 'Группа') : (lesson.student || 'Ученик')} · ${lesson.time || '--:--'}`;
-    document.getElementById('btn-action-paid').textContent = isGroup ? '💳 Оплата группы' : (lesson.paid && !lesson.free ? '✅ Оплачено (снять)' : '💳 Оплатил');
+
+    const paidButton = document.getElementById('btn-action-paid');
+    paidButton.textContent = lesson.paid && !lesson.free ? '↩ Снять оплату' : '💳 Оплатил';
+    paidButton.classList.toggle('hidden', cancelled || isGroup);
+
     document.getElementById('btn-action-student-card').classList.toggle('hidden', isGroup);
-    document.getElementById('btn-action-chat-student').classList.remove('hidden');
-    document.getElementById('btn-action-chat-parent').classList.remove('hidden');
-    document.getElementById('btn-action-chat-student').textContent = isGroup ? '💬 Написать ученикам' : '💬 Написать ученику';
-    document.getElementById('btn-action-chat-parent').textContent = isGroup ? '💬 Написать родителям' : '💬 Написать родителю';
-    document.getElementById('btn-action-subscription').classList.toggle('hidden', isGroup);
-    document.getElementById('btn-action-free').classList.toggle('hidden', isGroup);
+    document.getElementById('btn-action-chat-student').classList.toggle('hidden', isGroup);
+    document.getElementById('btn-action-chat-parent').classList.toggle('hidden', isGroup);
+    document.getElementById('btn-action-chat-student').textContent = '💬 Написать ученику';
+    document.getElementById('btn-action-chat-parent').textContent = '💬 Написать родителю';
+    document.getElementById('btn-action-subscription').classList.toggle('hidden', cancelled || isGroup);
+    document.getElementById('btn-action-free').classList.toggle('hidden', cancelled || isGroup);
     document.getElementById('btn-action-free').textContent = lesson.free ? '↩️ Убрать «Бесплатно»' : '🎁 Бесплатно';
     document.getElementById('btn-action-cancel-once').textContent = cancelled ? '↩️ Вернуть занятие' : '🚫 Отменить';
     document.getElementById('btn-action-report').classList.toggle('hidden', cancelled || !lessonHasStarted(date, lesson));
-    document.getElementById('btn-action-paid').classList.toggle('hidden', cancelled);
-    document.getElementById('btn-action-subscription').classList.toggle('hidden', cancelled || isGroup);
-    document.getElementById('btn-action-free').classList.toggle('hidden', cancelled || isGroup);
+    const settingsButton = document.getElementById('btn-action-settings');
+    settingsButton.textContent = isGroup ? '✏️ Редактировать группу' : '⚙️ Настройки занятия';
 
     const details = document.getElementById('group-action-details');
     details.innerHTML = '';
@@ -583,21 +595,66 @@ function openActionMenu(date, lesson) {
             const row = document.createElement('div');
             row.className = 'group-action-member';
             const price = lessonPriceValue(lesson, member);
-            const status = member.free ? 'Бесплатно' : (member.paid ? 'Оплачено' : 'Не оплачено');
+            const statusClass = member.free ? 'is-free' : (member.paid ? 'is-paid' : 'is-debt');
+            const status = member.free ? 'Бесплатно' : (member.paid ? 'Оплачено' : 'Долг');
             row.innerHTML = `
-                <div class="group-action-member-head"><strong>${escapeHtml(member.name || 'Ученик')}</strong><span>${price > 0 ? `${price.toLocaleString('ru-RU')} ₽ · ` : ''}${status}</span></div>
-                <div class="group-member-actions">
+                <button type="button" class="group-action-member-head" aria-expanded="false">
+                    <strong>${escapeHtml(member.name || 'Ученик')}</strong>
+                    <span class="group-member-summary">${price > 0 ? `${price.toLocaleString('ru-RU')} ₽` : 'цена —'} <i class="group-member-status ${statusClass}">${status}</i> <b>›</b></span>
+                </button>
+                <div class="group-member-actions hidden">
+                    <button type="button" data-member-action="paid">${member.paid && !member.free ? '↩ Снять оплату' : '💳 Оплатил'}</button>
+                    <button type="button" data-member-action="free">${member.free ? '↩ Не бесплатно' : '🎁 Бесплатно'}</button>
                     <button type="button" data-member-action="subscription">🎟 Абонемент</button>
-                    <button type="button" data-member-action="free">${member.free ? '↩️ Не бесплатно' : '🎁 Бесплатно'}</button>
-                    <button type="button" data-member-action="card">Карточка</button>
+                    <button type="button" data-member-action="student-chat">💬 Ученик</button>
+                    <button type="button" data-member-action="parent-chat">👪 Родитель</button>
+                    <button type="button" data-member-action="card">👤 Карточка</button>
                 </div>`;
+            const head = row.querySelector('.group-action-member-head');
+            const actions = row.querySelector('.group-member-actions');
+            head.onclick = () => {
+                const opening = actions.classList.contains('hidden');
+                details.querySelectorAll('.group-member-actions').forEach(box => box.classList.add('hidden'));
+                details.querySelectorAll('.group-action-member-head').forEach(button => button.setAttribute('aria-expanded', 'false'));
+                if (opening) {
+                    actions.classList.remove('hidden');
+                    head.setAttribute('aria-expanded', 'true');
+                }
+            };
             row.querySelector('[data-member-action="card"]').onclick = () => { closeActionMenu(); openStudentCard(member.student_id); };
             row.querySelector('[data-member-action="subscription"]').onclick = () => openSubscriptionForStudent(lesson, member.student_id);
             row.querySelector('[data-member-action="free"]').onclick = () => setFreeStateForSelected(member.student_id, !member.free);
+            row.querySelector('[data-member-action="student-chat"]').onclick = () => openStudentContactFor(member.student_id);
+            row.querySelector('[data-member-action="parent-chat"]').onclick = () => openParentContactFor(member.student_id);
+            row.querySelector('[data-member-action="paid"]').onclick = () => setGroupMemberPaidState(state.selectedLesson, member, !member.paid);
+            if (cancelled) row.querySelectorAll('.group-member-actions button').forEach(button => { button.disabled = true; });
             details.appendChild(row);
         });
     }
     document.getElementById('action-menu-overlay').classList.remove('hidden');
+}
+
+async function setGroupMemberPaidState(lesson, member, makePaid) {
+    if (!lesson || !member || member.free) return;
+    const verb = makePaid ? 'Отметить оплату' : 'Снять оплату';
+    if (!confirm(`${verb}: ${member.name || 'ученик'}?`)) return;
+    const selectedIds = (lesson.group_members || [])
+        .filter(item => !item.free && (String(item.student_id) === String(member.student_id) ? makePaid : !!item.paid))
+        .map(item => String(item.student_id || ''));
+    const response = await apiFetch('/mark_paid', {
+        method: 'POST',
+        body: JSON.stringify({
+            date: lesson.date,
+            id: lesson.id,
+            paid: true,
+            send_receipt: makePaid && state.settings.default_send_receipts !== false,
+            paid_student_ids: selectedIds
+        })
+    });
+    const result = await response.json();
+    if (result.status !== 'ok') return alert(result.message || 'Ошибка изменения оплаты');
+    closeActionMenu();
+    await refreshScheduleOnly();
 }
 
 function closeActionMenu() {
@@ -1764,10 +1821,10 @@ function renderTopLesson() {
 
     if (current) {
         summary.textContent = showNextBesideCurrent && next
-            ? `${current.student} · сейчас → ${next.student} · ${next.time}`
-            : `${current.student} · сейчас`;
+            ? `● ${current.student} ${current.time || ''} › ${next.student} ${next.time || ''}`
+            : `● ${current.student} ${current.time || ''}`;
     } else if (next) {
-        summary.textContent = `${next.student} · ${next.time}`;
+        summary.textContent = `Далее › ${next.student} ${next.time || ''}`;
     } else {
         summary.textContent = 'Ближайших занятий нет';
     }

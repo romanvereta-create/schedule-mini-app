@@ -227,19 +227,19 @@
                         </div>
                         <div class="form-group flex-1">
                             <label>Длительность (мин)</label>
-                            <input type="number" id="lesson-duration" value="60" min="15" step="5">
+                            <input type="number" id="lesson-duration" value="60" min="15" max="1440" step="5">
                         </div>
                     </div>
 
                     <div class="form-group" id="repeat-group">
                         <label>Повтор</label>
                         <select id="lesson-repeat">
+                            <option value="year" selected>До конца учебного года</option>
                             <option value="no">Только сегодня (разово)</option>
                             <option value="month">Каждую неделю на месяц</option>
-                            <option value="year">На учебный год</option>
                         </select>
                         <div id="repeat-until-wrap" class="form-group hidden">
-                            <label>Повторять до</label>
+                            <label>Каждую неделю до</label>
                             <input type="date" id="repeat-until">
                         </div>
                     </div>
@@ -251,7 +251,7 @@
                         </label>
                         <div id="reminder-minutes-wrap" class="reminder-minutes-wrap">
                             <span>за</span>
-                            <input type="number" id="reminder-minutes" value="60" min="0" step="5">
+                            <input type="number" id="reminder-minutes" value="60" min="0" max="10080" step="5">
                             <span>минут</span>
                         </div>
                     </div>

@@ -801,11 +801,14 @@ function resetAddForm() {
     document.getElementById('student-select').value = '';
     document.getElementById('manual-student-name').value = '';
     document.getElementById('manual-student-name').classList.add('hidden');
-    document.getElementById('lesson-repeat').value = 'no';
+    document.getElementById('lesson-repeat').value = 'year';
     document.getElementById('lesson-price').value = '';
     const dateValue = document.getElementById('lesson-date')?.value || dateKey(new Date());
-    document.getElementById('repeat-until').value = schoolYearEndFor(dateValue);
-    document.getElementById('repeat-until-wrap').classList.add('hidden');
+    const repeatUntil = document.getElementById('repeat-until');
+    repeatUntil.min = dateValue;
+    repeatUntil.max = dateKey(new Date(`${dateValue}T12:00:00`).getTime() + 370 * 24 * 60 * 60 * 1000);
+    repeatUntil.value = schoolYearEndFor(dateValue);
+    document.getElementById('repeat-until-wrap').classList.remove('hidden');
     document.getElementById('reminder-enabled').checked = state.settings.default_reminders_enabled !== false;
     document.getElementById('reminder-minutes').value = '60';
     updateReminderControls();
@@ -883,24 +886,53 @@ async function saveLesson() {
     if (lessonType === 'student' && !student) return alert('Укажите ученика');
     if (!time) return alert('Укажите время');
 
+    const repeat = state.editingExisting ? 'no' : document.getElementById('lesson-repeat').value;
+    const repeatUntil = document.getElementById('repeat-until').value;
+    if (!state.editingExisting && repeat === 'year') {
+        if (!repeatUntil) return alert('Укажите дату окончания повторов');
+        if (repeatUntil < date) return alert('Дата окончания повторов не может быть раньше первого занятия');
+    }
+    if (!Number.isInteger(duration) || duration < 15 || duration > 1440) {
+        return alert('Длительность занятия должна быть от 15 до 1440 минут');
+    }
+
+    const priceValue = document.getElementById('lesson-price').value;
+    const price = priceValue === '' ? 0 : Number(priceValue);
+    if (lessonType === 'student' && (!Number.isFinite(price) || price < 0)) {
+        return alert('Стоимость занятия должна быть неотрицательным числом');
+    }
+    const reminderMinutes = Number(document.getElementById('reminder-minutes').value || 60);
+    if (!Number.isInteger(reminderMinutes) || reminderMinutes < 0 || reminderMinutes > 10080) {
+        return alert('Напоминание должно быть в диапазоне от 0 до 10080 минут');
+    }
+
     const payload = {
         date, time, duration, lesson_type: lessonType,
         student, student_id: studentId,
         group_name: groupName, group_members: groupMembers,
-        price: lessonType === 'student' ? Number(document.getElementById('lesson-price').value || 0) : '',
+        price: lessonType === 'student' ? price : '',
         reminder_enabled: document.getElementById('reminder-enabled').checked,
-        reminder_minutes: document.getElementById('reminder-minutes').value || 60,
-        repeat: document.getElementById('lesson-repeat').value,
-        repeat_until: document.getElementById('repeat-until').value
+        reminder_minutes: reminderMinutes,
+        repeat,
+        repeat_until: repeatUntil
     };
     const endpoint = state.editingExisting ? '/update_lesson' : '/add_lesson';
     if (state.editingExisting) payload.id = state.selectedLesson.id;
 
-    const response = await apiFetch(endpoint, { method: 'POST', body: JSON.stringify(payload) });
-    const result = await response.json();
-    if (result.status !== 'ok') return alert(result.message || 'Ошибка сохранения');
-    closeAllModals();
-    refreshScheduleAndStudents();
+    const saveButton = document.getElementById('btn-save');
+    if (saveButton.disabled) return;
+    saveButton.disabled = true;
+    try {
+        const response = await apiFetch(endpoint, { method: 'POST', body: JSON.stringify(payload) });
+        const result = await response.json();
+        if (result.status !== 'ok') return alert(result.message || 'Ошибка сохранения');
+        closeAllModals();
+        await refreshScheduleAndStudents();
+    } catch (error) {
+        alert(error?.message || 'Не удалось сохранить занятие');
+    } finally {
+        saveButton.disabled = false;
+    }
 }
 
 function closeAllModals() {
@@ -2114,8 +2146,12 @@ document.getElementById('btn-apply-student-payment').onclick = async () => {
 document.getElementById('lesson-repeat').addEventListener('change', e => {
     const year = e.target.value === 'year';
     document.getElementById('repeat-until-wrap').classList.toggle('hidden', !year);
-    if (year && !document.getElementById('repeat-until').value) {
-        document.getElementById('repeat-until').value = schoolYearEndFor(document.getElementById('lesson-date').value);
+    const repeatUntil = document.getElementById('repeat-until');
+    const lessonDate = document.getElementById('lesson-date').value;
+    if (year) {
+        repeatUntil.min = lessonDate;
+        repeatUntil.max = dateKey(new Date(`${lessonDate}T12:00:00`).getTime() + 370 * 24 * 60 * 60 * 1000);
+        if (!repeatUntil.value) repeatUntil.value = schoolYearEndFor(lessonDate);
     }
 });
 

@@ -998,3 +998,46 @@ body {
     .header-actions .icon-btn { width: 25px; min-width: 25px; font-size: 14px; }
     .top-next-lesson { max-width: 112px; }
 }
+
+
+/* v30.8.1 — ровная строка финансовых действий и индикатор долгов */
+.payment-actions-row.payment-actions-row-three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+}
+.payment-actions-row.payment-actions-row-three .action-menu-btn {
+    width: 100%;
+    min-width: 0;
+    padding-left: 4px;
+    padding-right: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+.work-center-debt-alert {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #d93025;
+    color: #fff;
+    border: 2px solid #fff;
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 14px;
+    text-align: center;
+    box-sizing: content-box;
+    pointer-events: none;
+    z-index: 3;
+}
+.work-center-debt-alert.hidden { display: none; }
+
+@media (max-width: 380px) {
+    .payment-actions-row.payment-actions-row-three { gap: 4px; }
+    .payment-actions-row.payment-actions-row-three .action-menu-btn {
+        font-size: 11px;
+        padding-left: 2px;
+        padding-right: 2px;
+    }
+}

@@ -1849,6 +1849,11 @@ function renderWorkCenter() {
     const data = state.workCenter || { debts: [], windows: [], birthdays: [], summary: {} };
     renderTopLesson();
     const debts = Array.isArray(data.debts) ? data.debts : [];
+    const debtAlert = document.getElementById('work-center-debt-alert');
+    if (debtAlert) {
+        debtAlert.classList.toggle('hidden', debts.length === 0);
+        debtAlert.setAttribute('aria-hidden', debts.length === 0 ? 'true' : 'false');
+    }
     document.getElementById('hub-debts-count').textContent = debts.length;
     document.getElementById('hub-debts').innerHTML = debts.length
         ? `<div class="hub-debt-total"><span>Всего к оплате</span><strong>${money(data.debt_total || 0)}</strong></div>` + debts.map(item => `<div class="hub-item"><strong>${escapeHtml(item.name || 'Ученик')}</strong><span>${item.unpaid_count || 0} зан. · ${money(item.amount || 0)}</span></div>`).join('')

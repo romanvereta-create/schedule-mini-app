@@ -1,0 +1,6 @@
+# GitHub Pages deploys only the frontend from this mixed project folder.
+/*
+!/.gitignore
+!/app.js
+!/index.html
+!/styles.css

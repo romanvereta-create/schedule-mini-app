@@ -1041,3 +1041,33 @@ body {
         padding-right: 2px;
     }
 }
+
+/* Центр оплат ученика и компактная навигация. */
+.header-center-stack { flex-direction: row; gap: 3px; }
+#month-label { border: 0; background: transparent; padding: 2px; cursor: pointer; font-size: 15px; }
+.top-next-lesson { max-width: none; min-height: 30px; font-size: 15px; line-height: 19px; }
+.action-section-label { margin-top: 7px; color: #5f6368; font-size: 11px; font-weight: 700; text-align: left; }
+.group-member-actions .action-section-label { grid-column: 1 / -1; }
+.group-member-payment-row { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+.group-member-actions button { white-space: normal; overflow-wrap: anywhere; font-size: 12px; }
+.group-member-payment-row button { font-size: 11px; padding-left: 2px; padding-right: 2px; overflow-wrap: normal; }
+.group-member-summary { min-width: 0; max-width: 165px; flex-wrap: wrap; justify-content: flex-end; }
+.group-member-summary .group-member-status { white-space: normal; text-align: right; }
+.payment-actions-row.payment-actions-row-three .action-menu-btn { white-space: normal; overflow-wrap: anywhere; }
+.student-finances { margin: 12px 0 18px; font-size: 13px; }
+.student-finances h3 { margin: 0 0 8px; font-size: 15px; }
+#student-payment-lessons { max-height: 330px; overflow-y: auto; }
+.student-finance-row { border: 1px solid #dadce0; border-radius: 9px; padding: 9px; margin-bottom: 7px; overflow-wrap: anywhere; }
+.student-finance-row > div { margin-top: 4px; }
+.student-finance-status { font-weight: 600; }
+.student-finance-actions { display: flex; flex-wrap: wrap; gap: 5px; }
+.student-finance-actions button { flex: 1 1 78px; min-width: 0; padding: 7px 4px; font-size: 12px; border: 1px solid #dadce0; border-radius: 7px; background: #f8f9fa; cursor: pointer; }
+.student-finance-actions button:disabled { opacity: .5; }
+.student-payment-history summary { padding: 10px 0; cursor: pointer; font-weight: 600; }
+.student-payment-history ul { padding-left: 18px; font-size: 12px; }
+#subscription-pay-overlay, #paid-confirm-overlay { z-index: 1200; }
+#action-menu-overlay .modal-content { max-height: calc(100dvh - 24px); overflow-y: auto; box-sizing: border-box; }
+@media (max-width: 380px) {
+    .top-next-lesson { font-size: 14px; }
+    .group-member-summary { max-width: 135px; }
+}

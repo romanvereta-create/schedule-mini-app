@@ -405,7 +405,7 @@ function renderCalendar() {
     layer.innerHTML = '<div id="current-time-line" class="current-time-line hidden"><div class="time-line-dot"></div></div>';
     document.documentElement.style.setProperty('--hour-height', `${hourHeight}px`);
 
-    document.getElementById('month-label').textContent = formatWeekRange(state.currentMonday);
+    document.getElementById('month-label').title = `Выбрать дату · ${formatWeekRange(state.currentMonday)}`;
 
     const todayKey = dateKey(new Date());
     const header = document.getElementById('days-header');
@@ -568,10 +568,12 @@ function openActionMenu(date, lesson) {
     state.selectedLesson = { date, ...lesson };
     const isGroup = lesson.lesson_type === 'group';
     const cancelled = !!lesson.cancelled;
+    document.getElementById('action-contact-label').textContent = isGroup ? 'Участники' : 'Связь';
     document.getElementById('action-menu-title').textContent = `${isGroup ? (lesson.group_name || lesson.student || 'Группа') : (lesson.student || 'Ученик')} · ${lesson.time || '--:--'}`;
 
     const paidButton = document.getElementById('btn-action-paid');
-    paidButton.textContent = lesson.paid && !lesson.free ? '↩ Снять оплату' : '💳 Оплатил';
+    paidButton.textContent = paymentActionLabel(lesson);
+    document.getElementById('individual-payment-label').classList.toggle('hidden', isGroup);
     paidButton.classList.toggle('hidden', cancelled || isGroup);
 
     document.getElementById('btn-action-student-card').classList.toggle('hidden', isGroup);
@@ -581,7 +583,7 @@ function openActionMenu(date, lesson) {
     document.getElementById('btn-action-chat-parent').textContent = '💬 Написать родителю';
     document.getElementById('btn-action-subscription').classList.toggle('hidden', cancelled || isGroup);
     document.getElementById('btn-action-free').classList.toggle('hidden', cancelled || isGroup);
-    document.getElementById('btn-action-free').textContent = lesson.free ? '↩️ Убрать «Бесплатно»' : '🎁 Бесплатно';
+    document.getElementById('btn-action-free').textContent = lesson.free ? '↩ Отменить бесплатно' : '🎁 Бесплатно';
     document.getElementById('btn-action-cancel-once').textContent = cancelled ? '↩️ Вернуть занятие' : '🚫 Отменить';
     document.getElementById('btn-action-report').classList.toggle('hidden', cancelled || !lessonHasStarted(date, lesson));
     const settingsButton = document.getElementById('btn-action-settings');
@@ -596,19 +598,24 @@ function openActionMenu(date, lesson) {
             row.className = 'group-action-member';
             const price = lessonPriceValue(lesson, member);
             const statusClass = member.free ? 'is-free' : (member.paid ? 'is-paid' : 'is-debt');
-            const status = member.free ? 'Бесплатно' : (member.paid ? 'Оплачено' : 'Долг');
+            const status = paymentStatusLabel(member);
             row.innerHTML = `
                 <button type="button" class="group-action-member-head" aria-expanded="false">
                     <strong>${escapeHtml(member.name || 'Ученик')}</strong>
                     <span class="group-member-summary">${price > 0 ? `${price.toLocaleString('ru-RU')} ₽` : 'цена —'} <i class="group-member-status ${statusClass}">${status}</i> <b>›</b></span>
                 </button>
                 <div class="group-member-actions hidden">
-                    <button type="button" data-member-action="paid">${member.paid && !member.free ? '↩ Снять оплату' : '💳 Оплатил'}</button>
-                    <button type="button" data-member-action="free">${member.free ? '↩ Не бесплатно' : '🎁 Бесплатно'}</button>
+                    <div class="action-section-label">Связь</div>
+                    <button type="button" data-member-action="student-chat">💬 Написать ученику</button>
+                    <button type="button" data-member-action="parent-chat">💬 Написать родителю</button>
+                    <div class="action-section-label">Оплата</div>
+                    <div class="group-member-payment-row">
+                    <button type="button" data-member-action="paid">${paymentActionLabel(member)}</button>
                     <button type="button" data-member-action="subscription">🎟 Абонемент</button>
-                    <button type="button" data-member-action="student-chat">💬 Ученик</button>
-                    <button type="button" data-member-action="parent-chat">👪 Родитель</button>
-                    <button type="button" data-member-action="card">👤 Карточка</button>
+                    <button type="button" data-member-action="free">${member.free ? '↩ Отменить бесплатно' : '🎁 Бесплатно'}</button>
+                    </div>
+                    <div class="action-section-label">Ученик</div>
+                    <button type="button" data-member-action="card">👤 Карточка ученика</button>
                 </div>`;
             const head = row.querySelector('.group-action-member-head');
             const actions = row.querySelector('.group-member-actions');
@@ -636,19 +643,18 @@ function openActionMenu(date, lesson) {
 
 async function setGroupMemberPaidState(lesson, member, makePaid) {
     if (!lesson || !member || member.free) return;
+    if (hasAllocatedPayment(member)) return explainAllocatedPayment(member.student_id);
+    if (member.paid_via_subscription) return alert('Занятие оплачено абонементом. Снятие оплаты одного занятия заблокировано.');
     const verb = makePaid ? 'Отметить оплату' : 'Снять оплату';
     if (!confirm(`${verb}: ${member.name || 'ученик'}?`)) return;
-    const selectedIds = (lesson.group_members || [])
-        .filter(item => !item.free && (String(item.student_id) === String(member.student_id) ? makePaid : !!item.paid))
-        .map(item => String(item.student_id || ''));
     const response = await apiFetch('/mark_paid', {
         method: 'POST',
         body: JSON.stringify({
             date: lesson.date,
             id: lesson.id,
-            paid: true,
+            paid: makePaid,
             send_receipt: makePaid && state.settings.default_send_receipts !== false,
-            paid_student_ids: selectedIds
+            student_id: member.student_id
         })
     });
     const result = await response.json();
@@ -1065,6 +1071,11 @@ async function setFreeStateForSelected(studentId = '', makeFree = true) {
 
 function openSubscriptionForStudent(lesson, studentId) {
     if (!lesson) return;
+    const target = lesson.lesson_type === 'group'
+        ? (lesson.group_members || []).find(m => String(m.student_id) === String(studentId)) : lesson;
+    if (target && (target.paid || target.free || hasAllocatedPayment(target))) {
+        return alert('Сначала отмените существующую оплату или бесплатный статус. Общая оплата отменяется в карточке ученика.');
+    }
     let price = 0;
     let name = '';
     if (lesson.lesson_type === 'group') {
@@ -1121,6 +1132,9 @@ document.getElementById('btn-action-paid').onclick = async () => {
     const lesson = state.selectedLesson;
     if (!lesson) return;
     const isGroup = lesson.lesson_type === 'group';
+    if (!isGroup && hasAllocatedPayment(lesson)) return explainAllocatedPayment(lesson.student_id);
+    if (!isGroup && lesson.paid_via_subscription) return alert('Занятие оплачено абонементом. Снятие оплаты одного занятия заблокировано.');
+    if (!isGroup && lesson.free) return alert('Сначала отмените бесплатный статус.');
 
     if (!isGroup && lesson.paid) {
         if (!confirm(`Снять отметку об оплате у занятия ${lesson.student || ''} ${lesson.time || ''}?`)) return;
@@ -1138,7 +1152,7 @@ document.getElementById('btn-action-paid').onclick = async () => {
     document.getElementById('paid-confirm-title').textContent = `${isGroup ? (lesson.group_name || 'Группа') : (lesson.student || 'Ученик')} · ${lesson.time || '--:--'}`;
     document.getElementById('paid-confirm-desc').textContent = isGroup
         ? 'Отметьте учеников, которые оплатили. Сумма берётся из стоимости каждого участника в этом занятии.'
-        : (() => { const price = Number(state.subscriptionPrice || lessonPriceValue(lesson)); return `Подтвердить оплату${price > 0 ? ` на ${price.toLocaleString('ru-RU')} ₽` : ''}?`; })();
+        : (() => { const price = Number(lessonPriceValue(lesson)); return `Подтвердить оплату${price > 0 ? ` на ${price.toLocaleString('ru-RU')} ₽` : ''}?`; })();
     const membersBox = document.getElementById('group-paid-members');
     membersBox.innerHTML = '';
     membersBox.classList.toggle('hidden', !isGroup);
@@ -1228,6 +1242,7 @@ document.getElementById('btn-subscription-pay-apply').onclick = async () => {
         if (result.status !== 'ok') return alert(result.message || 'Ошибка оплаты абонемента');
         document.getElementById('subscription-pay-overlay').classList.add('hidden');
         await Promise.all([refreshScheduleOnly(), refreshStudentsOnly()]);
+        await refreshOpenPaymentCard();
         alert(`Абонемент оплачен: ${result.lessons_paid} занятий. Чек № ${result.receipt_number || '—'}. ${result.receipt_message || ''}`);
     } finally {
         button.disabled = false;
@@ -1759,6 +1774,138 @@ function setStudentStatus(status) {
 document.getElementById('student-status-active').onclick = () => setStudentStatus('active');
 document.getElementById('student-status-paused').onclick = () => setStudentStatus('paused');
 
+function hasAllocatedPayment(target) {
+    return Number(target.paid_amount || 0) > 0 || (target.allocation_ids || []).length > 0;
+}
+
+function paymentStatusLabel(target) {
+    if (target.free) return 'Бесплатно';
+    if (hasAllocatedPayment(target)) return target.paid ? 'Оплачено общей суммой' : 'Частично общей суммой';
+    if (target.paid_via_subscription) return 'Абонемент';
+    return target.paid ? 'Прямая оплата' : 'Не оплачено';
+}
+
+function paymentActionLabel(target) {
+    if (hasAllocatedPayment(target)) return 'Оплачено общей суммой';
+    if (target.paid_via_subscription) return '🎟 Оплачено абонементом';
+    return target.paid && !target.free ? '↩ Снять оплату' : '💳 Прямая оплата';
+}
+
+function explainAllocatedPayment(studentId) {
+    alert('На занятие распределена общая сумма, возможно частично. Полностью отменить платёж можно в истории общих оплат карточки ученика. Старые распределения без истории автоматически не отменяются.');
+    closeActionMenu();
+    openStudentCard(studentId);
+}
+
+async function refreshOpenPaymentCard() {
+    const card = document.getElementById('student-card-overlay');
+    if (!card.classList.contains('hidden') && card.dataset.studentId) {
+        await Promise.all([loadStudentPayments(card.dataset.studentId), loadStudentLessonStats(card.dataset.studentId)]);
+    }
+}
+
+let studentPaymentsRequest = 0;
+async function loadStudentPayments(studentId) {
+    const requestId = ++studentPaymentsRequest;
+    const list = document.getElementById('student-payment-lessons');
+    const transactions = document.getElementById('student-payment-transactions');
+    list.textContent = 'Загрузка оплат…';
+    transactions.textContent = '';
+    try {
+        const response = await apiFetch('/get_student_payments', { method: 'POST', body: JSON.stringify({ student_id: studentId }) });
+        const result = await response.json();
+        if (requestId !== studentPaymentsRequest || document.getElementById('student-card-overlay').dataset.studentId !== String(studentId)) return;
+        if (result.status !== 'ok') throw new Error(result.message || 'Не удалось загрузить оплаты');
+        const lessons = result.lessons || [];
+        list.innerHTML = '';
+        if (!lessons.length) list.textContent = 'Занятий пока нет.';
+        lessons.forEach(item => {
+            const row = document.createElement('article');
+            row.className = 'student-finance-row';
+            const price = item.price == null ? 'Цена не указана' : money(item.price);
+            const allocated = hasAllocatedPayment(item);
+            const actions = item.source === 'unpaid'
+                ? '<button type="button" data-finance-action="direct">💳 Прямая оплата</button><button type="button" data-finance-action="subscription">🎟 Абонемент</button><button type="button" data-finance-action="free">🎁 Бесплатно</button>'
+                : item.source === 'direct' ? '<button type="button" data-finance-action="reverse">↩ Снять оплату</button>'
+                : item.source === 'free' ? '<button type="button" data-finance-action="unfree">↩ Отменить бесплатно</button>' : '';
+            let note = '';
+            if (allocated) {
+                note = (item.allocation_ids || []).length
+                    ? 'Отмена всего платежа — в истории общих оплат ниже. Если платежи пересекаются, сначала отмените более поздний.'
+                    : 'Старое распределение без истории: автоматическая отмена недоступна.';
+            } else if (item.source === 'subscription') {
+                note = 'Оплачено абонементом. Снятие оплаты одного занятия заблокировано, чтобы сохранить учёт абонемента.';
+            }
+            row.innerHTML = `<strong>${escapeHtml(item.date)} · ${escapeHtml(item.time || '')}</strong>
+                <div>${escapeHtml(item.lesson_type === 'group' ? `Группа · ${item.group_name}` : 'Индивидуальное')} · ${escapeHtml(price)}</div>
+                <div class="student-finance-status">${escapeHtml(paymentStatusLabel(item))}${allocated ? ` · ${escapeHtml(money(item.paid_amount))} из ${escapeHtml(price)}` : ''}${item.cancelled ? ' · Занятие отменено' : ''}</div>
+                ${note ? `<p class="field-hint">${escapeHtml(note)}</p>` : ''}
+                <div class="student-finance-actions">${item.cancelled && item.source === 'unpaid' ? '' : actions}</div>`;
+            row.querySelectorAll('[data-finance-action]').forEach(button => {
+                button.onclick = () => changeStudentLessonPayment(studentId, item, button.dataset.financeAction, row);
+            });
+            list.appendChild(row);
+        });
+        transactions.innerHTML = '';
+        if (!(result.transactions || []).length) transactions.textContent = 'Сохранённых общих оплат пока нет.';
+        (result.transactions || []).forEach(tx => {
+            const row = document.createElement('article');
+            row.className = 'student-finance-row';
+            const allocations = (tx.allocations || []).map(a => `<li>${escapeHtml(a.date)} · ${escapeHtml(a.time || '')} · ${a.is_group ? 'Групповое' : 'Индивидуальное'} · ${escapeHtml(money(a.amount))}</li>`).join('');
+            row.innerHTML = `<strong>${escapeHtml(money(tx.amount))} · ${tx.reversed_at ? 'Отменена' : 'Общая оплата'}</strong>
+                <div>${escapeHtml(new Date(tx.created_at).toLocaleString('ru-RU'))} · № ${escapeHtml(tx.receipt_number || '')}</div>
+                <ul>${allocations}</ul>
+                ${tx.reversed_at ? `<small>Отменена ${escapeHtml(new Date(tx.reversed_at).toLocaleString('ru-RU'))}</small>` : '<button type="button" class="secondary-btn">↩ Отменить весь платёж</button>'}`;
+            const button = row.querySelector('button');
+            if (button) button.onclick = async () => {
+                if (!confirm(`Отменить всю общую оплату ${money(tx.amount)}? Будут восстановлены ${tx.allocations.length} занятий и добавлена отрицательная запись в книгу.`)) return;
+                button.disabled = true;
+                try {
+                    const response = await apiFetch('/reverse_student_payment', { method: 'POST', body: JSON.stringify({ student_id: studentId, transaction_id: tx.id }) });
+                    const result = await response.json();
+                    if (result.status !== 'ok') throw new Error(result.message || 'Не удалось отменить оплату');
+                    await Promise.all([refreshScheduleOnly(), refreshOpenPaymentCard()]);
+                } catch (error) {
+                    alert(error.message || 'Ошибка отмены оплаты');
+                } finally {
+                    button.disabled = false;
+                }
+            };
+            transactions.appendChild(row);
+        });
+    } catch (error) {
+        if (requestId === studentPaymentsRequest) list.textContent = error.message || 'Не удалось загрузить оплаты.';
+    }
+}
+
+async function changeStudentLessonPayment(studentId, item, action, row) {
+    if (action === 'subscription') {
+        const lesson = { ...item };
+        if (item.lesson_type === 'group') lesson.group_members = [{ ...item, name: item.student }];
+        state.selectedLesson = lesson;
+        openSubscriptionForStudent(lesson, studentId);
+        return;
+    }
+    const descriptions = { direct: 'Отметить прямую оплату', reverse: 'Снять прямую оплату', free: 'Сделать занятие бесплатным', unfree: 'Отменить бесплатный статус' };
+    if (!confirm(`${descriptions[action]}: ${item.date} ${item.time || ''}?`)) return;
+    row.querySelectorAll('button').forEach(button => { button.disabled = true; });
+    try {
+        const isState = action === 'free' || action === 'unfree';
+        const response = await apiFetch(isState ? '/set_lesson_state' : '/mark_paid', {
+            method: 'POST',
+            body: JSON.stringify({ date: item.date, id: item.id, student_id: studentId,
+                ...(isState ? { action } : { paid: action === 'direct', send_receipt: action === 'direct' && state.settings.default_send_receipts !== false }) })
+        });
+        const result = await response.json();
+        if (result.status !== 'ok') throw new Error(result.message || 'Не удалось изменить оплату');
+        await Promise.all([refreshScheduleOnly(), refreshOpenPaymentCard()]);
+    } catch (error) {
+        alert(error.message || 'Ошибка изменения оплаты');
+    } finally {
+        row.querySelectorAll('button').forEach(button => { button.disabled = false; });
+    }
+}
+
 function openStudentCard(studentId) {
     if (!studentId || !state.students[studentId]) return alert('Карточка доступна после сохранения ученика.');
     const info = getStudentInfo(studentId);
@@ -1774,6 +1921,7 @@ function openStudentCard(studentId) {
     renderContacts('student-card-parent-contacts', info.contacts || {});
     document.getElementById('student-card-overlay').classList.remove('hidden');
     loadStudentLessonStats(studentId);
+    loadStudentPayments(studentId);
 }
 
 document.getElementById('btn-close-student-card').onclick = () => document.getElementById('student-card-overlay').classList.add('hidden');
@@ -2136,6 +2284,7 @@ document.getElementById('btn-apply-student-payment').onclick = async () => {
         if (result.status !== 'ok') return alert(result.message || 'Ошибка оплаты');
         overlay.classList.add('hidden');
         await Promise.all([refreshScheduleOnly(), loadStudentLessonStats(studentId)]);
+        await loadStudentPayments(studentId);
         const restText = Number(result.unallocated || 0) > 0 ? ` Не распределено: ${money(result.unallocated)}.` : '';
         alert(`Оплата распределена.${restText} ${result.receipt_message || ''}`.trim());
     } finally {

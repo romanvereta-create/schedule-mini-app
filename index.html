@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Расписание</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css?v=30.8.1">
+    <link rel="stylesheet" href="styles.css?v=30.8.3">
 </head>
 <body>
     <header class="main-header">
@@ -15,7 +15,7 @@
                 <button id="btn-prev-week" class="icon-btn" aria-label="Предыдущая неделя">‹</button>
                 <div class="header-center-stack">
                     <div class="month-label-wrapper">
-                        <h1 id="month-label" title="Нажмите для выбора даты">...</h1>
+                        <button id="month-label" type="button" aria-label="Выбрать дату" title="Выбрать дату">📅</button>
                     </div>
                     <button id="top-next-lesson" class="top-next-lesson" type="button">
                         <span id="top-next-lesson-summary">Ближайшее занятие…</span><span class="top-next-chevron">⌄</span>
@@ -62,14 +62,17 @@
         <div class="modal-content text-center">
             <h2 id="action-menu-title">Ученик</h2>
             <div class="modal-actions-column">
+                <div class="action-section-label" id="action-contact-label">Связь</div>
                 <button id="btn-action-chat-student" class="action-menu-btn">💬 Написать ученику</button>
                 <button id="btn-action-chat-parent" class="action-menu-btn">💬 Написать родителю</button>
                 <div id="group-action-details" class="group-action-details hidden"></div>
+                <div class="action-section-label" id="individual-payment-label">Оплата</div>
                 <div class="payment-actions-row payment-actions-row-three">
                     <button id="btn-action-paid" class="action-menu-btn paid-btn">💳 Оплатил</button>
                     <button id="btn-action-subscription" class="action-menu-btn subscription-pay-btn">🎟 Абонемент</button>
                     <button id="btn-action-free" class="action-menu-btn free-btn">🎁 Бесплатно</button>
                 </div>
+                <div class="action-section-label">Занятие</div>
                 <div class="payment-actions-row">
                     <button id="btn-action-move-trigger" class="action-menu-btn">🔄 Перенести</button>
                     <button id="btn-action-cancel-once" class="action-menu-btn">🚫 Отменить</button>
@@ -81,6 +84,7 @@
                 <button id="btn-action-delete" class="action-menu-btn delete-btn">🗑 Удалить</button>
 
                 <!-- ПАЛИТРА ЦВЕТОВ: 7 быстрых цветов + расширенная палитра -->
+                <div class="action-section-label">Цвет</div>
                 <div class="inline-color-palette">
                     <div class="color-swatch color-0" data-color="0"></div>
                     <div class="color-swatch color-1" data-color="1"></div>
@@ -370,8 +374,16 @@
                     <strong id="student-lessons-ratio">— / —</strong>
                 </div>
                 <div class="student-payment-box">
-                    <button id="btn-student-payment" class="primary-btn" type="button">💳 Оплатил</button>
+                    <button id="btn-student-payment" class="primary-btn" type="button">💳 Распределить общую сумму</button>
                 </div>
+                <section class="student-finances" aria-label="Управление оплатами">
+                    <h3>Оплата занятий</h3>
+                    <div id="student-payment-lessons" aria-live="polite"></div>
+                    <details class="student-payment-history">
+                        <summary>История общих оплат и отмена</summary>
+                        <div id="student-payment-transactions"></div>
+                    </details>
+                </section>
                 <div class="form-group">
                     <label>Имя в календаре <small class="muted-inline">(необязательно)</small></label>
                     <input type="text" id="student-calendar-name" maxlength="24" placeholder="Например: Саша">
@@ -563,6 +575,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=30.8.2"></script>
+    <script src="app.js?v=30.8.3"></script>
 </body>
 </html>

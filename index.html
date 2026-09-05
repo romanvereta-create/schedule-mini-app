@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Расписание</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css?v=30.8.4">
+    <link rel="stylesheet" href="styles.css?v=30.8.6">
 </head>
 <body>
     <header class="main-header">
@@ -14,9 +14,6 @@
             <div class="nav-arrows">
                 <button id="btn-prev-week" class="icon-btn" aria-label="Предыдущая неделя">‹</button>
                 <div class="header-center-stack">
-                    <div class="month-label-wrapper">
-                        <button id="month-label" type="button" aria-label="Выбрать дату" title="Выбрать дату">📅</button>
-                    </div>
                     <button id="top-next-lesson" class="top-next-lesson" type="button">
                         <span id="top-next-lesson-summary">Ближайшее занятие…</span><span class="top-next-chevron">⌄</span>
                     </button>
@@ -25,6 +22,7 @@
                 <button id="btn-next-week" class="icon-btn" aria-label="Следующая неделя">›</button>
             </div>
             <div class="header-actions">
+                <button id="btn-fullscreen" class="icon-btn hidden" type="button" title="На весь экран" aria-label="На весь экран">⛶</button>
                 <button id="btn-students" class="icon-btn" title="Ученики">👥</button>
                 <button id="btn-work-center" class="icon-btn work-center-btn" title="Помощник">📋<span id="work-center-debt-alert" class="work-center-debt-alert hidden" aria-hidden="true">!</span></button>
                 <button id="btn-app-settings" class="icon-btn settings-icon-btn" title="Настройки">⚙️</button>
@@ -353,6 +351,7 @@
             </header>
             <div class="modal-body">
                 <input type="search" id="students-search" placeholder="Найти ученика">
+                <label class="checkbox-label archive-filter"><input id="students-show-archived" type="checkbox">Архив учеников</label>
                 <div id="students-list" class="students-list"></div>
             </div>
             <div class="modal-actions">
@@ -434,6 +433,7 @@
                         <div class="student-history-empty">Загрузка…</div>
                     </div>
                 </div>
+                <button id="btn-archive-student" class="secondary-btn" type="button">Убрать ученика в архив</button>
             </div>
             <div class="modal-actions">
                 <button id="btn-save-student-card" class="primary-btn" type="button">Сохранить</button>
@@ -450,6 +450,8 @@
                 <span id="btn-close-student-payment" class="close-modal">&times;</span>
             </header>
             <div class="modal-body">
+                <div id="student-payment-options" class="quick-payment-options"></div>
+                <p id="student-payment-explanation" class="field-hint"></p>
                 <div class="form-group">
                     <label>Сумма, ₽</label>
                     <input type="number" id="student-payment-amount" min="1" step="1" inputmode="decimal" placeholder="Например: 15000">
@@ -478,6 +480,9 @@
                     <input type="checkbox" id="default-reminders-enabled" checked>
                     <span>Напоминания для новых занятий</span>
                 </label>
+                <button id="month-label" class="settings-link-row" type="button" title="Выбрать дату">
+                    <span>Выбрать дату</span><span>›</span>
+                </button>
                 <div class="form-group compact-setting-field">
                     <label>Рабочие часы</label>
                     <div class="working-hours-row">
@@ -575,6 +580,13 @@
         </div>
     </div>
 
-    <script src="app.js?v=30.8.4"></script>
+    <div id="quick-message-overlay" class="hidden">
+        <div class="modal-content compact-modal">
+            <header class="modal-header"><h2 id="quick-message-title">Сообщение</h2><button id="btn-close-quick-message" class="icon-btn" type="button" aria-label="Закрыть">×</button></header>
+            <div class="modal-body"><p id="quick-message-hint" class="field-hint"></p><div id="quick-message-choices" class="modal-actions-column"></div><textarea id="quick-message-text" rows="3" readonly class="hidden"></textarea></div>
+            <div class="modal-actions"><button id="btn-copy-quick-message" class="secondary-btn hidden" type="button">Скопировать текст</button><button id="btn-cancel-quick-message" class="secondary-btn" type="button">Закрыть</button></div>
+        </div>
+    </div>
+    <script src="app.js?v=30.8.6"></script>
 </body>
 </html>

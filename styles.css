@@ -264,20 +264,35 @@ body {
     border-radius: 12px; padding: 4px 10px; font-size: 12px; cursor: pointer;
 }
 
+#quick-message-overlay {
+    position: fixed; left: 0; right: 0; background: rgba(0,0,0,.45);
+    z-index: 1250; display: flex; align-items: center; justify-content: center;
+}
+#quick-message-overlay.hidden { display: none; }
+.quick-payment-options, .modal-actions-column { display: grid; gap: 10px; min-width: 0; }
+.quick-payment-options button { width: 100%; white-space: normal; }
+.quick-payment-options details { margin: 6px 0; font-size: 13px; }
+.next-lesson-actions { flex-wrap: wrap; }
+.next-more { position: relative; }
+.next-more > summary { cursor: pointer; padding: 4px 8px; list-style: none; }
+.next-more[open] { display: flex; flex-wrap: wrap; }
+#quick-message-text { width: 100%; box-sizing: border-box; }
+
 /* Modals */
 #modal-overlay, #move-modal-overlay, #action-menu-overlay, #delete-modal-overlay, #date-picker-overlay, #app-settings-overlay, #receipt-settings-overlay, #student-card-overlay, #work-center-overlay, #paid-confirm-overlay, #subscription-pay-overlay {
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.45); z-index: 1000; display: flex; align-items: center; justify-content: center;
+    position: fixed; left: 0; right: 0; background: rgba(0, 0, 0, 0.45); z-index: 1000; display: flex; align-items: center; justify-content: center;
 }
 #modal-overlay.hidden, #move-modal-overlay.hidden, #action-menu-overlay.hidden, #delete-modal-overlay.hidden, #date-picker-overlay.hidden, #app-settings-overlay.hidden, #receipt-settings-overlay.hidden, #student-card-overlay.hidden, #work-center-overlay.hidden, #paid-confirm-overlay.hidden, #subscription-pay-overlay.hidden { display: none; }
 
-.modal-content { background: #ffffff; border-radius: 16px; width: 90%; max-width: 350px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+.modal-content { background: #ffffff; border-radius: 16px; width: 100%; max-width: 350px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); display: flex; flex-direction: column; max-height: 100%; min-height: 0; overflow-y: auto; }
+.modal-content > * { flex-shrink: 0; min-width: 0; }
 .text-center { text-align: center; }
 .modal-subtitle { font-size: 13px; color: #5f6368; margin-bottom: 10px; }
 .modal-desc { margin: 10px 0 18px 0; font-size: 14px; color: #5f6368; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .modal-header h2 { font-size: 18px; color: #202124; }
 .close-modal { font-size: 24px; cursor: pointer; color: #5f6368; }
-.modal-body { max-height: 75vh; overflow-y: auto; }
+.modal-content > .modal-body { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .form-group { margin-bottom: 10px; }
 .form-row { display: flex; gap: 10px; }
 .flex-1 { flex: 1; }
@@ -381,8 +396,6 @@ body {
 .receipt-file-row small { display: block; margin-top: 5px; color: #5f6368; font-size: 11px; word-break: break-all; }
 .receipt-send-checkbox { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 12px; border: 1px solid #dadce0; border-radius: 10px; background: #f8f9fa; font-size: 14px; font-weight: 600; color: #202124; }
 .receipt-send-checkbox input { width: 18px; height: 18px; }
-#app-settings-overlay .modal-content { max-height: 92vh; }
-#app-settings-overlay .modal-body { max-height: 72vh; }
 
 
 /* v19: компактная система рабочих экранов */
@@ -511,8 +524,7 @@ body {
 .compact-grid-two .span-two { grid-column: 1 / -1; }
 .compact-grid-two > div > label { display: block; font-size: 11px; color: #5f6368; margin: 6px 0 3px; }
 .muted-inline { color: #80868b; font-weight: 400; }
-.receipt-settings-modal { max-width: 380px; max-height: 92vh; }
-.receipt-settings-modal .modal-body { max-height: 70vh; }
+.receipt-settings-modal { max-width: 380px; }
 .receipt-fields-section { border-bottom: none; margin-bottom: 8px; padding-bottom: 0; }
 .settings-details {
     border: 1px solid #e0e3e7;
@@ -537,9 +549,6 @@ body {
 .receipt-fields-section input[type="text"], .receipt-fields-section textarea {
     width: 100%; padding: 8px 10px; border: 1px solid #dadce0; border-radius: 8px; background: #fff;
 }
-#student-card-overlay .modal-body { max-height: 64vh; }
-#work-center-overlay .modal-body { max-height: 66vh; }
-#app-settings-overlay .modal-body { max-height: none; }
 
 @media (max-width: 390px) {
     .header-top { padding-left: 7px; padding-right: 7px; gap: 3px; }
@@ -742,10 +751,9 @@ body {
 
 /* v30.7 accumulated changes */
 #students-overlay, #student-payment-overlay, #lesson-report-overlay {
-    position: fixed; inset: 0; z-index: 1200;
+    position: fixed; left: 0; right: 0; z-index: 1200;
     background: rgba(0,0,0,.45);
     display: flex; align-items: center; justify-content: center;
-    padding: 12px;
 }
 #students-overlay.hidden, #student-payment-overlay.hidden, #lesson-report-overlay.hidden { display: none; }
 
@@ -1044,7 +1052,6 @@ body {
 
 /* Центр оплат ученика и компактная навигация. */
 .header-center-stack { flex-direction: row; gap: 3px; }
-#month-label { border: 0; background: transparent; padding: 2px; cursor: pointer; font-size: 15px; }
 .top-next-lesson { max-width: none; min-height: 30px; font-size: 15px; line-height: 19px; }
 .action-section-label { margin-top: 7px; color: #5f6368; font-size: 11px; font-weight: 700; text-align: left; }
 .group-member-actions .action-section-label { grid-column: 1 / -1; }
@@ -1067,7 +1074,15 @@ body {
 .student-payment-history summary { padding: 10px 0; cursor: pointer; font-weight: 600; }
 .student-payment-history ul { padding-left: 18px; font-size: 12px; }
 #subscription-pay-overlay, #paid-confirm-overlay { z-index: 1200; }
-#action-menu-overlay .modal-content { max-height: calc(100dvh - 24px); overflow-y: auto; box-sizing: border-box; }
+body > div[id$="-overlay"] {
+    top: var(--modal-viewport-top, 0px);
+    bottom: auto;
+    height: var(--modal-viewport-height, 100dvh);
+    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+}
+.modal-content input, .modal-content select, .modal-content textarea { min-width: 0; max-width: 100%; }
+.compact-grid-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.modal-content .flex-1 { min-width: 0; }
 @media (max-width: 380px) {
     .top-next-lesson { font-size: 14px; }
     .group-member-summary { max-width: 135px; }

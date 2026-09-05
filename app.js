@@ -1,6 +1,17 @@
 const tg = window.Telegram.WebApp;
 tg.expand();
 
+// Keep dialogs inside the visible WebView, including when the keyboard reduces it.
+function updateModalViewport() {
+    const viewport = window.visualViewport;
+    document.documentElement.style.setProperty('--modal-viewport-height', `${viewport ? viewport.height : window.innerHeight}px`);
+    document.documentElement.style.setProperty('--modal-viewport-top', `${viewport ? viewport.offsetTop : 0}px`);
+}
+updateModalViewport();
+window.addEventListener('resize', updateModalViewport);
+window.visualViewport?.addEventListener('resize', updateModalViewport);
+window.visualViewport?.addEventListener('scroll', updateModalViewport);
+
 const API_URL = 'https://bot-1787954043-4984-solo1986.bothost.tech/api';
 let START_HOUR = 10;
 let END_HOUR = 21;
@@ -248,7 +259,7 @@ function fillStudentsDropdown() {
 
     visibleStudentEntries().forEach(([id, raw]) => {
         const info = typeof raw === 'string' ? { name: raw } : (raw || {});
-        if (info.status === 'paused') return;
+        if (info.status === 'paused' || info.archived) return;
         const option = document.createElement('option');
         option.value = id;
         option.textContent = info.name || id;
@@ -261,7 +272,7 @@ function groupMemberOptions(selectedId = '') {
     const options = ['<option value="">-- Выбрать ученика --</option>', '<option value="manual">Вписать вручную...</option>'];
     visibleStudentEntries().forEach(([id, raw]) => {
         const info = typeof raw === 'string' ? { name: raw } : (raw || {});
-        if (info.status === 'paused' && String(id) !== String(selectedId)) return;
+        if ((info.status === 'paused' || info.archived) && String(id) !== String(selectedId)) return;
         const selected = String(id) === String(selectedId) ? ' selected' : '';
         options.push(`<option value="${escapeHtml(String(id))}" data-name="${escapeHtml(info.name || String(id))}"${selected}>${escapeHtml(info.name || String(id))}</option>`);
     });
@@ -1535,7 +1546,10 @@ function renderDatePicker() {
     }
 }
 
-document.getElementById('month-label').onclick = openDatePicker;
+document.getElementById('month-label').onclick = () => {
+    document.getElementById('app-settings-overlay').classList.add('hidden');
+    openDatePicker();
+};
 document.getElementById('date-picker-prev').onclick = () => { state.datePickerMonth.setMonth(state.datePickerMonth.getMonth() - 1); renderDatePicker(); };
 document.getElementById('date-picker-next').onclick = () => { state.datePickerMonth.setMonth(state.datePickerMonth.getMonth() + 1); renderDatePicker(); };
 document.getElementById('date-picker-today').onclick = () => {
@@ -1782,13 +1796,13 @@ function paymentStatusLabel(target) {
     if (target.free) return 'Бесплатно';
     if (hasAllocatedPayment(target)) return target.paid ? 'Оплачено общей суммой' : 'Частично общей суммой';
     if (target.paid_via_subscription) return 'Абонемент';
-    return target.paid ? 'Прямая оплата' : 'Не оплачено';
+    return target.paid ? 'Оплачено' : 'Не оплачено';
 }
 
 function paymentActionLabel(target) {
     if (hasAllocatedPayment(target)) return 'Оплачено общей суммой';
     if (target.paid_via_subscription) return '🎟 Оплачено абонементом';
-    return target.paid && !target.free ? '↩ Снять оплату' : '💳 Прямая оплата';
+    return target.paid && !target.free ? '↩ Снять оплату' : '💳 Оплачено';
 }
 
 function explainAllocatedPayment(studentId) {
@@ -1827,7 +1841,7 @@ async function loadStudentPayments(studentId) {
             const price = item.price == null ? 'Цена не указана' : money(item.price);
             const allocated = hasAllocatedPayment(item);
             const actions = item.source === 'unpaid'
-                ? '<button type="button" data-finance-action="direct">💳 Прямая оплата</button><button type="button" data-finance-action="subscription">🎟 Абонемент</button><button type="button" data-finance-action="free">🎁 Бесплатно</button>'
+                ? '<button type="button" data-finance-action="direct">💳 Оплачено</button><button type="button" data-finance-action="subscription">🎟 Абонемент</button><button type="button" data-finance-action="free">🎁 Бесплатно</button>'
                 : item.source === 'direct' ? '<button type="button" data-finance-action="reverse">↩ Снять оплату</button>'
                 : item.source === 'free' ? '<button type="button" data-finance-action="unfree">↩ Отменить бесплатно</button>' : '';
             let note = '';
@@ -1888,7 +1902,7 @@ async function changeStudentLessonPayment(studentId, item, action, row) {
         openSubscriptionForStudent(lesson, studentId);
         return;
     }
-    const descriptions = { direct: 'Отметить прямую оплату', reverse: 'Снять прямую оплату', free: 'Сделать занятие бесплатным', unfree: 'Отменить бесплатный статус' };
+    const descriptions = { direct: 'Отметить занятие оплаченным', reverse: 'Снять оплату', free: 'Сделать занятие бесплатным', unfree: 'Отменить бесплатный статус' };
     if (!confirm(`${descriptions[action]}: ${item.date} ${item.time || ''}?`)) return;
     row.querySelectorAll('button').forEach(button => { button.disabled = true; });
     try {
@@ -1915,6 +1929,7 @@ function openStudentCard(studentId) {
     document.querySelector('#student-card-overlay .modal-body').scrollTop = 0;
     const info = getStudentInfo(studentId);
     document.getElementById('student-card-overlay').dataset.studentId = studentId;
+    document.getElementById('btn-archive-student').textContent = info.archived ? 'Вернуть ученика из архива' : 'Убрать ученика в архив';
     document.getElementById('student-card-title').textContent = info.name || 'Ученик';
     document.getElementById('student-calendar-name').value = info.calendar_name || '';
     document.getElementById('student-birthday').value = info.birthday || '';
@@ -1989,6 +2004,115 @@ function openExternalLink(url) {
     try { tg.openLink(value); } catch (e) { window.open(value, '_blank', 'noopener,noreferrer'); }
 }
 
+function isDesktopApp() {
+    return ['tdesktop', 'macos', 'unigram'].includes(tg.platform) ||
+        ((!tg.platform || tg.platform === 'unknown' || tg.platform.startsWith('web')) &&
+         !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && navigator.maxTouchPoints < 2);
+}
+
+const fullscreenButton = document.getElementById('btn-fullscreen');
+const telegramFullscreen = isDesktopApp() && typeof tg.requestFullscreen === 'function' &&
+    typeof tg.exitFullscreen === 'function' && tg.isVersionAtLeast?.('8.0');
+function updateFullscreenButton() {
+    fullscreenButton.classList.toggle('hidden', !isDesktopApp() || !(telegramFullscreen || document.fullscreenEnabled));
+    const active = telegramFullscreen ? tg.isFullscreen : !!document.fullscreenElement;
+    fullscreenButton.title = active ? 'Выйти из полного экрана' : 'На весь экран';
+    fullscreenButton.setAttribute('aria-label', fullscreenButton.title);
+    fullscreenButton.setAttribute('aria-pressed', String(!!active));
+}
+fullscreenButton.onclick = async () => {
+    try {
+        if (telegramFullscreen) {
+            if (tg.isFullscreen) tg.exitFullscreen(); else tg.requestFullscreen();
+        } else if (document.fullscreenElement) await document.exitFullscreen();
+        else await document.documentElement.requestFullscreen();
+    } catch (error) { alert('Этот клиент не разрешил полный экран.'); }
+    updateFullscreenButton();
+};
+document.addEventListener('fullscreenchange', updateFullscreenButton);
+tg.onEvent?.('fullscreenChanged', updateFullscreenButton);
+tg.onEvent?.('fullscreenFailed', () => alert('Полный экран недоступен в этом клиенте Telegram.'));
+updateFullscreenButton();
+
+function lessonStartsAt(item) {
+    return new Date(item.starts_at || `${item.date}T${item.time}:00`).getTime();
+}
+function quickMessageRecipients(item) {
+    const members = item.lesson_type === 'group' ? (item.group_members || []) :
+        [{ student_id: item.student_id, name: item.student }];
+    return members.flatMap(member => {
+        const info = getStudentInfo(member.student_id) || {};
+        return [['Ученик', info.student_contacts], ['Родитель', info.contacts]].flatMap(([role, contacts]) => {
+            const value = String(contacts?.tg || '').trim();
+            // Numeric Telegram IDs cannot address a username draft.
+            const username = value.replace(/^https?:\/\/(?:t\.me|telegram\.me)\//i, '').replace(/^@/, '').replace(/\/$/, '');
+            if (!/^[a-z][a-z0-9_]{3,31}$/i.test(username)) return [];
+            return [{ name: member.name || info.name || 'Ученик', label: `${member.name || info.name || 'Ученик'} · ${role}`, username }];
+        });
+    });
+}
+function showQuickMessage(item, kind) {
+    const overlay = document.getElementById('quick-message-overlay');
+    const choices = document.getElementById('quick-message-choices');
+    const hint = document.getElementById('quick-message-hint');
+    document.getElementById('quick-message-title').textContent = kind === 'late' ? 'Ученик опаздывает' : 'Задерживаюсь';
+    hint.textContent = 'Откроется Telegram с текстом. Отправку нужно нажать в чате.';
+    document.getElementById('quick-message-text').classList.add('hidden');
+    document.getElementById('btn-copy-quick-message').classList.add('hidden');
+    choices.replaceChildren();
+    overlay.classList.remove('hidden');
+    const recipients = quickMessageRecipients(item);
+    const chooseRecipient = minutes => {
+        choices.replaceChildren();
+        if (!recipients.length) {
+            hint.textContent = 'Добавьте Telegram @username ученика или родителя в карточке ученика.';
+            return;
+        }
+        const open = recipient => {
+            if (kind === 'late' && (Date.now() < lessonStartsAt(item) || Date.now() - lessonStartsAt(item) >= 15 * 60000)) {
+                hint.textContent = 'Кнопка доступна только первые 15 минут занятия.';
+                return;
+            }
+            const start = new Date(lessonStartsAt(item) + minutes * 60000);
+            const time = start.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' });
+            const message = kind === 'late' ? `Добрый день! ${recipient.name} сегодня будет на занятии?` :
+                `Немного задерживаюсь, начнём примерно в ${time}.`;
+            const draft = document.getElementById('quick-message-text');
+            draft.value = message;
+            draft.classList.remove('hidden');
+            const copy = document.getElementById('btn-copy-quick-message');
+            copy.classList.remove('hidden');
+            copy.onclick = async () => {
+                try { await navigator.clipboard.writeText(message); }
+                catch (error) { draft.focus(); draft.select(); }
+            };
+            const link = `https://t.me/${recipient.username}?text=${encodeURIComponent(message)}`;
+            try { tg.openTelegramLink(link); } catch (error) { window.open(link, '_blank', 'noopener,noreferrer'); }
+        };
+        recipients.forEach(recipient => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'secondary-btn';
+            button.textContent = recipient.label;
+            button.onclick = () => open(recipient);
+            choices.appendChild(button);
+        });
+        if (recipients.length === 1) open(recipients[0]);
+    };
+    if (kind === 'late') chooseRecipient(0);
+    else [5, 10, 15].forEach(minutes => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'secondary-btn';
+        button.textContent = `+${minutes} минут`;
+        button.onclick = () => chooseRecipient(minutes);
+        choices.appendChild(button);
+    });
+}
+document.getElementById('btn-close-quick-message').onclick =
+document.getElementById('btn-cancel-quick-message').onclick = () =>
+    document.getElementById('quick-message-overlay').classList.add('hidden');
+
 function renderTopLesson() {
     const data = state.workCenter || {};
     const current = data.current_lesson || null;
@@ -2000,7 +2124,7 @@ function renderTopLesson() {
     const nowMs = Date.now();
     let showNextBesideCurrent = false;
     if (current && next) {
-        const end = new Date(`${current.date}T${current.end_time || current.time}:00`);
+        const end = new Date(current.ends_at || `${current.date}T${current.end_time || current.time}:00`);
         showNextBesideCurrent = !Number.isNaN(end.getTime()) && (end.getTime() - nowMs) <= 10 * 60 * 1000;
     }
 
@@ -2020,15 +2144,28 @@ function renderTopLesson() {
     details.innerHTML = items.map(({label, item}, i) => {
         const buttons = [
             item.board_link ? `<button type="button" class="next-link-btn" data-top-link="${i}-board">Доска</button>` : '',
-            item.zoom_link ? `<button type="button" class="next-link-btn" data-top-link="${i}-zoom">Zoom</button>` : ''
+            isDesktopApp() ? `<button type="button" class="next-link-btn" data-top-link="${i}-zoom">Zoom</button>` : '',
+            quickMessageRecipients(item).length ? `<button type="button" class="next-link-btn" data-top-late="${i}" data-start="${lessonStartsAt(item)}" aria-label="Ученик опаздывает">⏱</button><details class="next-more"><summary aria-label="Действия занятия">⋯</summary><button type="button" class="next-link-btn" data-top-delay="${i}">Задерживаюсь</button></details>` : ''
         ].filter(Boolean).join('');
         return `<div class="top-next-detail-row"><div><small>${label}</small><strong>${escapeHtml(item.student || 'Ученик')} · ${escapeHtml(item.time || '')}</strong></div>${buttons ? `<div class="next-lesson-actions">${buttons}</div>` : ''}</div>`;
     }).join('') || '<div class="hub-empty">Ближайших занятий нет.</div>';
     items.forEach(({item}, i) => {
         details.querySelector(`[data-top-link="${i}-board"]`)?.addEventListener('click', e => { e.stopPropagation(); openExternalLink(item.board_link); });
-        details.querySelector(`[data-top-link="${i}-zoom"]`)?.addEventListener('click', e => { e.stopPropagation(); openExternalLink(item.zoom_link); });
+        details.querySelector(`[data-top-link="${i}-zoom"]`)?.addEventListener('click', e => { e.stopPropagation(); openExternalLink(new URL('zoom-launch.html', window.location.href).href); });
+        details.querySelector(`[data-top-late="${i}"]`)?.addEventListener('click', () => showQuickMessage(item, 'late'));
+        details.querySelector(`[data-top-delay="${i}"]`)?.addEventListener('click', () => showQuickMessage(item, 'delay'));
+    });
+    updateLateButtons();
+}
+
+function updateLateButtons() {
+    document.querySelectorAll('[data-top-late]').forEach(button => {
+        const elapsed = Date.now() - Number(button.dataset.start);
+        button.classList.toggle('hidden', !(elapsed >= 0 && elapsed < 15 * 60000));
     });
 }
+setInterval(updateLateButtons, 1000);
+setInterval(() => { if (!document.hidden) refreshWorkCenterBadge(); }, 60000);
 
 function renderWorkCenter() {
     const data = state.workCenter || { debts: [], windows: [], birthdays: [], summary: {} };
@@ -2227,7 +2364,8 @@ function renderStudentsList(filter = '') {
     const q = String(filter || '').trim().toLocaleLowerCase('ru');
     const rows = visibleStudentEntries().filter(([id, raw]) => {
         const info = typeof raw === 'string' ? { name: raw } : (raw || {});
-        return !q || String(info.name || id).toLocaleLowerCase('ru').includes(q);
+        return !!info.archived === document.getElementById('students-show-archived').checked
+            && (!q || String(info.name || id).toLocaleLowerCase('ru').includes(q));
     });
     box.innerHTML = '';
     if (!rows.length) {
@@ -2249,15 +2387,37 @@ function renderStudentsList(filter = '') {
 }
 
 document.getElementById('btn-students').onclick = () => {
+    document.getElementById('students-show-archived').checked = false;
     document.getElementById('students-search').value = '';
     renderStudentsList('');
     document.getElementById('students-overlay').classList.remove('hidden');
 };
 document.getElementById('students-search').addEventListener('input', e => renderStudentsList(e.target.value));
+document.getElementById('students-show-archived').onchange = () => renderStudentsList(document.getElementById('students-search').value);
+document.getElementById('btn-archive-student').onclick = async () => {
+    const studentId = document.getElementById('student-card-overlay').dataset.studentId;
+    const archived = !getStudentInfo(studentId).archived;
+    if (!confirm(archived ? 'Убрать ученика из общего списка? История, оплаты и уже созданные занятия сохранятся. Ученика можно вернуть из архива.' : 'Вернуть ученика в общий список?')) return;
+    const button = document.getElementById('btn-archive-student');
+    button.disabled = true;
+    try {
+        const response = await apiFetch('/set_student_archived', { method: 'POST', body: JSON.stringify({ student_id: studentId, archived }) });
+        const result = await response.json();
+        if (result.status !== 'ok') throw new Error(result.message || 'Не удалось изменить архив');
+        state.students[studentId] = result.student;
+        fillStudentsDropdown();
+        document.getElementById('student-card-overlay').classList.add('hidden');
+        document.getElementById('btn-students').click();
+    } catch (error) {
+        alert(error.message || 'Не удалось изменить архив');
+    } finally { button.disabled = false; }
+};
 document.getElementById('btn-close-students').onclick = () => document.getElementById('students-overlay').classList.add('hidden');
 document.getElementById('btn-close-students-bottom').onclick = () => document.getElementById('students-overlay').classList.add('hidden');
 
-document.getElementById('btn-student-payment').onclick = () => {
+let selectedPaymentQuote = null;
+let paymentOptionsRequest = 0;
+document.getElementById('btn-student-payment').onclick = async () => {
     const studentId = document.getElementById('student-card-overlay').dataset.studentId;
     if (!studentId) return;
     const info = getStudentInfo(studentId);
@@ -2266,6 +2426,59 @@ document.getElementById('btn-student-payment').onclick = () => {
     document.getElementById('student-payment-amount').value = '';
     document.getElementById('student-payment-send-receipt').checked = state.settings.default_send_receipts !== false;
     document.getElementById('student-payment-overlay').classList.remove('hidden');
+    selectedPaymentQuote = null;
+    const requestId = ++paymentOptionsRequest;
+    const options = document.getElementById('student-payment-options');
+    const explanation = document.getElementById('student-payment-explanation');
+    const amountInput = document.getElementById('student-payment-amount');
+    const applyButton = document.getElementById('btn-apply-student-payment');
+    amountInput.closest('.form-group').classList.add('hidden');
+    applyButton.classList.add('hidden');
+    options.textContent = 'Рассчитываем варианты…';
+    explanation.textContent = 'Варианты оплачивают ближайшие будущие занятия с указанной ценой. Прошлые долги не включены.';
+    try {
+        const response = await apiFetch('/get_student_payment_options', { method: 'POST', body: JSON.stringify({ student_id: studentId }) });
+        const result = await response.json();
+        if (requestId !== paymentOptionsRequest) return;
+        if (result.status !== 'ok') throw new Error(result.message);
+        options.innerHTML = '';
+        (result.options || []).forEach(quote => {
+            const block = document.createElement('div');
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'primary-btn';
+            button.textContent = `${quote.count} ${quote.count === 4 ? 'занятия' : 'занятий'} — ${money(quote.amount)}`;
+            button.onclick = () => {
+                if (applyButton.disabled) return;
+                selectedPaymentQuote = quote;
+                amountInput.value = String(quote.amount);
+                document.getElementById('btn-apply-student-payment').click();
+            };
+            const details = document.createElement('details');
+            details.innerHTML = '<summary>Какие занятия</summary><ul>' + (quote.lessons || []).map(lesson =>
+                `<li>${escapeHtml(lesson.date)} · ${escapeHtml(lesson.time)} · ${lesson.is_group ? 'Группа' : 'Индивидуальное'} · ${escapeHtml(money(lesson.amount))}</li>`).join('') + '</ul>';
+            block.append(button, details);
+            options.appendChild(block);
+        });
+        if (!(result.options || []).length) explanation.textContent = 'Пока нет четырёх будущих неоплаченных занятий с указанной ценой. Можно внести другую сумму.';
+    } catch (error) {
+        if (requestId !== paymentOptionsRequest) return;
+        options.innerHTML = '';
+        explanation.textContent = 'Варианты сейчас недоступны. Можно внести другую сумму.';
+    }
+    const custom = document.createElement('button');
+    custom.type = 'button';
+    custom.className = 'secondary-btn';
+    custom.textContent = 'Другая сумма';
+    custom.onclick = () => {
+        selectedPaymentQuote = null;
+        amountInput.value = '';
+        amountInput.closest('.form-group').classList.remove('hidden');
+        applyButton.classList.remove('hidden');
+        explanation.textContent = 'Сумма распределится начиная с самых старых неоплаченных занятий, включая долги.';
+        amountInput.focus();
+    };
+    options.appendChild(custom);
 };
 document.getElementById('btn-close-student-payment').onclick =
 document.getElementById('btn-cancel-student-payment').onclick = () => document.getElementById('student-payment-overlay').classList.add('hidden');
@@ -2275,13 +2488,17 @@ document.getElementById('btn-apply-student-payment').onclick = async () => {
     const amount = Number(document.getElementById('student-payment-amount').value || 0);
     if (!(amount > 0)) return alert('Укажите сумму оплаты.');
     const button = document.getElementById('btn-apply-student-payment');
+    if (button.disabled) return;
+    const quote = selectedPaymentQuote;
     button.disabled = true;
+    document.querySelectorAll('#student-payment-options button').forEach(item => { item.disabled = true; });
     try {
         const response = await apiFetch('/apply_student_payment', {
             method: 'POST',
             body: JSON.stringify({
                 student_id: studentId,
                 amount,
+                ...(quote ? { quick_count: quote.count, preview_token: quote.preview_token } : {}),
                 send_receipt: document.getElementById('student-payment-send-receipt').checked
             })
         });
@@ -2292,8 +2509,11 @@ document.getElementById('btn-apply-student-payment').onclick = async () => {
         await loadStudentPayments(studentId);
         const restText = Number(result.unallocated || 0) > 0 ? ` Не распределено: ${money(result.unallocated)}.` : '';
         alert(`Оплата распределена.${restText} ${result.receipt_message || ''}`.trim());
+    } catch (error) {
+        alert('Не удалось получить результат оплаты. Перед повторной оплатой проверьте историю ученика.');
     } finally {
         button.disabled = false;
+        document.querySelectorAll('#student-payment-options button').forEach(item => { item.disabled = false; });
     }
 };
 

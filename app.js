@@ -2133,14 +2133,13 @@ function renderTopLesson() {
     details.innerHTML = items.map(({label, item}, i) => {
         const buttons = [
             item.board_link ? `<button type="button" class="next-link-btn" data-top-link="${i}-board">Доска</button>` : '',
-            isDesktopApp() ? `<button type="button" class="next-link-btn" data-top-link="${i}-zoom">Zoom</button>` : '',
+            isDesktopApp() ? '<a class="next-link-btn" data-top-zoom href="zoommtg://zoom.us/start">Zoom</a>' : '',
             quickMessageRecipients(item).length ? `<button type="button" class="next-link-btn" data-top-late="${i}" data-start="${lessonStartsAt(item)}" aria-label="Ученик опаздывает">⏱</button>` : ''
         ].filter(Boolean).join('');
         return `<div class="top-next-detail-row"><div><small>${label}</small><strong>${escapeHtml(item.student || 'Ученик')} · ${escapeHtml(item.time || '')}</strong></div>${buttons ? `<div class="next-lesson-actions">${buttons}</div>` : ''}</div>`;
     }).join('') || '<div class="hub-empty">Ближайших занятий нет.</div>';
     items.forEach(({item}, i) => {
         details.querySelector(`[data-top-link="${i}-board"]`)?.addEventListener('click', e => { e.stopPropagation(); openExternalLink(item.board_link); });
-        details.querySelector(`[data-top-link="${i}-zoom"]`)?.addEventListener('click', e => { e.stopPropagation(); openExternalLink(new URL('zoom-launch.html?v=30.8.7', window.location.href).href); });
         details.querySelector(`[data-top-late="${i}"]`)?.addEventListener('click', () => showQuickMessage(item));
     });
     updateLateButtons();

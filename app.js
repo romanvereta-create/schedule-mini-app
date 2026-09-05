@@ -579,7 +579,7 @@ function openActionMenu(date, lesson) {
     state.selectedLesson = { date, ...lesson };
     const isGroup = lesson.lesson_type === 'group';
     const cancelled = !!lesson.cancelled;
-    document.getElementById('action-contact-label').textContent = isGroup ? 'Участники' : 'Связь';
+    document.getElementById('action-contact-label').textContent = isGroup ? 'Участники — нажмите имя для связи и оплаты' : 'Связь';
     document.getElementById('action-menu-title').textContent = `${isGroup ? (lesson.group_name || lesson.student || 'Группа') : (lesson.student || 'Ученик')} · ${lesson.time || '--:--'}`;
 
     const paidButton = document.getElementById('btn-action-paid');
@@ -597,6 +597,8 @@ function openActionMenu(date, lesson) {
     document.getElementById('btn-action-free').textContent = lesson.free ? '↩ Отменить бесплатно' : '🎁 Бесплатно';
     document.getElementById('btn-action-cancel-once').textContent = cancelled ? '↩️ Вернуть занятие' : '🚫 Отменить';
     document.getElementById('btn-action-report').classList.toggle('hidden', cancelled || !lessonHasStarted(date, lesson));
+    document.getElementById('btn-action-teacher-delay').classList.toggle('hidden', cancelled);
+    document.getElementById('btn-action-student-delay').classList.toggle('hidden', cancelled);
     const settingsButton = document.getElementById('btn-action-settings');
     settingsButton.textContent = isGroup ? '✏️ Редактировать группу' : '⚙️ Настройки занятия';
 
@@ -717,11 +719,18 @@ function cancelMove() {
 }
 
 const CONTACT_TYPES = {
-    tg: { icon: '✈️', placeholder: '@username или ID' },
-    wa: { icon: '🟢', placeholder: 'WhatsApp номер' },
-    phone: { icon: '☎️', placeholder: 'Телефон' },
-    max: { icon: 'M', placeholder: 'Max (ник)' }
+    tg: { label: 'Telegram', placeholder: '@username или ID' },
+    wa: { label: 'WhatsApp', placeholder: 'WhatsApp номер' },
+    phone: { label: 'Телефон', placeholder: 'Телефон' },
+    max: { label: 'MAX', placeholder: 'MAX (ник)' }
 };
+
+function contactIconSvg(type) {
+    if (type === 'tg') return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#229ED9"/><path fill="#fff" d="M5.7 11.7 17.9 7c.56-.2 1.05.14.87.99l-2.08 9.8c-.16.7-.57.87-1.16.54l-3.17-2.34-1.53 1.47c-.17.17-.31.31-.64.31l.23-3.23 5.88-5.31c.26-.23-.06-.36-.4-.13l-7.26 4.57-3.13-.98c-.68-.21-.69-.68.14-1z"/></svg>';
+    if (type === 'wa') return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#25D366"/><path fill="#fff" d="M17.1 14.6c-.28-.14-1.65-.81-1.9-.91-.26-.09-.44-.14-.63.14-.18.28-.72.91-.88 1.09-.16.19-.32.21-.6.07-1.62-.81-2.68-1.45-3.75-3.29-.28-.49.28-.46.81-1.52.09-.19.05-.35-.02-.49-.07-.14-.63-1.51-.86-2.07-.23-.55-.46-.47-.63-.48h-.54c-.19 0-.49.07-.74.35-.26.28-.98.96-.98 2.34s1 2.71 1.14 2.9c.14.18 1.97 3.01 4.77 4.22 1.77.76 2.46.83 3.34.7 1.07-.16 1.65-.67 1.88-1.32.23-.65.23-1.21.16-1.32-.07-.12-.25-.19-.53-.33z"/></svg>';
+    if (type === 'phone') return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#5F6368"/><path fill="#fff" d="M7.2 5.8c.35-.35.91-.35 1.26 0l2 2c.3.3.35.76.12 1.12l-1.1 1.7a12.2 12.2 0 0 0 3.9 3.9l1.7-1.1c.36-.23.82-.18 1.12.12l2 2c.35.35.35.91 0 1.26l-1.3 1.3c-.72.72-1.8.98-2.77.64A15.3 15.3 0 0 1 5.26 9.87c-.34-.97-.08-2.05.64-2.77z"/></svg>';
+    return '<span class="max-contact-mark" aria-hidden="true">MAX</span>';
+}
 
 function createContactRow(type = 'tg', value = '', removable = true) {
     const normalizedType = CONTACT_TYPES[type] ? type : 'tg';
@@ -729,13 +738,18 @@ function createContactRow(type = 'tg', value = '', removable = true) {
     row.className = 'contact-row';
     row.dataset.type = normalizedType;
 
+    const picker = document.createElement('div');
+    picker.className = 'contact-type-picker';
+    const icon = document.createElement('span');
+    icon.className = 'contact-brand-icon';
+    icon.innerHTML = contactIconSvg(normalizedType);
     const select = document.createElement('select');
     select.className = 'contact-type-select';
     select.setAttribute('aria-label', 'Мессенджер');
     Object.entries(CONTACT_TYPES).forEach(([key, meta]) => {
         const option = document.createElement('option');
         option.value = key;
-        option.textContent = meta.icon;
+        option.textContent = meta.label;
         option.selected = key === normalizedType;
         select.appendChild(option);
     });
@@ -759,10 +773,12 @@ function createContactRow(type = 'tg', value = '', removable = true) {
         row.dataset.type = nextType;
         input.dataset.field = nextType;
         input.placeholder = CONTACT_TYPES[nextType].placeholder;
+        icon.innerHTML = contactIconSvg(nextType);
     });
     remove.addEventListener('click', () => row.remove());
 
-    row.append(select, input, remove);
+    picker.append(icon, select);
+    row.append(picker, input, remove);
     return row;
 }
 
@@ -1123,6 +1139,11 @@ function openSubscriptionForStudent(lesson, studentId) {
 document.getElementById('btn-action-student-card').onclick = () => { closeActionMenu(); if (state.selectedLesson) openStudentCard(state.selectedLesson.student_id); };
 document.getElementById('btn-action-report').onclick = () => { closeActionMenu(); openLessonReport(); };
 document.getElementById('btn-action-settings').onclick = () => { closeActionMenu(); if (state.selectedLesson) openEditModal(state.selectedLesson.date, state.selectedLesson); };
+function showDeferredNotificationNotice() {
+    alert('Пока это макет. После регистрации учеников и родителей преподавательский бот будет автоматически отправлять готовое сообщение. Расписание не изменится.');
+}
+document.getElementById('btn-action-teacher-delay').onclick = showDeferredNotificationNotice;
+document.getElementById('btn-action-student-delay').onclick = showDeferredNotificationNotice;
 document.getElementById('btn-action-move-trigger').onclick = () => { closeActionMenu(); if (state.selectedLesson) startMove(state.selectedLesson.date, state.selectedLesson); };
 document.getElementById('btn-action-free').onclick = () => {
     const lesson = state.selectedLesson;
@@ -2034,80 +2055,13 @@ tg.onEvent?.('fullscreenChanged', updateFullscreenButton);
 tg.onEvent?.('fullscreenFailed', () => alert('Полный экран недоступен в этом клиенте Telegram.'));
 updateFullscreenButton();
 
-function lessonStartsAt(item) {
-    return new Date(item.starts_at || `${item.date}T${item.time}:00`).getTime();
-}
-function quickMessageRecipients(item) {
-    const members = item.lesson_type === 'group' ? (item.group_members || []) :
-        [{ student_id: item.student_id, name: item.student }];
-    return members.flatMap(member => {
-        const info = getStudentInfo(member.student_id) || {};
-        return [['Ученик', info.student_contacts], ['Родитель', info.contacts]].flatMap(([role, contacts]) => {
-            const value = String(contacts?.tg || '').trim();
-            // Numeric Telegram IDs cannot address a username draft.
-            const username = value.replace(/^https?:\/\/(?:t\.me|telegram\.me)\//i, '').replace(/^@/, '').replace(/\/$/, '');
-            if (!/^[a-z][a-z0-9_]{3,31}$/i.test(username)) return [];
-            return [{ name: member.name || info.name || 'Ученик', label: `${member.name || info.name || 'Ученик'} · ${role}`, username }];
-        });
-    });
-}
-function showQuickMessage(item) {
-    const overlay = document.getElementById('quick-message-overlay');
-    const choices = document.getElementById('quick-message-choices');
-    const hint = document.getElementById('quick-message-hint');
-    document.getElementById('quick-message-title').textContent = 'Ученик опаздывает';
-    hint.textContent = 'Откроется Telegram с текстом. Отправку нужно нажать в чате.';
-    document.getElementById('quick-message-text').classList.add('hidden');
-    document.getElementById('btn-copy-quick-message').classList.add('hidden');
-    choices.replaceChildren();
-    overlay.classList.remove('hidden');
-    const recipients = quickMessageRecipients(item);
-    const chooseRecipient = () => {
-        choices.replaceChildren();
-        if (!recipients.length) {
-            hint.textContent = 'Добавьте Telegram @username ученика или родителя в карточке ученика.';
-            return;
-        }
-        const open = recipient => {
-            if (Date.now() < lessonStartsAt(item) || Date.now() - lessonStartsAt(item) >= 15 * 60000) {
-                hint.textContent = 'Кнопка доступна только первые 15 минут занятия.';
-                return;
-            }
-            const message = `Добрый день! ${recipient.name} сегодня будет на занятии?`;
-            const draft = document.getElementById('quick-message-text');
-            draft.value = message;
-            draft.classList.remove('hidden');
-            const copy = document.getElementById('btn-copy-quick-message');
-            copy.classList.remove('hidden');
-            copy.onclick = async () => {
-                try { await navigator.clipboard.writeText(message); }
-                catch (error) { draft.focus(); draft.select(); }
-            };
-            const link = `https://t.me/${recipient.username}?text=${encodeURIComponent(message)}`;
-            try { tg.openTelegramLink(link); } catch (error) { window.open(link, '_blank', 'noopener,noreferrer'); }
-        };
-        recipients.forEach(recipient => {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'secondary-btn';
-            button.textContent = recipient.label;
-            button.onclick = () => open(recipient);
-            choices.appendChild(button);
-        });
-        if (recipients.length === 1) open(recipients[0]);
-    };
-    chooseRecipient();
-}
-document.getElementById('btn-close-quick-message').onclick =
-document.getElementById('btn-cancel-quick-message').onclick = () =>
-    document.getElementById('quick-message-overlay').classList.add('hidden');
-
 function renderTopLesson() {
     const data = state.workCenter || {};
     const current = data.current_lesson || null;
     const next = data.next_lesson || null;
     const summary = document.getElementById('top-next-lesson-summary');
     const details = document.getElementById('top-next-lesson-details');
+    const notificationPreview = document.getElementById('top-notification-preview');
     if (!summary || !details) return;
 
     const nowMs = Date.now();
@@ -2126,6 +2080,7 @@ function renderTopLesson() {
     } else {
         summary.textContent = 'Ближайших занятий нет';
     }
+    notificationPreview.classList.toggle('hidden', !(current || next));
 
     const items = [];
     if (current) items.push({ label: 'Сейчас', item: current });
@@ -2133,25 +2088,19 @@ function renderTopLesson() {
     details.innerHTML = items.map(({label, item}, i) => {
         const buttons = [
             item.board_link ? `<button type="button" class="next-link-btn" data-top-link="${i}-board">Доска</button>` : '',
-            isDesktopApp() ? '<a class="next-link-btn" data-top-zoom href="zoommtg://zoom.us/start">Zoom</a>' : '',
-            quickMessageRecipients(item).length ? `<button type="button" class="next-link-btn" data-top-late="${i}" data-start="${lessonStartsAt(item)}" aria-label="Ученик опаздывает">⏱</button>` : ''
+            `<button type="button" class="next-link-btn future-notification-btn" data-top-teacher-delay="${i}">Я задержусь</button>`,
+            `<button type="button" class="next-link-btn future-notification-btn" data-top-student-delay="${i}">Ученик задерживается</button>`
         ].filter(Boolean).join('');
         return `<div class="top-next-detail-row"><div><small>${label}</small><strong>${escapeHtml(item.student || 'Ученик')} · ${escapeHtml(item.time || '')}</strong></div>${buttons ? `<div class="next-lesson-actions">${buttons}</div>` : ''}</div>`;
     }).join('') || '<div class="hub-empty">Ближайших занятий нет.</div>';
     items.forEach(({item}, i) => {
         details.querySelector(`[data-top-link="${i}-board"]`)?.addEventListener('click', e => { e.stopPropagation(); openExternalLink(item.board_link); });
-        details.querySelector(`[data-top-late="${i}"]`)?.addEventListener('click', () => showQuickMessage(item));
-    });
-    updateLateButtons();
-}
-
-function updateLateButtons() {
-    document.querySelectorAll('[data-top-late]').forEach(button => {
-        const elapsed = Date.now() - Number(button.dataset.start);
-        button.classList.toggle('hidden', !(elapsed >= 0 && elapsed < 15 * 60000));
+        details.querySelector(`[data-top-teacher-delay="${i}"]`)?.addEventListener('click', showDeferredNotificationNotice);
+        details.querySelector(`[data-top-student-delay="${i}"]`)?.addEventListener('click', showDeferredNotificationNotice);
     });
 }
-setInterval(updateLateButtons, 1000);
+document.getElementById('btn-top-teacher-delay').onclick = showDeferredNotificationNotice;
+document.getElementById('btn-top-student-delay').onclick = showDeferredNotificationNotice;
 setInterval(() => { if (!document.hidden) refreshWorkCenterBadge(); }, 60000);
 
 function renderWorkCenter() {
@@ -2397,6 +2346,28 @@ document.getElementById('btn-archive-student').onclick = async () => {
         document.getElementById('btn-students').click();
     } catch (error) {
         alert(error.message || 'Не удалось изменить архив');
+    } finally { button.disabled = false; }
+};
+document.getElementById('btn-delete-student').onclick = async () => {
+    const studentId = document.getElementById('student-card-overlay').dataset.studentId;
+    const studentName = String(getStudentInfo(studentId).name || '').trim();
+    const typedName = prompt(`Удалить ученика «${studentName}»? Профиль и все будущие занятия будут удалены без возможности восстановления. Прошедшие занятия, оплаты, чеки и книга учёта сохранятся.\n\nДля подтверждения введите имя ученика:`);
+    if (typedName === null) return;
+    if (typedName.trim() !== studentName) return alert('Имя не совпало. Удаление отменено.');
+    const button = document.getElementById('btn-delete-student');
+    button.disabled = true;
+    try {
+        const response = await apiFetch('/delete_student', { method: 'POST', body: JSON.stringify({ student_id: studentId, confirm_name: typedName.trim() }) });
+        const result = await response.json();
+        if (result.status !== 'ok') throw new Error(result.message || 'Не удалось удалить ученика');
+        delete state.students[studentId];
+        fillStudentsDropdown();
+        document.getElementById('student-card-overlay').classList.add('hidden');
+        await refreshScheduleOnly();
+        document.getElementById('btn-students').click();
+        alert('Ученик и будущие занятия удалены. Книга учёта и финансовая история сохранены.');
+    } catch (error) {
+        alert(error.message || 'Не удалось удалить ученика');
     } finally { button.disabled = false; }
 };
 document.getElementById('btn-close-students').onclick = () => document.getElementById('students-overlay').classList.add('hidden');

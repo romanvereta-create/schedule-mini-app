@@ -1795,6 +1795,8 @@ function explainAllocatedPayment(studentId) {
     alert('На занятие распределена общая сумма, возможно частично. Полностью отменить платёж можно в истории общих оплат карточки ученика. Старые распределения без истории автоматически не отменяются.');
     closeActionMenu();
     openStudentCard(studentId);
+    document.getElementById('student-finances').open = true;
+    document.querySelector('.student-payment-history').open = true;
 }
 
 async function refreshOpenPaymentCard() {
@@ -1908,6 +1910,9 @@ async function changeStudentLessonPayment(studentId, item, action, row) {
 
 function openStudentCard(studentId) {
     if (!studentId || !state.students[studentId]) return alert('Карточка доступна после сохранения ученика.');
+    document.getElementById('student-finances').open = false;
+    document.querySelector('.student-payment-history').open = false;
+    document.querySelector('#student-card-overlay .modal-body').scrollTop = 0;
     const info = getStudentInfo(studentId);
     document.getElementById('student-card-overlay').dataset.studentId = studentId;
     document.getElementById('student-card-title').textContent = info.name || 'Ученик';

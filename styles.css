@@ -1055,7 +1055,8 @@ body {
 .group-member-summary .group-member-status { white-space: normal; text-align: right; }
 .payment-actions-row.payment-actions-row-three .action-menu-btn { white-space: normal; overflow-wrap: anywhere; }
 .student-finances { margin: 12px 0 18px; font-size: 13px; }
-.student-finances h3 { margin: 0 0 8px; font-size: 15px; }
+.student-finances > summary { padding: 11px 12px; border: 1px solid #dadce0; border-radius: 9px; background: #f8f9fa; cursor: pointer; font-size: 14px; font-weight: 600; }
+.student-finances[open] > summary { margin-bottom: 8px; }
 #student-payment-lessons { max-height: 330px; overflow-y: auto; }
 .student-finance-row { border: 1px solid #dadce0; border-radius: 9px; padding: 9px; margin-bottom: 7px; overflow-wrap: anywhere; }
 .student-finance-row > div { margin-top: 4px; }

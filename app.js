@@ -2051,32 +2051,29 @@ function quickMessageRecipients(item) {
         });
     });
 }
-function showQuickMessage(item, kind) {
+function showQuickMessage(item) {
     const overlay = document.getElementById('quick-message-overlay');
     const choices = document.getElementById('quick-message-choices');
     const hint = document.getElementById('quick-message-hint');
-    document.getElementById('quick-message-title').textContent = kind === 'late' ? 'Ученик опаздывает' : 'Задерживаюсь';
+    document.getElementById('quick-message-title').textContent = 'Ученик опаздывает';
     hint.textContent = 'Откроется Telegram с текстом. Отправку нужно нажать в чате.';
     document.getElementById('quick-message-text').classList.add('hidden');
     document.getElementById('btn-copy-quick-message').classList.add('hidden');
     choices.replaceChildren();
     overlay.classList.remove('hidden');
     const recipients = quickMessageRecipients(item);
-    const chooseRecipient = minutes => {
+    const chooseRecipient = () => {
         choices.replaceChildren();
         if (!recipients.length) {
             hint.textContent = 'Добавьте Telegram @username ученика или родителя в карточке ученика.';
             return;
         }
         const open = recipient => {
-            if (kind === 'late' && (Date.now() < lessonStartsAt(item) || Date.now() - lessonStartsAt(item) >= 15 * 60000)) {
+            if (Date.now() < lessonStartsAt(item) || Date.now() - lessonStartsAt(item) >= 15 * 60000) {
                 hint.textContent = 'Кнопка доступна только первые 15 минут занятия.';
                 return;
             }
-            const start = new Date(lessonStartsAt(item) + minutes * 60000);
-            const time = start.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' });
-            const message = kind === 'late' ? `Добрый день! ${recipient.name} сегодня будет на занятии?` :
-                `Немного задерживаюсь, начнём примерно в ${time}.`;
+            const message = `Добрый день! ${recipient.name} сегодня будет на занятии?`;
             const draft = document.getElementById('quick-message-text');
             draft.value = message;
             draft.classList.remove('hidden');
@@ -2099,15 +2096,7 @@ function showQuickMessage(item, kind) {
         });
         if (recipients.length === 1) open(recipients[0]);
     };
-    if (kind === 'late') chooseRecipient(0);
-    else [5, 10, 15].forEach(minutes => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'secondary-btn';
-        button.textContent = `+${minutes} минут`;
-        button.onclick = () => chooseRecipient(minutes);
-        choices.appendChild(button);
-    });
+    chooseRecipient();
 }
 document.getElementById('btn-close-quick-message').onclick =
 document.getElementById('btn-cancel-quick-message').onclick = () =>
@@ -2145,15 +2134,14 @@ function renderTopLesson() {
         const buttons = [
             item.board_link ? `<button type="button" class="next-link-btn" data-top-link="${i}-board">Доска</button>` : '',
             isDesktopApp() ? `<button type="button" class="next-link-btn" data-top-link="${i}-zoom">Zoom</button>` : '',
-            quickMessageRecipients(item).length ? `<button type="button" class="next-link-btn" data-top-late="${i}" data-start="${lessonStartsAt(item)}" aria-label="Ученик опаздывает">⏱</button><details class="next-more"><summary aria-label="Действия занятия">⋯</summary><button type="button" class="next-link-btn" data-top-delay="${i}">Задерживаюсь</button></details>` : ''
+            quickMessageRecipients(item).length ? `<button type="button" class="next-link-btn" data-top-late="${i}" data-start="${lessonStartsAt(item)}" aria-label="Ученик опаздывает">⏱</button>` : ''
         ].filter(Boolean).join('');
         return `<div class="top-next-detail-row"><div><small>${label}</small><strong>${escapeHtml(item.student || 'Ученик')} · ${escapeHtml(item.time || '')}</strong></div>${buttons ? `<div class="next-lesson-actions">${buttons}</div>` : ''}</div>`;
     }).join('') || '<div class="hub-empty">Ближайших занятий нет.</div>';
     items.forEach(({item}, i) => {
         details.querySelector(`[data-top-link="${i}-board"]`)?.addEventListener('click', e => { e.stopPropagation(); openExternalLink(item.board_link); });
-        details.querySelector(`[data-top-link="${i}-zoom"]`)?.addEventListener('click', e => { e.stopPropagation(); openExternalLink(new URL('zoom-launch.html', window.location.href).href); });
-        details.querySelector(`[data-top-late="${i}"]`)?.addEventListener('click', () => showQuickMessage(item, 'late'));
-        details.querySelector(`[data-top-delay="${i}"]`)?.addEventListener('click', () => showQuickMessage(item, 'delay'));
+        details.querySelector(`[data-top-link="${i}-zoom"]`)?.addEventListener('click', e => { e.stopPropagation(); openExternalLink(new URL('zoom-launch.html?v=30.8.7', window.location.href).href); });
+        details.querySelector(`[data-top-late="${i}"]`)?.addEventListener('click', () => showQuickMessage(item));
     });
     updateLateButtons();
 }

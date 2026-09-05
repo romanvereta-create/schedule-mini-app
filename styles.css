@@ -273,9 +273,6 @@ body {
 .quick-payment-options button { width: 100%; white-space: normal; }
 .quick-payment-options details { margin: 6px 0; font-size: 13px; }
 .next-lesson-actions { flex-wrap: wrap; }
-.next-more { position: relative; }
-.next-more > summary { cursor: pointer; padding: 4px 8px; list-style: none; }
-.next-more[open] { display: flex; flex-wrap: wrap; }
 #quick-message-text { width: 100%; box-sizing: border-box; }
 
 /* Modals */

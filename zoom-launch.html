@@ -5,13 +5,18 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="referrer" content="no-referrer">
     <title>Открыть Zoom</title>
-    <style>body{font:16px system-ui,sans-serif;max-width:440px;margin:60px auto;padding:24px;line-height:1.5;color:#202124}a{display:inline-block;padding:12px 18px;background:#1a73e8;color:white;border-radius:8px;text-decoration:none}small{display:block;margin-top:24px}</style>
+    <style>body{font:16px system-ui,sans-serif;max-width:440px;margin:60px auto;padding:24px;line-height:1.5;color:#202124}button{border:0;cursor:pointer;font:inherit;padding:12px 18px;background:#1a73e8;color:white;border-radius:8px}button:active{transform:translateY(1px)}small{display:block;margin-top:24px}</style>
 </head>
 <body>
     <h1>Открыть ваш Zoom</h1>
     <p>Разрешите браузеру открыть установленное приложение Zoom.</p>
-    <a href="zoommtg://zoom.us/start">Открыть Zoom</a>
-    <small>Если Zoom не открылся, нажмите кнопку. Если приложение не установлено или запуск заблокирован, откройте его вручную. Ссылка-приглашение ученика здесь не используется.</small>
-    <script>window.location.href = 'zoommtg://zoom.us/start';</script>
+    <button id="open-zoom" type="button">Открыть Zoom</button>
+    <small id="zoom-hint">Если приложение не установлено или браузер запретил запуск Zoom, откройте его вручную. Ссылка-приглашение ученика здесь не используется.</small>
+    <script>
+        document.getElementById('open-zoom').addEventListener('click', () => {
+            document.getElementById('zoom-hint').textContent = 'Подтвердите открытие Zoom в запросе браузера. Если запроса нет, браузер заблокировал протокол Zoom — откройте приложение вручную.';
+            window.location.assign('zoommtg://zoom.us/start');
+        });
+    </script>
 </body>
 </html>

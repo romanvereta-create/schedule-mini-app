@@ -5,37 +5,78 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Расписание</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css?v=30.11.0">
+    <link rel="stylesheet" href="styles.css?v=30.12.2">
 </head>
 <body>
+    <svg class="thread-icon-sprite" aria-hidden="true">
+        <defs>
+            <symbol id="ti-chevron-left" viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/><circle cx="8" cy="12" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-chevron-right" viewBox="0 0 24 24"><path d="m9.5 5.5 6.5 6.5-6.5 6.5"/><circle cx="16" cy="12" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-chevron-down" viewBox="0 0 24 24"><path d="m5.5 9 6.5 6 6.5-6"/><circle cx="12" cy="15" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-fullscreen" viewBox="0 0 24 24"><path d="M9 4H4v5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><circle cx="20" cy="9" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-students" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.4-3.8 2.2-5.6 5.5-5.6s5.1 1.8 5.5 5.6M15.5 6.2a2.7 2.7 0 0 1 0 5.2M16.4 14c2.4.4 3.7 2 4.1 4.5"/><circle cx="20.5" cy="18.5" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-assistant" viewBox="0 0 24 24"><path d="M6 4.5h11a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-10M8 9h8M8 13h5"/><circle cx="5" cy="5" r="1.4" fill="currentColor" stroke="none"/><circle cx="16.5" cy="16.5" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-settings" viewBox="0 0 24 24"><path d="M4 6h5M14 6h6M4 12h9M18 12h2M4 18h3M12 18h8"/><circle cx="11.5" cy="6" r="2.2"/><circle cx="15.5" cy="12" r="2.2"/><circle cx="9.5" cy="18" r="2.2"/></symbol>
+            <symbol id="ti-zoom-in" viewBox="0 0 24 24"><circle cx="10" cy="10" r="5.5"/><path d="m14 14 5 5M10 7v6M7 10h6"/><circle cx="19" cy="19" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-zoom-out" viewBox="0 0 24 24"><circle cx="10" cy="10" r="5.5"/><path d="m14 14 5 5M7 10h6"/><circle cx="19" cy="19" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-pin" viewBox="0 0 24 24"><path d="M12 21s6-5.4 6-11a6 6 0 0 0-12 0c0 5.6 6 11 6 11Z"/><circle cx="12" cy="10" r="2.2"/><circle cx="12" cy="21" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-message" viewBox="0 0 24 24"><path d="M5 5.5h14v10H10l-4.5 3v-3H5z"/><path d="M9 10h6"/><circle cx="18.5" cy="15.5" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-delay-teacher" viewBox="0 0 24 24"><circle cx="11" cy="12" r="7"/><path d="M11 8v4l3 2M18.5 5.5l1.5-1.5"/><circle cx="19.5" cy="4.5" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-delay-student" viewBox="0 0 24 24"><circle cx="13" cy="12" r="7"/><path d="M13 8v4l-3 2M4 8.5v7"/><circle cx="4" cy="5" r="1.8"/><circle cx="4" cy="18.5" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-paid" viewBox="0 0 24 24"><path d="M8 20V4h5.2c3.2 0 5.3 1.7 5.3 4.6s-2.1 4.7-5.3 4.7H6M6 16.5h9"/><circle cx="18.5" cy="8.6" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-subscription" viewBox="0 0 24 24"><path d="M5 6.5h14M5 11h14M5 15.5h10M5 20h7"/><circle cx="19" cy="15.5" r="1.4" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-free" viewBox="0 0 24 24"><ellipse cx="10" cy="13" rx="4.5" ry="6"/><path d="M18 3.5v5M15.5 6h5"/><circle cx="18" cy="6" r="1.05" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-move" viewBox="0 0 24 24"><path d="M5 17c0-6 3-10 9-10h4M15 4l3 3-3 3"/><circle cx="5" cy="17" r="1.6" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-cancel" viewBox="0 0 24 24"><path d="M18.5 18.5A8.5 8.5 0 1 1 20 8M6 6l12 12"/><circle cx="20" cy="8" r="1.2" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-restore" viewBox="0 0 24 24"><path d="M8 7H4v-4M4.5 7A8.5 8.5 0 1 1 5 17"/><circle cx="5" cy="17" r="1.2" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-profile" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2"/><path d="M5.5 20v-1.5c0-3.7 2.2-5.7 6.5-5.7s6.5 2 6.5 5.7V20M5.5 6V4h2M18.5 6V4h-2"/><circle cx="18.5" cy="20" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-report" viewBox="0 0 24 24"><path d="M6 4.5h9l3 3V20H6zM15 4.5v3h3M9 11h6M9 15h4"/><circle cx="15.5" cy="18" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-edit" viewBox="0 0 24 24"><path d="m6 17.5.8-4 8.7-8.7 3.7 3.7-8.7 8.7zM14 6.3l3.7 3.7M5 20h9"/><circle cx="5" cy="20" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-delete" viewBox="0 0 24 24"><path d="M7 8v11h10V8M5 8h14M9 8V5h6v3M10 11v5M14 11v5"/><circle cx="17" cy="19" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-palette" viewBox="0 0 24 24"><path d="M12 4a8 8 0 1 0 0 16h1.2a1.8 1.8 0 0 0 0-3.6h-.7a1.5 1.5 0 0 1 0-3H20A8 8 0 0 0 12 4Z"/><circle cx="8" cy="10" r="1.1" fill="currentColor" stroke="none"/><circle cx="11" cy="7" r="1.1" fill="currentColor" stroke="none"/><circle cx="15" cy="8" r="1.1" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-add" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/><circle cx="19" cy="12" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/><circle cx="19" cy="7.5" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-copy" viewBox="0 0 24 24"><rect x="8" y="5" width="11" height="13" rx="2"/><path d="M15.5 18v1a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1"/><circle cx="19" cy="5" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-receipt" viewBox="0 0 24 24"><path d="M6 4.5h12V20l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 20zM9 9h6M9 13h4"/><circle cx="16" cy="16" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-book" viewBox="0 0 24 24"><path d="M4.5 5.5c3.2-.7 5.7.1 7.5 2.2 1.8-2.1 4.3-2.9 7.5-2.2v13c-3.2-.7-5.7.1-7.5 2.2-1.8-2.1-4.3-2.9-7.5-2.2zM12 7.7v13"/><circle cx="19.5" cy="18.5" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-pdf" viewBox="0 0 24 24"><path d="M6 4.5h9l3 3V20H6zM15 4.5v3h3M9 11h6M9 15h6"/><circle cx="18" cy="20" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-debt" viewBox="0 0 24 24"><path d="M8 20V4h5c3.2 0 5.2 1.7 5.2 4.5S16.2 13 13 13H6M6 16.5h8"/><circle cx="19" cy="18" r="1.4" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-windows" viewBox="0 0 24 24"><path d="M5 6v12M19 6v12M8 9h3M13 15h3"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-summary" viewBox="0 0 24 24"><path d="M5 19V11M10 19V6M15 19v-9M20 19V4"/><circle cx="20" cy="4" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-birthday" viewBox="0 0 24 24"><path d="M5 12h14v8H5zM5 15c1.3 1.2 2.7 1.2 4 0 1.3 1.2 2.7 1.2 4 0 1.3 1.2 2.7 1.2 4 0 .7.6 1.3.9 2 .9M8 12V9h8v3M12 8V5"/><circle cx="12" cy="4" r="1.3" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-archive" viewBox="0 0 24 24"><path d="M5 8h14v11H5zM4 5h16v3H4zM9 12h6"/><circle cx="15" cy="12" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/><circle cx="18" cy="6" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-board" viewBox="0 0 24 24"><path d="M4 5.5h16v11H4zM8 20l4-3.5L16 20M8 10h3M13 13h3"/><circle cx="20" cy="16.5" r="1.15" fill="currentColor" stroke="none"/></symbol>
+        </defs>
+    </svg>
     <header class="main-header">
         <div class="header-top">
             <button id="btn-today" class="header-btn">Сегодня</button>
             <div class="nav-arrows">
-                <button id="btn-prev-week" class="icon-btn" aria-label="Предыдущая неделя">‹</button>
+                <button id="btn-prev-week" class="icon-btn" aria-label="Предыдущая неделя"><svg class="thread-icon" aria-hidden="true"><use href="#ti-chevron-left"></use></svg></button>
                 <div class="header-center-stack">
                     <button id="top-next-lesson" class="top-next-lesson" type="button">
-                        <span id="top-next-lesson-summary">Ближайшее занятие…</span><span class="top-next-chevron">⌄</span>
+                        <span id="top-next-lesson-summary">Ближайшее занятие…</span><svg class="thread-icon top-next-chevron" aria-hidden="true"><use href="#ti-chevron-down"></use></svg>
                     </button>
                     <div id="top-notification-preview" class="top-notification-preview hidden">
-                        <button id="btn-top-teacher-delay" type="button">Я задержусь</button>
-                        <button id="btn-top-student-delay" type="button">Ученик задерживается</button>
+                        <button id="btn-top-teacher-delay" type="button"><svg class="thread-icon" aria-hidden="true"><use href="#ti-delay-teacher"></use></svg>Я задержусь</button>
+                        <button id="btn-top-student-delay" type="button"><svg class="thread-icon" aria-hidden="true"><use href="#ti-delay-student"></use></svg>Ученик задерживается</button>
                     </div>
                     <div id="top-next-lesson-details" class="top-next-lesson-details hidden"></div>
                 </div>
-                <button id="btn-next-week" class="icon-btn" aria-label="Следующая неделя">›</button>
+                <button id="btn-next-week" class="icon-btn" aria-label="Следующая неделя"><svg class="thread-icon" aria-hidden="true"><use href="#ti-chevron-right"></use></svg></button>
             </div>
             <div class="header-actions">
-                <button id="btn-fullscreen" class="icon-btn hidden" type="button" title="На весь экран" aria-label="На весь экран">⛶</button>
-                <button id="btn-students" class="icon-btn" title="Ученики">👥</button>
-                <button id="btn-work-center" class="icon-btn work-center-btn" title="Помощник">📋<span id="work-center-debt-alert" class="work-center-debt-alert hidden" aria-hidden="true">!</span></button>
-                <button id="btn-app-settings" class="icon-btn settings-icon-btn" title="Настройки">⚙️</button>
+                <button id="btn-fullscreen" class="icon-btn hidden" type="button" title="На весь экран" aria-label="На весь экран"><svg class="thread-icon" aria-hidden="true"><use href="#ti-fullscreen"></use></svg></button>
+                <button id="btn-students" class="icon-btn" title="Ученики" aria-label="Ученики"><svg class="thread-icon" aria-hidden="true"><use href="#ti-students"></use></svg></button>
+                <button id="btn-work-center" class="icon-btn work-center-btn" title="Помощник" aria-label="Помощник"><svg class="thread-icon" aria-hidden="true"><use href="#ti-assistant"></use></svg><span id="work-center-debt-alert" class="work-center-debt-alert hidden" aria-hidden="true">!</span></button>
+                <button id="btn-app-settings" class="icon-btn settings-icon-btn" title="Настройки" aria-label="Настройки"><svg class="thread-icon" aria-hidden="true"><use href="#ti-settings"></use></svg></button>
             </div>
         </div>
         <div class="week-days-container">
             <div class="time-spacer">
-                <button id="btn-zoom-in" class="zoom-btn" title="Увеличить высоту">🔍+</button>
-                <button id="btn-zoom-out" class="zoom-btn" title="Уменьшить высоту">🔍−</button>
+                <button id="btn-zoom-in" class="zoom-btn" title="Увеличить высоту" aria-label="Увеличить высоту"><svg class="thread-icon" aria-hidden="true"><use href="#ti-zoom-in"></use></svg></button>
+                <button id="btn-zoom-out" class="zoom-btn" title="Уменьшить высоту" aria-label="Уменьшить высоту"><svg class="thread-icon" aria-hidden="true"><use href="#ti-zoom-out"></use></svg></button>
             </div>
             <div class="days-row" id="days-header"></div>
         </div>
@@ -55,7 +96,7 @@
 
     <!-- Подсказка режима переноса -->
     <div id="move-hint" class="move-hint-bar hidden">
-        <span>📍 Кликните целевой слот для переноса/добавления</span>
+        <span><svg class="thread-icon" aria-hidden="true"><use href="#ti-pin"></use></svg>Кликните целевой слот для переноса/добавления</span>
         <button id="btn-cancel-move" class="cancel-move-btn">Отмена</button>
     </div>
 
@@ -65,30 +106,30 @@
             <h2 id="action-menu-title">Ученик</h2>
             <div class="modal-actions-column">
                 <div class="action-section-label" id="action-contact-label">Связь</div>
-                <button id="btn-action-chat-student" class="action-menu-btn">💬 Написать ученику</button>
-                <button id="btn-action-chat-parent" class="action-menu-btn">💬 Написать родителю</button>
+                <button id="btn-action-chat-student" class="action-menu-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-message"></use></svg>Написать ученику</button>
+                <button id="btn-action-chat-parent" class="action-menu-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-message"></use></svg>Написать родителю</button>
                 <div id="group-action-details" class="group-action-details hidden"></div>
                 <div class="action-section-label">Оповещения</div>
                 <div class="payment-actions-row">
-                    <button id="btn-action-teacher-delay" class="action-menu-btn future-notification-btn">Я задержусь</button>
-                    <button id="btn-action-student-delay" class="action-menu-btn future-notification-btn">Ученик задерживается</button>
+                    <button id="btn-action-teacher-delay" class="action-menu-btn future-notification-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-delay-teacher"></use></svg>Я задержусь</button>
+                    <button id="btn-action-student-delay" class="action-menu-btn future-notification-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-delay-student"></use></svg>Ученик задерживается</button>
                 </div>
                 <div class="action-section-label" id="individual-payment-label">Оплата</div>
                 <div class="payment-actions-row payment-actions-row-three">
-                    <button id="btn-action-paid" class="action-menu-btn paid-btn">💳 Оплатил</button>
-                    <button id="btn-action-subscription" class="action-menu-btn subscription-pay-btn">🎟 Абонемент</button>
-                    <button id="btn-action-free" class="action-menu-btn free-btn">🎁 Бесплатно</button>
+                    <button id="btn-action-paid" class="action-menu-btn paid-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-paid"></use></svg>Оплачено</button>
+                    <button id="btn-action-subscription" class="action-menu-btn subscription-pay-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-subscription"></use></svg>Абонемент</button>
+                    <button id="btn-action-free" class="action-menu-btn free-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-free"></use></svg>Бесплатно</button>
                 </div>
                 <div class="action-section-label">Занятие</div>
                 <div class="payment-actions-row">
-                    <button id="btn-action-move-trigger" class="action-menu-btn">🔄 Перенести</button>
-                    <button id="btn-action-cancel-once" class="action-menu-btn">🚫 Отменить</button>
+                    <button id="btn-action-move-trigger" class="action-menu-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-move"></use></svg>Перенести</button>
+                    <button id="btn-action-cancel-once" class="action-menu-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-cancel"></use></svg>Отменить</button>
                 </div>
 
-                <button id="btn-action-student-card" class="action-menu-btn">👤 Карточка ученика</button>
-                <button id="btn-action-report" class="action-menu-btn">📝 Итог занятия</button>
-                <button id="btn-action-settings" class="action-menu-btn">⚙️ Настройки занятия</button>
-                <button id="btn-action-delete" class="action-menu-btn delete-btn">🗑 Удалить</button>
+                <button id="btn-action-student-card" class="action-menu-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-profile"></use></svg>Карточка ученика</button>
+                <button id="btn-action-report" class="action-menu-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-report"></use></svg>Итог занятия</button>
+                <button id="btn-action-settings" class="action-menu-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-settings"></use></svg>Настройки занятия</button>
+                <button id="btn-action-delete" class="action-menu-btn delete-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-delete"></use></svg>Удалить</button>
 
                 <!-- ПАЛИТРА ЦВЕТОВ: 7 быстрых цветов + расширенная палитра -->
                 <div class="action-section-label">Цвет</div>
@@ -100,7 +141,7 @@
                     <div class="color-swatch color-4" data-color="4"></div>
                     <div class="color-swatch color-5" data-color="5"></div>
                     <div class="color-swatch color-6" data-color="6"></div>
-                    <div class="color-swatch color-picker-open" id="color-picker-open">🎨</div>
+                    <div class="color-swatch color-picker-open" id="color-picker-open" role="button" aria-label="Другой цвет"><svg class="thread-icon" aria-hidden="true"><use href="#ti-palette"></use></svg></div>
                 </div>
 
                 <button id="btn-action-close" class="secondary-btn">Закрыть</button>
@@ -114,9 +155,9 @@
             <h2>Действие с занятием</h2>
             <p id="move-modal-desc" class="modal-desc"></p>
             <div class="modal-actions-column">
-                <button id="btn-action-copy" class="primary-btn">➕ Добавить ещё одним занятием</button>
-                <button id="btn-action-move-once" class="secondary-btn">🔄 Перенести (разово)</button>
-                <button id="btn-action-move-all" class="secondary-btn">🔄 Перенести все будущие</button>
+                <button id="btn-action-copy" class="primary-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-add"></use></svg>Добавить ещё одним занятием</button>
+                <button id="btn-action-move-once" class="secondary-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-move"></use></svg>Перенести (разово)</button>
+                <button id="btn-action-move-all" class="secondary-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-move"></use></svg>Перенести все будущие</button>
                 <button id="btn-action-move-cancel" class="danger-btn">Отмена</button>
             </div>
         </div>
@@ -146,7 +187,7 @@
                 <span>Отправить чек родителю</span>
             </label>
             <div class="modal-actions-column">
-                <button id="btn-paid-confirm-apply" class="primary-btn">✅ Подтвердить оплату</button>
+                <button id="btn-paid-confirm-apply" class="primary-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-check"></use></svg>Подтвердить оплату</button>
                 <button id="btn-paid-confirm-cancel" class="secondary-btn">Отмена</button>
             </div>
         </div>
@@ -175,7 +216,7 @@
                 <span>Отправить чек родителю</span>
             </label>
             <div class="modal-actions-column">
-                <button id="btn-subscription-pay-apply" class="primary-btn">✅ Оплатить абонемент</button>
+                <button id="btn-subscription-pay-apply" class="primary-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-check"></use></svg>Оплатить абонемент</button>
                 <button id="btn-subscription-pay-cancel" class="secondary-btn">Отмена</button>
             </div>
         </div>
@@ -186,7 +227,7 @@
         <div class="modal-content">
             <header class="modal-header">
                 <h2 id="modal-title">Настройки занятия</h2>
-                <span id="btn-close-modal" class="close-modal">&times;</span>
+                <button id="btn-close-modal" class="close-modal" type="button" aria-label="Закрыть"><svg class="thread-icon" aria-hidden="true"><use href="#ti-close"></use></svg></button>
             </header>
             <div class="modal-body">
                 <input type="hidden" id="lesson-id">
@@ -196,8 +237,8 @@
                     <div class="form-group" id="lesson-type-group">
                         <label>Кого добавить в слот</label>
                         <select id="lesson-type-select">
-                            <option value="student">👤 Ученика</option>
-                            <option value="group">👥 Группу</option>
+                            <option value="student">Ученика</option>
+                            <option value="group">Группу</option>
                         </select>
                     </div>
 
@@ -291,7 +332,7 @@
         <div class="modal-content compact-modal">
             <header class="modal-header">
                 <h2 id="lesson-report-title">Итог занятия</h2>
-                <span id="btn-close-lesson-report" class="close-modal">&times;</span>
+                <button id="btn-close-lesson-report" class="close-modal" type="button" aria-label="Закрыть"><svg class="thread-icon" aria-hidden="true"><use href="#ti-close"></use></svg></button>
             </header>
             <div class="modal-body">
                 <div class="form-group">
@@ -311,9 +352,9 @@
     <div id="date-picker-overlay" class="hidden">
         <div class="modal-content date-picker-modal">
             <header class="modal-header">
-                <button id="date-picker-prev" class="icon-btn" type="button">◀</button>
+                <button id="date-picker-prev" class="icon-btn" type="button" aria-label="Предыдущий месяц"><svg class="thread-icon" aria-hidden="true"><use href="#ti-chevron-left"></use></svg></button>
                 <h2 id="date-picker-title">Месяц</h2>
-                <button id="date-picker-next" class="icon-btn" type="button">▶</button>
+                <button id="date-picker-next" class="icon-btn" type="button" aria-label="Следующий месяц"><svg class="thread-icon" aria-hidden="true"><use href="#ti-chevron-right"></use></svg></button>
             </header>
             <div class="date-picker-weekdays">
                 <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
@@ -331,26 +372,33 @@
         <div class="modal-content compact-modal">
             <header class="modal-header">
                 <h2>Помощник</h2>
-                <span id="btn-close-work-center" class="close-modal">&times;</span>
+                <button id="btn-close-work-center" class="close-modal" type="button" aria-label="Закрыть"><svg class="thread-icon" aria-hidden="true"><use href="#ti-close"></use></svg></button>
             </header>
             <div class="modal-body compact-stack">
                 <button class="hub-row" data-hub-section="debts">
-                    <span>💳 Кто должен</span><strong id="hub-debts-count">0</strong>
+                    <span><svg class="thread-icon" aria-hidden="true"><use href="#ti-debt"></use></svg>Кто должен</span><strong id="hub-debts-count">0</strong>
                 </button>
                 <div id="hub-debts" class="hub-panel hidden"></div>
 
                 <button class="hub-row" data-hub-section="windows">
-                    <span>🕒 Окна этой недели</span><span>›</span>
+                    <span><svg class="thread-icon" aria-hidden="true"><use href="#ti-windows"></use></svg>Окна этой недели</span><svg class="thread-icon row-chevron" aria-hidden="true"><use href="#ti-chevron-right"></use></svg>
                 </button>
-                <div id="hub-windows" class="hub-panel hidden"></div>
+                <div id="hub-windows" class="hub-panel hidden">
+                    <div id="hub-windows-copy-toolbar" class="hub-copy-toolbar hidden">
+                        <button id="btn-copy-week-windows" class="hub-copy-btn" type="button" aria-label="Скопировать окна недели" title="Скопировать окна недели">
+                            <svg class="thread-icon" aria-hidden="true"><use href="#ti-copy"></use></svg>
+                        </button>
+                    </div>
+                    <div id="hub-windows-list"></div>
+                </div>
 
                 <button class="hub-row" data-hub-section="summary">
-                    <span>📊 Сводка недели</span><span>›</span>
+                    <span><svg class="thread-icon" aria-hidden="true"><use href="#ti-summary"></use></svg>Сводка недели</span><svg class="thread-icon row-chevron" aria-hidden="true"><use href="#ti-chevron-right"></use></svg>
                 </button>
                 <div id="hub-summary" class="hub-panel hidden"></div>
 
                 <button class="hub-row" data-hub-section="birthdays">
-                    <span>🎂 Дни рождения</span><span>›</span>
+                    <span><svg class="thread-icon" aria-hidden="true"><use href="#ti-birthday"></use></svg>Дни рождения</span><svg class="thread-icon row-chevron" aria-hidden="true"><use href="#ti-chevron-right"></use></svg>
                 </button>
                 <div id="hub-birthdays" class="hub-panel hidden"></div>
             </div>
@@ -365,7 +413,7 @@
         <div class="modal-content compact-modal">
             <header class="modal-header">
                 <h2>Ученики</h2>
-                <span id="btn-close-students" class="close-modal">&times;</span>
+                <button id="btn-close-students" class="close-modal" type="button" aria-label="Закрыть"><svg class="thread-icon" aria-hidden="true"><use href="#ti-close"></use></svg></button>
             </header>
             <div class="modal-body">
                 <input type="search" id="students-search" placeholder="Найти ученика">
@@ -383,7 +431,7 @@
         <div class="modal-content compact-modal">
             <header class="modal-header">
                 <h2 id="student-card-title">Ученик</h2>
-                <span id="btn-close-student-card" class="close-modal">&times;</span>
+                <button id="btn-close-student-card" class="close-modal" type="button" aria-label="Закрыть"><svg class="thread-icon" aria-hidden="true"><use href="#ti-close"></use></svg></button>
             </header>
             <div class="modal-body">
                 <div class="student-lesson-stats">
@@ -391,7 +439,7 @@
                     <strong id="student-lessons-ratio">— / —</strong>
                 </div>
                 <div class="student-payment-box">
-                    <button id="btn-student-payment" class="primary-btn" type="button">💳 Распределить общую сумму</button>
+                    <button id="btn-student-payment" class="primary-btn" type="button"><svg class="thread-icon" aria-hidden="true"><use href="#ti-paid"></use></svg>Распределить общую сумму</button>
                 </div>
                 <details id="student-finances" class="student-finances">
                     <summary>Занятия и оплаты</summary>
@@ -472,7 +520,7 @@
         <div class="modal-content compact-modal">
             <header class="modal-header">
                 <h2 id="student-payment-title">Оплата</h2>
-                <span id="btn-close-student-payment" class="close-modal">&times;</span>
+                <button id="btn-close-student-payment" class="close-modal" type="button" aria-label="Закрыть"><svg class="thread-icon" aria-hidden="true"><use href="#ti-close"></use></svg></button>
             </header>
             <div class="modal-body">
                 <div id="student-payment-options" class="quick-payment-options"></div>
@@ -558,7 +606,7 @@
                 </div>
             </div>
             <div id="onboarding-step-done" class="hidden text-center">
-                <div class="onboarding-done-mark">✓</div>
+                <div class="onboarding-done-mark"><svg class="thread-icon" aria-hidden="true"><use href="#ti-check"></use></svg></div>
                 <h2>Расписание готово</h2>
                 <p class="modal-subtitle">Первое занятие уже в календаре. Данные для чеков можно заполнить сейчас или позже.</p>
                 <div class="modal-actions-column">
@@ -574,7 +622,7 @@
         <div class="modal-content compact-modal">
             <header class="modal-header">
                 <h2>Настройки</h2>
-                <span id="btn-close-app-settings" class="close-modal">&times;</span>
+                <button id="btn-close-app-settings" class="close-modal" type="button" aria-label="Закрыть"><svg class="thread-icon" aria-hidden="true"><use href="#ti-close"></use></svg></button>
             </header>
             <div class="modal-body compact-stack">
                 <label class="checkbox-label settings-checkbox compact-setting-row">
@@ -582,7 +630,7 @@
                     <span>Напоминания для новых занятий</span>
                 </label>
                 <button id="month-label" class="settings-link-row" type="button" title="Выбрать дату">
-                    <span>Выбрать дату</span><span>›</span>
+                    <span>Выбрать дату</span><svg class="thread-icon row-chevron" aria-hidden="true"><use href="#ti-chevron-right"></use></svg>
                 </button>
                 <div class="form-group compact-setting-field">
                     <label>Рабочие часы</label>
@@ -619,14 +667,14 @@
                     <span>Присылать копию чека мне</span>
                 </label>
                 <button id="btn-open-receipt-settings" class="settings-link-row" type="button">
-                    <span>🧾 Данные для чека</span><span>›</span>
+                    <span><svg class="thread-icon" aria-hidden="true"><use href="#ti-receipt"></use></svg>Данные для чека</span><svg class="thread-icon row-chevron" aria-hidden="true"><use href="#ti-chevron-right"></use></svg>
                 </button>
                 <div class="settings-mini-title">Файлы и экспорт</div>
                 <button id="btn-download-book" class="settings-link-row export-link-row" type="button">
-                    <span class="settings-link-main"><strong>📗 Книга учёта</strong><small>Прислать Excel в Telegram</small></span><span>›</span>
+                    <span class="settings-link-main"><strong><svg class="thread-icon" aria-hidden="true"><use href="#ti-book"></use></svg>Книга учёта</strong><small>Прислать Excel в Telegram</small></span><svg class="thread-icon row-chevron" aria-hidden="true"><use href="#ti-chevron-right"></use></svg>
                 </button>
                 <button id="btn-export-week-pdf" class="settings-link-row export-link-row" type="button">
-                    <span class="settings-link-main"><strong>📄 Расписание недели</strong><small>Прислать PDF в Telegram</small></span><span>›</span>
+                    <span class="settings-link-main"><strong><svg class="thread-icon" aria-hidden="true"><use href="#ti-pdf"></use></svg>Расписание недели</strong><small>Прислать PDF в Telegram</small></span><svg class="thread-icon row-chevron" aria-hidden="true"><use href="#ti-chevron-right"></use></svg>
                 </button>
             </div>
             <div class="modal-actions">
@@ -640,9 +688,9 @@
     <div id="receipt-settings-overlay" class="hidden">
         <div class="modal-content receipt-settings-modal">
             <header class="modal-header">
-                <button id="btn-back-receipt-settings" class="icon-btn" type="button">‹</button>
+                <button id="btn-back-receipt-settings" class="icon-btn" type="button" aria-label="Назад"><svg class="thread-icon" aria-hidden="true"><use href="#ti-chevron-left"></use></svg></button>
                 <h2>Данные для чека</h2>
-                <span id="btn-close-receipt-settings" class="close-modal">&times;</span>
+                <button id="btn-close-receipt-settings" class="close-modal" type="button" aria-label="Закрыть"><svg class="thread-icon" aria-hidden="true"><use href="#ti-close"></use></svg></button>
             </header>
             <div class="modal-body">
                 <div class="settings-section receipt-fields-section">
@@ -694,6 +742,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=30.11.0"></script>
+    <script src="app.js?v=30.12.2"></script>
 </body>
 </html>

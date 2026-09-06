@@ -379,6 +379,16 @@ function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
 }
 
+function threadIcon(name, extraClass = '') {
+    const className = ['thread-icon', extraClass].filter(Boolean).join(' ');
+    return `<svg class="${className}" aria-hidden="true"><use href="#ti-${name}"></use></svg>`;
+}
+
+function setThreadButtonLabel(button, icon, label) {
+    if (!button) return;
+    button.innerHTML = `${threadIcon(icon)}${escapeHtml(label)}`;
+}
+
 function addGroupMemberRow(member = null) {
     const container = document.getElementById('group-members-container');
     const row = document.createElement('div');
@@ -390,7 +400,7 @@ function addGroupMemberRow(member = null) {
         <select class="group-member-select">${groupMemberOptions(manual ? 'manual' : memberId)}</select>
         <input type="text" class="group-member-manual ${manual ? '' : 'hidden'}" placeholder="Имя ученика" value="${escapeHtml(manual ? (member?.name || '') : '')}">
         <input type="number" class="group-member-price" min="0" step="1" inputmode="decimal" placeholder="Цена, ₽" value="${escapeHtml(member?.price ?? '')}">
-        <button type="button" class="contact-remove-btn group-member-remove" title="Удалить">✕</button>
+        <button type="button" class="contact-remove-btn group-member-remove" title="Удалить" aria-label="Удалить">${threadIcon('close')}</button>
     `;
     const select = row.querySelector('.group-member-select');
     const input = row.querySelector('.group-member-manual');
@@ -500,6 +510,13 @@ function scheduleCalendarAutoFit() {
     requestAnimationFrame(() => requestAnimationFrame(autoFitCalendarToWeek));
 }
 
+function syncCalendarHeaderScrollbar() {
+    const container = document.getElementById('calendar-container');
+    if (!container) return;
+    const scrollbarWidth = Math.max(0, container.offsetWidth - container.clientWidth);
+    document.documentElement.style.setProperty('--calendar-scrollbar-width', `${scrollbarWidth}px`);
+}
+
 function renderCalendar() {
     updateVisibleHoursFromSettingsAndLessons();
     const labels = document.getElementById('time-labels');
@@ -556,6 +573,7 @@ function renderCalendar() {
 
     renderEvents();
     updateCurrentTimeLine();
+    requestAnimationFrame(syncCalendarHeaderScrollbar);
 }
 
 function renderEvents() {
@@ -682,24 +700,24 @@ function openActionMenu(date, lesson) {
     document.getElementById('action-menu-title').textContent = `${isGroup ? (lesson.group_name || lesson.student || 'Группа') : (lesson.student || 'Ученик')} · ${lesson.time || '--:--'}`;
 
     const paidButton = document.getElementById('btn-action-paid');
-    paidButton.textContent = paymentActionLabel(lesson);
+    setThreadButtonLabel(paidButton, paymentActionIcon(lesson), paymentActionLabel(lesson));
     document.getElementById('individual-payment-label').classList.toggle('hidden', isGroup);
     paidButton.classList.toggle('hidden', cancelled || isGroup);
 
     document.getElementById('btn-action-student-card').classList.toggle('hidden', isGroup);
     document.getElementById('btn-action-chat-student').classList.toggle('hidden', isGroup);
     document.getElementById('btn-action-chat-parent').classList.toggle('hidden', isGroup);
-    document.getElementById('btn-action-chat-student').textContent = '💬 Написать ученику';
-    document.getElementById('btn-action-chat-parent').textContent = '💬 Написать родителю';
+    setThreadButtonLabel(document.getElementById('btn-action-chat-student'), 'message', 'Написать ученику');
+    setThreadButtonLabel(document.getElementById('btn-action-chat-parent'), 'message', 'Написать родителю');
     document.getElementById('btn-action-subscription').classList.toggle('hidden', cancelled || isGroup);
     document.getElementById('btn-action-free').classList.toggle('hidden', cancelled || isGroup);
-    document.getElementById('btn-action-free').textContent = lesson.free ? '↩ Отменить бесплатно' : '🎁 Бесплатно';
-    document.getElementById('btn-action-cancel-once').textContent = cancelled ? '↩️ Вернуть занятие' : '🚫 Отменить';
+    setThreadButtonLabel(document.getElementById('btn-action-free'), lesson.free ? 'restore' : 'free', lesson.free ? 'Отменить бесплатно' : 'Бесплатно');
+    setThreadButtonLabel(document.getElementById('btn-action-cancel-once'), cancelled ? 'restore' : 'cancel', cancelled ? 'Вернуть занятие' : 'Отменить');
     document.getElementById('btn-action-report').classList.toggle('hidden', cancelled || !lessonHasStarted(date, lesson));
     document.getElementById('btn-action-teacher-delay').classList.toggle('hidden', cancelled);
     document.getElementById('btn-action-student-delay').classList.toggle('hidden', cancelled);
     const settingsButton = document.getElementById('btn-action-settings');
-    settingsButton.textContent = isGroup ? '✏️ Редактировать группу' : '⚙️ Настройки занятия';
+    setThreadButtonLabel(settingsButton, isGroup ? 'edit' : 'settings', isGroup ? 'Редактировать группу' : 'Настройки занятия');
 
     const details = document.getElementById('group-action-details');
     details.innerHTML = '';
@@ -714,20 +732,20 @@ function openActionMenu(date, lesson) {
             row.innerHTML = `
                 <button type="button" class="group-action-member-head" aria-expanded="false">
                     <strong>${escapeHtml(member.name || 'Ученик')}</strong>
-                    <span class="group-member-summary">${price > 0 ? `${price.toLocaleString('ru-RU')} ₽` : 'цена —'} <i class="group-member-status ${statusClass}">${status}</i> <b>›</b></span>
+                    <span class="group-member-summary">${price > 0 ? `${price.toLocaleString('ru-RU')} ₽` : 'цена —'} <i class="group-member-status ${statusClass}">${status}</i> ${threadIcon('chevron-right', 'row-chevron')}</span>
                 </button>
                 <div class="group-member-actions hidden">
                     <div class="action-section-label">Связь</div>
-                    <button type="button" data-member-action="student-chat">💬 Написать ученику</button>
-                    <button type="button" data-member-action="parent-chat">💬 Написать родителю</button>
+                    <button type="button" data-member-action="student-chat">${threadIcon('message')}Написать ученику</button>
+                    <button type="button" data-member-action="parent-chat">${threadIcon('message')}Написать родителю</button>
                     <div class="action-section-label">Оплата</div>
                     <div class="group-member-payment-row">
-                    <button type="button" data-member-action="paid">${paymentActionLabel(member)}</button>
-                    <button type="button" data-member-action="subscription">🎟 Абонемент</button>
-                    <button type="button" data-member-action="free">${member.free ? '↩ Отменить бесплатно' : '🎁 Бесплатно'}</button>
+                    <button type="button" data-member-action="paid">${threadIcon(paymentActionIcon(member))}${escapeHtml(paymentActionLabel(member))}</button>
+                    <button type="button" data-member-action="subscription">${threadIcon('subscription')}Абонемент</button>
+                    <button type="button" data-member-action="free">${threadIcon(member.free ? 'restore' : 'free')}${member.free ? 'Отменить бесплатно' : 'Бесплатно'}</button>
                     </div>
                     <div class="action-section-label">Ученик</div>
-                    <button type="button" data-member-action="card">👤 Карточка ученика</button>
+                    <button type="button" data-member-action="card">${threadIcon('profile')}Карточка ученика</button>
                 </div>`;
             const head = row.querySelector('.group-action-member-head');
             const actions = row.querySelector('.group-member-actions');
@@ -864,7 +882,8 @@ function createContactRow(type = 'tg', value = '', removable = true) {
     remove.type = 'button';
     remove.className = 'contact-remove-btn';
     remove.title = 'Удалить контакт';
-    remove.textContent = '✕';
+    remove.innerHTML = threadIcon('close');
+    remove.setAttribute('aria-label', 'Удалить контакт');
     remove.style.visibility = removable ? 'visible' : 'hidden';
 
     select.addEventListener('change', () => {
@@ -2061,7 +2080,7 @@ async function loadStudentLessonStats(studentId) {
             const history = Array.isArray(result.history) ? result.history : [];
             historyList.innerHTML = history.length ? history.map(item => {
                 const dateLabel = shortDateRu(item.date);
-                const paidLabel = item.paid ? '✓ оплачено' : 'не оплачено';
+                const paidLabel = item.paid ? 'оплачено' : 'не оплачено';
                 const report = String(item.report || '').trim();
                 return `<div class="student-history-row student-history-row-report"><div class="student-history-main"><span>${escapeHtml(dateLabel)} · ${escapeHtml(item.time || '')}</span><span class="student-history-paid ${item.paid ? 'is-paid' : ''}">${paidLabel}</span></div>${report ? `<div class="student-history-report">${escapeHtml(report)}</div>` : ''}</div>`;
             }).join('') : '<div class="student-history-empty">Занятий пока нет</div>';
@@ -2095,8 +2114,13 @@ function paymentStatusLabel(target) {
 
 function paymentActionLabel(target) {
     if (hasAllocatedPayment(target)) return 'Оплачено общей суммой';
-    if (target.paid_via_subscription) return '🎟 Оплачено абонементом';
-    return target.paid && !target.free ? '↩ Снять оплату' : '💳 Оплачено';
+    if (target.paid_via_subscription) return 'Оплачено абонементом';
+    return target.paid && !target.free ? 'Снять оплату' : 'Оплачено';
+}
+
+function paymentActionIcon(target) {
+    if (target.paid_via_subscription) return 'subscription';
+    return target.paid && !target.free ? 'restore' : 'paid';
 }
 
 function explainAllocatedPayment(studentId) {
@@ -2135,9 +2159,9 @@ async function loadStudentPayments(studentId) {
             const price = item.price == null ? 'Цена не указана' : money(item.price);
             const allocated = hasAllocatedPayment(item);
             const actions = item.source === 'unpaid'
-                ? '<button type="button" data-finance-action="direct">💳 Оплачено</button><button type="button" data-finance-action="subscription">🎟 Абонемент</button><button type="button" data-finance-action="free">🎁 Бесплатно</button>'
-                : item.source === 'direct' ? '<button type="button" data-finance-action="reverse">↩ Снять оплату</button>'
-                : item.source === 'free' ? '<button type="button" data-finance-action="unfree">↩ Отменить бесплатно</button>' : '';
+                ? `<button type="button" data-finance-action="direct">${threadIcon('paid')}Оплачено</button><button type="button" data-finance-action="subscription">${threadIcon('subscription')}Абонемент</button><button type="button" data-finance-action="free">${threadIcon('free')}Бесплатно</button>`
+                : item.source === 'direct' ? `<button type="button" data-finance-action="reverse">${threadIcon('restore')}Снять оплату</button>`
+                : item.source === 'free' ? `<button type="button" data-finance-action="unfree">${threadIcon('restore')}Отменить бесплатно</button>` : '';
             let note = '';
             if (allocated) {
                 note = (item.allocation_ids || []).length
@@ -2165,7 +2189,7 @@ async function loadStudentPayments(studentId) {
             row.innerHTML = `<strong>${escapeHtml(money(tx.amount))} · ${tx.reversed_at ? 'Отменена' : 'Общая оплата'}</strong>
                 <div>${escapeHtml(new Date(tx.created_at).toLocaleString('ru-RU'))} · № ${escapeHtml(tx.receipt_number || '')}</div>
                 <ul>${allocations}</ul>
-                ${tx.reversed_at ? `<small>Отменена ${escapeHtml(new Date(tx.reversed_at).toLocaleString('ru-RU'))}</small>` : '<button type="button" class="secondary-btn">↩ Отменить весь платёж</button>'}`;
+                ${tx.reversed_at ? `<small>Отменена ${escapeHtml(new Date(tx.reversed_at).toLocaleString('ru-RU'))}</small>` : `<button type="button" class="secondary-btn">${threadIcon('restore')}Отменить весь платёж</button>`}`;
             const button = row.querySelector('button');
             if (button) button.onclick = async () => {
                 if (!confirm(`Отменить всю общую оплату ${money(tx.amount)}? Будут восстановлены ${tx.allocations.length} занятий и добавлена отрицательная запись в книгу.`)) return;
@@ -2282,6 +2306,56 @@ function groupedWorkCenterWindows(windows) {
         intervals
     }));
 }
+function workCenterWindowsCopyText(windows) {
+    const grouped = groupedWorkCenterWindows(windows);
+    if (!grouped.length) return '';
+    return ['Свободные окна на этой неделе:', ...grouped.map(item => `${item.day}: ${item.intervals.join('; ')}`)].join('\n');
+}
+
+async function copyTextToClipboard(text) {
+    if (navigator.clipboard?.writeText) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return;
+        } catch (_error) { /* Старые WebView могут запрещать Clipboard API. */ }
+    }
+    const field = document.createElement('textarea');
+    field.value = text;
+    field.setAttribute('readonly', '');
+    field.style.position = 'fixed';
+    field.style.opacity = '0';
+    field.style.pointerEvents = 'none';
+    document.body.appendChild(field);
+    field.select();
+    field.setSelectionRange(0, field.value.length);
+    const copied = document.execCommand('copy');
+    field.remove();
+    if (!copied) throw new Error('Не удалось скопировать текст');
+}
+
+let weekWindowsCopyTimer = null;
+async function copyWeekWindows() {
+    const button = document.getElementById('btn-copy-week-windows');
+    const text = workCenterWindowsCopyText(state.workCenter?.windows);
+    if (!button || !text) return;
+    try {
+        await copyTextToClipboard(text);
+        setThreadButtonLabel(button, 'check', '');
+        button.classList.add('is-copied');
+        button.setAttribute('aria-label', 'Скопировано');
+        button.title = 'Скопировано';
+        tg.HapticFeedback?.impactOccurred('light');
+        clearTimeout(weekWindowsCopyTimer);
+        weekWindowsCopyTimer = setTimeout(() => {
+            setThreadButtonLabel(button, 'copy', '');
+            button.classList.remove('is-copied');
+            button.setAttribute('aria-label', 'Скопировать окна недели');
+            button.title = 'Скопировать окна недели';
+        }, 1500);
+    } catch (error) {
+        alert(error.message || 'Не удалось скопировать текст');
+    }
+}
 function money(value) { return `${Number(value || 0).toLocaleString('ru-RU')} ₽`; }
 function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
@@ -2337,8 +2411,12 @@ fullscreenButton.onclick = async () => {
     } catch (error) { alert('Этот клиент не разрешил полный экран.'); }
     updateFullscreenButton();
 };
-document.addEventListener('fullscreenchange', updateFullscreenButton);
-tg.onEvent?.('fullscreenChanged', updateFullscreenButton);
+function handleFullscreenLayoutChange() {
+    updateFullscreenButton();
+    requestAnimationFrame(syncCalendarHeaderScrollbar);
+}
+document.addEventListener('fullscreenchange', handleFullscreenLayoutChange);
+tg.onEvent?.('fullscreenChanged', handleFullscreenLayoutChange);
 tg.onEvent?.('fullscreenFailed', () => alert('Полный экран недоступен в этом клиенте Telegram.'));
 updateFullscreenButton();
 
@@ -2359,11 +2437,12 @@ function renderTopLesson() {
     }
 
     if (current) {
-        summary.textContent = showNextBesideCurrent && next
-            ? `● ${current.student} ${current.time || ''} › ${next.student} ${next.time || ''}`
-            : `● ${current.student} ${current.time || ''}`;
+        const currentText = `<span class="top-live-node" aria-hidden="true"></span><span class="top-summary-text">${escapeHtml(current.student || 'Ученик')} ${escapeHtml(current.time || '')}</span>`;
+        summary.innerHTML = showNextBesideCurrent && next
+            ? `${currentText}${threadIcon('chevron-right', 'top-summary-chevron')}<span class="top-summary-text">${escapeHtml(next.student || 'Ученик')} ${escapeHtml(next.time || '')}</span>`
+            : currentText;
     } else if (next) {
-        summary.textContent = `Далее › ${next.student} ${next.time || ''}`;
+        summary.innerHTML = `<span>Далее</span>${threadIcon('chevron-right', 'top-summary-chevron')}<span class="top-summary-text">${escapeHtml(next.student || 'Ученик')} ${escapeHtml(next.time || '')}</span>`;
     } else {
         summary.textContent = 'Ближайших занятий нет';
     }
@@ -2374,9 +2453,9 @@ function renderTopLesson() {
     if (next && (!current || showNextBesideCurrent)) items.push({ label: 'Далее', item: next });
     details.innerHTML = items.map(({label, item}, i) => {
         const buttons = [
-            item.board_link ? `<button type="button" class="next-link-btn" data-top-link="${i}-board">Доска</button>` : '',
-            `<button type="button" class="next-link-btn future-notification-btn" data-top-teacher-delay="${i}">Я задержусь</button>`,
-            `<button type="button" class="next-link-btn future-notification-btn" data-top-student-delay="${i}">Ученик задерживается</button>`
+            item.board_link ? `<button type="button" class="next-link-btn" data-top-link="${i}-board">${threadIcon('board')}Доска</button>` : '',
+            `<button type="button" class="next-link-btn future-notification-btn" data-top-teacher-delay="${i}">${threadIcon('delay-teacher')}Я задержусь</button>`,
+            `<button type="button" class="next-link-btn future-notification-btn" data-top-student-delay="${i}">${threadIcon('delay-student')}Ученик задерживается</button>`
         ].filter(Boolean).join('');
         return `<div class="top-next-detail-row"><div><small>${label}</small><strong>${escapeHtml(item.student || 'Ученик')} · ${escapeHtml(item.time || '')}</strong></div>${buttons ? `<div class="next-lesson-actions">${buttons}</div>` : ''}</div>`;
     }).join('') || '<div class="hub-empty">Ближайших занятий нет.</div>';
@@ -2405,9 +2484,10 @@ function renderWorkCenter() {
         : '<div class="hub-empty">Просроченных неоплаченных занятий нет.</div>';
 
     const groupedWindows = groupedWorkCenterWindows(data.windows);
-    document.getElementById('hub-windows').innerHTML = groupedWindows.length
+    document.getElementById('hub-windows-list').innerHTML = groupedWindows.length
         ? groupedWindows.map(item => `<div class="hub-item"><strong>${escapeHtml(item.day)}</strong><span>${item.intervals.map(escapeHtml).join('; ')}</span></div>`).join('')
         : '<div class="hub-empty">Свободных окон от 60 минут нет.</div>';
+    document.getElementById('hub-windows-copy-toolbar').classList.toggle('hidden', groupedWindows.length === 0);
 
     const summaryData = data.summary || {};
     document.getElementById('hub-summary').innerHTML = `
@@ -2434,6 +2514,7 @@ document.getElementById('btn-work-center').onclick = async () => {
 };
 document.getElementById('btn-close-work-center').onclick = () => document.getElementById('work-center-overlay').classList.add('hidden');
 document.getElementById('btn-close-work-center-bottom').onclick = () => document.getElementById('work-center-overlay').classList.add('hidden');
+document.getElementById('btn-copy-week-windows').onclick = copyWeekWindows;
 document.querySelectorAll('.hub-row').forEach(row => {
     row.onclick = () => {
         const target = document.getElementById(`hub-${row.dataset.hubSection}`);
@@ -2585,6 +2666,13 @@ calendarContainer.addEventListener('touchcancel', () => {
 });
 
 window.addEventListener('resize', () => requestAnimationFrame(() => renderCalendar()));
+if (window.ResizeObserver) {
+    const calendarHeaderObserver = new ResizeObserver(syncCalendarHeaderScrollbar);
+    calendarHeaderObserver.observe(calendarContainer);
+    const calendarGrid = calendarContainer.querySelector(':scope > .calendar-grid');
+    if (calendarGrid) calendarHeaderObserver.observe(calendarGrid);
+}
+requestAnimationFrame(syncCalendarHeaderScrollbar);
 fetchData();
 
 // v30.7: единый раздел учеников и оплата произвольной суммой
@@ -2607,7 +2695,7 @@ function renderStudentsList(filter = '') {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'student-list-row';
-        btn.innerHTML = `<strong>${escapeHtml(info.name || id)}</strong><span>›</span>`;
+        btn.innerHTML = `<strong>${escapeHtml(info.name || id)}</strong>${threadIcon('chevron-right', 'row-chevron')}`;
         btn.onclick = () => {
             document.getElementById('students-overlay').classList.add('hidden');
             openStudentCard(id);

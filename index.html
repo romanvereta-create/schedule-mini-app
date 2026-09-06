@@ -5,597 +5,132 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Расписание</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css?v=30.8.14">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        body { background: #ffffff; color: #000000; min-height: 100vh; padding-bottom: 80px; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid #e0e0e0; }
+        header h1 { font-size: 20px; font-weight: 600; }
+        .week-nav { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px 16px; }
+        .week-nav button { background: #f0f0f0; border: none; border-radius: 8px; padding: 6px 14px; font-size: 16px; cursor: pointer; }
+        .week-nav #week-label { font-weight: 500; font-size: 15px; min-width: 120px; text-align: center; }
+        .today-btn { background: #31b545 !important; color: white !important; }
+        .days-header { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; padding: 8px 0; background: #f0f0f0; font-size: 13px; font-weight: 600; }
+        #content { padding: 12px 16px; }
+        #schedule-container { 
+            min-height: 200px; 
+        }
+        .slot-row { 
+            display: grid; 
+            grid-template-columns: 70px 1fr 40px 40px; 
+            gap: 6px; 
+            align-items: center; 
+            padding: 8px 10px; 
+            background: #ffffff; 
+            border-radius: 10px; 
+            margin-bottom: 4px; 
+            border: 1px solid #e0e0e0; 
+        }
+        .slot-time { font-weight: 600; font-size: 14px; }
+        .slot-student { font-size: 14px; }
+        .slot-empty { color: #e0e0e0; font-size: 14px; text-align: center; }
+        .slot-bell { font-size: 16px; text-align: center; }
+        .slot-delete { font-size: 16px; text-align: center; color: #ff3b30; }
+        .bottom-actions { position: fixed; bottom: 0; left: 0; right: 0; padding: 12px 16px 20px 16px; background: #ffffff; border-top: 1px solid #e0e0e0; }
+        .primary-btn { width: 100%; padding: 14px; background: #31b545; color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; }
+        .empty-state { text-align: center; padding: 40px 20px; color: #000000; opacity: 0.6; }
+        .empty-state .big-icon { font-size: 48px; margin-bottom: 12px; }
+    </style>
 </head>
 <body>
-    <header class="main-header">
-        <div class="header-top">
-            <button id="btn-today" class="header-btn">Сегодня</button>
-            <div class="nav-arrows">
-                <button id="btn-prev-week" class="icon-btn" aria-label="Предыдущая неделя">‹</button>
-                <div class="header-center-stack">
-                    <button id="top-next-lesson" class="top-next-lesson" type="button">
-                        <span id="top-next-lesson-summary">Ближайшее занятие…</span><span class="top-next-chevron">⌄</span>
-                    </button>
-                    <div id="top-notification-preview" class="top-notification-preview hidden">
-                        <button id="btn-top-teacher-delay" type="button">Я задержусь</button>
-                        <button id="btn-top-student-delay" type="button">Ученик задерживается</button>
-                    </div>
-                    <div id="top-next-lesson-details" class="top-next-lesson-details hidden"></div>
-                </div>
-                <button id="btn-next-week" class="icon-btn" aria-label="Следующая неделя">›</button>
-            </div>
-            <div class="header-actions">
-                <button id="btn-fullscreen" class="icon-btn hidden" type="button" title="На весь экран" aria-label="На весь экран">⛶</button>
-                <button id="btn-students" class="icon-btn" title="Ученики">👥</button>
-                <button id="btn-work-center" class="icon-btn work-center-btn" title="Помощник">📋<span id="work-center-debt-alert" class="work-center-debt-alert hidden" aria-hidden="true">!</span></button>
-                <button id="btn-app-settings" class="icon-btn settings-icon-btn" title="Настройки">⚙️</button>
-            </div>
-        </div>
-        <div class="week-days-container">
-            <div class="time-spacer">
-                <button id="btn-zoom-in" class="zoom-btn" title="Увеличить высоту">🔍+</button>
-                <button id="btn-zoom-out" class="zoom-btn" title="Уменьшить высоту">🔍−</button>
-            </div>
-            <div class="days-row" id="days-header"></div>
-        </div>
-    </header>
+    <div id="app">
+        <header>
+            <h1>📅 Расписание</h1>
+            <button id="btn-settings" style="background:none;border:none;font-size:22px;cursor:pointer;">⚙️</button>
+        </header>
 
-    <main id="calendar-container">
-        <div class="calendar-grid">
-            <div class="time-column" id="time-labels"></div>
-            <div class="days-grid" id="week-grid"></div>
-            <div class="events-layer" id="events-layer">
-                <div id="current-time-line" class="current-time-line hidden">
-                    <div class="time-line-dot"></div>
+        <div class="week-nav">
+            <button id="btn-prev-week">◀</button>
+            <span id="week-label">Неделя</span>
+            <button id="btn-next-week">▶</button>
+            <button id="btn-today" class="today-btn">Сегодня</button>
+        </div>
+
+        <div class="days-header">
+            <span>ПН</span><span>ВТ</span><span>СР</span><span>ЧТ</span>
+            <span>ПТ</span><span>СБ</span><span>ВС</span>
+        </div>
+
+        <div id="content">
+            <!-- ВОТ ЗДЕСЬ КОНТЕЙНЕР -->
+            <div id="schedule-container">
+                <div class="empty-state">
+                    <div class="big-icon">📅</div>
+                    <p>Нет занятий</p>
                 </div>
             </div>
         </div>
-    </main>
 
-    <!-- Подсказка режима переноса -->
-    <div id="move-hint" class="move-hint-bar hidden">
-        <span>📍 Кликните целевой слот для переноса/добавления</span>
-        <button id="btn-cancel-move" class="cancel-move-btn">Отмена</button>
-    </div>
-
-    <!-- МЕНЮ ДЕЙСТВИЙ (Короткий клик по ученику) -->
-    <div id="action-menu-overlay" class="hidden">
-        <div class="modal-content text-center">
-            <h2 id="action-menu-title">Ученик</h2>
-            <div class="modal-actions-column">
-                <div class="action-section-label" id="action-contact-label">Связь</div>
-                <button id="btn-action-chat-student" class="action-menu-btn">💬 Написать ученику</button>
-                <button id="btn-action-chat-parent" class="action-menu-btn">💬 Написать родителю</button>
-                <div id="group-action-details" class="group-action-details hidden"></div>
-                <div class="action-section-label">Оповещения</div>
-                <div class="payment-actions-row">
-                    <button id="btn-action-teacher-delay" class="action-menu-btn future-notification-btn">Я задержусь</button>
-                    <button id="btn-action-student-delay" class="action-menu-btn future-notification-btn">Ученик задерживается</button>
-                </div>
-                <div class="action-section-label" id="individual-payment-label">Оплата</div>
-                <div class="payment-actions-row payment-actions-row-three">
-                    <button id="btn-action-paid" class="action-menu-btn paid-btn">💳 Оплатил</button>
-                    <button id="btn-action-subscription" class="action-menu-btn subscription-pay-btn">🎟 Абонемент</button>
-                    <button id="btn-action-free" class="action-menu-btn free-btn">🎁 Бесплатно</button>
-                </div>
-                <div class="action-section-label">Занятие</div>
-                <div class="payment-actions-row">
-                    <button id="btn-action-move-trigger" class="action-menu-btn">🔄 Перенести</button>
-                    <button id="btn-action-cancel-once" class="action-menu-btn">🚫 Отменить</button>
-                </div>
-
-                <button id="btn-action-student-card" class="action-menu-btn">👤 Карточка ученика</button>
-                <button id="btn-action-report" class="action-menu-btn">📝 Итог занятия</button>
-                <button id="btn-action-settings" class="action-menu-btn">⚙️ Настройки занятия</button>
-                <button id="btn-action-delete" class="action-menu-btn delete-btn">🗑 Удалить</button>
-
-                <!-- ПАЛИТРА ЦВЕТОВ: 7 быстрых цветов + расширенная палитра -->
-                <div class="action-section-label">Цвет</div>
-                <div class="inline-color-palette">
-                    <div class="color-swatch color-0" data-color="0"></div>
-                    <div class="color-swatch color-1" data-color="1"></div>
-                    <div class="color-swatch color-2" data-color="2"></div>
-                    <div class="color-swatch color-3" data-color="3"></div>
-                    <div class="color-swatch color-4" data-color="4"></div>
-                    <div class="color-swatch color-5" data-color="5"></div>
-                    <div class="color-swatch color-6" data-color="6"></div>
-                    <div class="color-swatch color-picker-open" id="color-picker-open">🎨</div>
-                </div>
-
-                <button id="btn-action-close" class="secondary-btn">Закрыть</button>
-            </div>
+        <div class="bottom-actions">
+            <button id="btn-add-lesson" class="primary-btn">➕ Добавить занятие</button>
         </div>
     </div>
 
-    <!-- ДИАЛОГ ПЕРЕНОСА / КОПИРОВАНИЯ -->
-    <div id="move-modal-overlay" class="hidden">
-        <div class="modal-content text-center">
-            <h2>Действие с занятием</h2>
-            <p id="move-modal-desc" class="modal-desc"></p>
-            <div class="modal-actions-column">
-                <button id="btn-action-copy" class="primary-btn">➕ Добавить ещё одним занятием</button>
-                <button id="btn-action-move-once" class="secondary-btn">🔄 Перенести (разово)</button>
-                <button id="btn-action-move-all" class="secondary-btn">🔄 Перенести все будущие</button>
-                <button id="btn-action-move-cancel" class="danger-btn">Отмена</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ДИАЛОГ УДАЛЕНИЯ -->
-    <div id="delete-modal-overlay" class="hidden">
-        <div class="modal-content text-center">
-            <h2>Удаление занятия</h2>
-            <p class="modal-desc">Как удалить это занятие?</p>
-            <div class="modal-actions-column">
-                <button id="btn-delete-once" class="danger-btn">Удалить только это занятие</button>
-                <button id="btn-delete-all" class="danger-btn">Удалить все будущие (навсегда)</button>
-                <button id="btn-delete-cancel" class="secondary-btn">Отмена</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ПОДТВЕРЖДЕНИЕ ОПЛАТЫ -->
-    <div id="paid-confirm-overlay" class="hidden">
-        <div class="modal-content text-center">
-            <h2 id="paid-confirm-title">Оплата</h2>
-            <p id="paid-confirm-desc" class="modal-desc">Подтвердить оплату?</p>
-            <div id="group-paid-members" class="group-paid-members hidden"></div>
-            <label class="checkbox-label receipt-send-checkbox">
-                <input type="checkbox" id="send-receipt-checkbox" checked>
-                <span>Отправить чек родителю</span>
-            </label>
-            <div class="modal-actions-column">
-                <button id="btn-paid-confirm-apply" class="primary-btn">✅ Подтвердить оплату</button>
-                <button id="btn-paid-confirm-cancel" class="secondary-btn">Отмена</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ОПЛАТА АБОНЕМЕНТА -->
-    <div id="subscription-pay-overlay" class="hidden">
-        <div class="modal-content text-center">
-            <h2 id="subscription-pay-title">Абонемент</h2>
-            <p id="subscription-pay-desc" class="modal-desc">Укажите сумму оплаты.</p>
-            <div class="form-group text-left">
-                <label>Сумма абонемента, ₽</label>
-                <input type="number" id="subscription-pay-amount" min="0" step="1" inputmode="decimal" placeholder="Например: 3000">
-                <small id="subscription-pay-hint" class="field-hint"></small>
-            </div>
-            <div class="form-group text-left">
-                <label>Зачесть за</label>
-                <div class="subscription-count-stepper">
-                    <button type="button" id="subscription-count-minus" class="subscription-count-btn" aria-label="Уменьшить количество занятий">−</button>
-                    <strong id="subscription-custom-count" class="subscription-count-value">3 занятия</strong>
-                    <button type="button" id="subscription-count-plus" class="subscription-count-btn" aria-label="Увеличить количество занятий">+</button>
-                </div>
-            </div>
-            <label class="checkbox-label receipt-send-checkbox">
-                <input type="checkbox" id="subscription-send-receipt-checkbox" checked>
-                <span>Отправить чек родителю</span>
-            </label>
-            <div class="modal-actions-column">
-                <button id="btn-subscription-pay-apply" class="primary-btn">✅ Оплатить абонемент</button>
-                <button id="btn-subscription-pay-cancel" class="secondary-btn">Отмена</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- МОДАЛЬНОЕ ОКНО НАСТРОЕК / ДОБАВЛЕНИЯ ЗАНЯТИЯ -->
-    <div id="modal-overlay" class="hidden">
-        <div class="modal-content">
-            <header class="modal-header">
-                <h2 id="modal-title">Настройки занятия</h2>
-                <span id="btn-close-modal" class="close-modal">&times;</span>
-            </header>
-            <div class="modal-body">
-                <input type="hidden" id="lesson-id">
-                <input type="hidden" id="lesson-date">
-
-                <div id="form-container">
-                    <div class="form-group" id="lesson-type-group">
-                        <label>Кого добавить в слот</label>
-                        <select id="lesson-type-select">
-                            <option value="student">👤 Ученика</option>
-                            <option value="group">👥 Группу</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group hidden" id="group-editor-group">
-                        <label>Группа</label>
-                        <input type="text" id="group-name" placeholder="Название группы, например: 9 класс">
-                        <div class="group-members-head">Ученики группы</div>
-                        <div id="group-members-container" class="group-members-list"></div>
-                        <button type="button" id="btn-add-group-member" class="secondary-btn compact-add-btn">＋ Добавить ученика</button>
-                    </div>
-
-                    <!-- Выбор или ввод ученика при СОЗДАНИИ -->
-                    <div class="form-group" id="student-select-group">
-                        <label>Ученик</label>
-                        <select id="student-select">
-                            <option value="">-- Выбрать ученика --</option>
-                            <option value="manual">Вписать вручную...</option>
-                        </select>
-                        <input type="text" id="manual-student-name" class="hidden" placeholder="Имя ученика">
-                    </div>
-
-                    <!-- Отображение ученика при РЕДАКТИРОВАНИИ -->
-                    <div class="form-group hidden" id="student-fixed-group">
-                        <label>Ученик</label>
-                        <input type="text" id="fixed-student-name" readonly class="readonly-input">
-                    </div>
-
-                    <div class="form-group" id="student-lesson-price-group">
-                        <label>Стоимость занятия, ₽</label>
-                        <input type="number" id="lesson-price" min="0" step="1" inputmode="decimal" placeholder="1500">
-                    </div>
-
-                    <!-- Время и Длительность -->
-                    <div class="form-row" id="time-duration-group">
-                        <div class="form-group flex-1">
-                            <label>Время начала</label>
-                            <input type="time" id="lesson-time" step="300">
-                        </div>
-                        <div class="form-group flex-1">
-                            <label>Длительность (мин)</label>
-                            <input type="number" id="lesson-duration" value="60" min="15" max="1440" step="5">
-                        </div>
-                    </div>
-
-                    <div class="form-group" id="repeat-group">
-                        <label>Повтор</label>
-                        <select id="lesson-repeat">
-                            <option value="year" selected>До конца учебного года</option>
-                            <option value="no">Только сегодня (разово)</option>
-                            <option value="month">Каждую неделю на месяц</option>
-                        </select>
-                        <div id="repeat-until-wrap" class="form-group hidden">
-                            <label>Каждую неделю до</label>
-                            <input type="date" id="repeat-until">
-                        </div>
-                    </div>
-
-                    <div class="form-group reminder-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="reminder-enabled" checked>
-                            <span>Напоминание</span>
-                        </label>
-                        <div id="reminder-minutes-wrap" class="reminder-minutes-wrap">
-                            <span>за</span>
-                            <input type="number" id="reminder-minutes" value="60" min="0" max="10080" step="5">
-                            <span>минут</span>
-                        </div>
-                    </div>
-
-                </div>
-
-                <div class="modal-actions">
-                    <button id="btn-save" class="primary-btn">Сохранить</button>
-                    <button id="btn-cancel-modal" class="secondary-btn">Отмена</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- МИКРООТЧЁТ ПО ЗАНЯТИЮ -->
-    <div id="lesson-report-overlay" class="hidden">
-        <div class="modal-content compact-modal">
-            <header class="modal-header">
-                <h2 id="lesson-report-title">Итог занятия</h2>
-                <span id="btn-close-lesson-report" class="close-modal">&times;</span>
-            </header>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label>Коротко: что прошли / результат</label>
-                    <textarea id="lesson-report-text" rows="4" maxlength="1000" placeholder="Например: квадратные неравенства, №15; стало лучше с ОДЗ"></textarea>
-                    <small class="field-hint">Сохраняется в истории ученика. Можно оставить пустым.</small>
-                </div>
-            </div>
-            <div class="modal-actions">
-                <button id="btn-save-lesson-report" class="primary-btn" type="button">Сохранить</button>
-                <button id="btn-cancel-lesson-report" class="secondary-btn" type="button">Закрыть</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ВСТРОЕННЫЙ КАЛЕНДАРЬ ВЫБОРА ДАТЫ -->
-    <div id="date-picker-overlay" class="hidden">
-        <div class="modal-content date-picker-modal">
-            <header class="modal-header">
-                <button id="date-picker-prev" class="icon-btn" type="button">◀</button>
-                <h2 id="date-picker-title">Месяц</h2>
-                <button id="date-picker-next" class="icon-btn" type="button">▶</button>
-            </header>
-            <div class="date-picker-weekdays">
-                <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
-            </div>
-            <div id="date-picker-grid" class="date-picker-grid"></div>
-            <div class="modal-actions">
-                <button id="date-picker-today" class="secondary-btn" type="button">Сегодня</button>
-                <button id="date-picker-close" class="secondary-btn" type="button">Закрыть</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- РАБОЧИЙ ЦЕНТР -->
-    <div id="work-center-overlay" class="hidden">
-        <div class="modal-content compact-modal">
-            <header class="modal-header">
-                <h2>Помощник</h2>
-                <span id="btn-close-work-center" class="close-modal">&times;</span>
-            </header>
-            <div class="modal-body compact-stack">
-                <button class="hub-row" data-hub-section="debts">
-                    <span>💳 Кто должен</span><strong id="hub-debts-count">0</strong>
-                </button>
-                <div id="hub-debts" class="hub-panel hidden"></div>
-
-                <button class="hub-row" data-hub-section="windows">
-                    <span>🕒 Окна этой недели</span><span>›</span>
-                </button>
-                <div id="hub-windows" class="hub-panel hidden"></div>
-
-                <button class="hub-row" data-hub-section="summary">
-                    <span>📊 Сводка недели</span><span>›</span>
-                </button>
-                <div id="hub-summary" class="hub-panel hidden"></div>
-
-                <button class="hub-row" data-hub-section="birthdays">
-                    <span>🎂 Дни рождения</span><span>›</span>
-                </button>
-                <div id="hub-birthdays" class="hub-panel hidden"></div>
-            </div>
-            <div class="modal-actions">
-                <button id="btn-close-work-center-bottom" class="secondary-btn" type="button">Закрыть</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- УЧЕНИКИ -->
-    <div id="students-overlay" class="hidden">
-        <div class="modal-content compact-modal">
-            <header class="modal-header">
-                <h2>Ученики</h2>
-                <span id="btn-close-students" class="close-modal">&times;</span>
-            </header>
-            <div class="modal-body">
-                <input type="search" id="students-search" placeholder="Найти ученика">
-                <label class="checkbox-label archive-filter"><input id="students-show-archived" type="checkbox">Архив учеников</label>
-                <div id="students-list" class="students-list"></div>
-            </div>
-            <div class="modal-actions">
-                <button id="btn-close-students-bottom" class="secondary-btn" type="button">Закрыть</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- КАРТОЧКА УЧЕНИКА -->
-    <div id="student-card-overlay" class="hidden">
-        <div class="modal-content compact-modal">
-            <header class="modal-header">
-                <h2 id="student-card-title">Ученик</h2>
-                <span id="btn-close-student-card" class="close-modal">&times;</span>
-            </header>
-            <div class="modal-body">
-                <div class="student-lesson-stats">
-                    <span>Оплачено / проведено</span>
-                    <strong id="student-lessons-ratio">— / —</strong>
-                </div>
-                <div class="student-payment-box">
-                    <button id="btn-student-payment" class="primary-btn" type="button">💳 Распределить общую сумму</button>
-                </div>
-                <details id="student-finances" class="student-finances">
-                    <summary>Занятия и оплаты</summary>
-                    <div id="student-payment-lessons" aria-live="polite"></div>
-                    <details class="student-payment-history">
-                        <summary>История общих оплат и отмена</summary>
-                        <div id="student-payment-transactions"></div>
-                    </details>
-                </details>
-                <div class="form-group">
-                    <label>Имя в календаре <small class="muted-inline">(необязательно)</small></label>
-                    <input type="text" id="student-calendar-name" maxlength="24" placeholder="Например: Саша">
-                    <small class="field-hint">Если оставить пустым, в календаре будет обычное имя.</small>
-                </div>
-                <div class="form-group">
-                    <label>День рождения</label>
-                    <input type="date" id="student-birthday">
-                </div>
-                <div class="form-group">
-                    <label>Статус</label>
-                    <div class="student-status-switch" role="group" aria-label="Статус ученика">
-                        <button type="button" id="student-status-active" class="student-status-btn active" data-status="active">Активный</button>
-                        <button type="button" id="student-status-paused" class="student-status-btn" data-status="paused">Пауза</button>
-                    </div>
-                    <small class="field-hint">Ученики на паузе не показываются при добавлении нового занятия. Уже созданные занятия сохраняются.</small>
-                </div>
-                <div class="form-group">
-                    <label>Заметка</label>
-                    <textarea id="student-note" rows="3" maxlength="1000" placeholder="Например: готовится к ЕГЭ, по средам только после 18:00"></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Ссылка на доску</label>
-                    <input type="url" id="student-board-link" placeholder="https://...">
-                    <small class="field-hint">Индивидуальная ссылка этого ученика.</small>
-                </div>
-                <div class="form-group">
-                    <label>Своя ссылка Zoom <small class="muted-inline">(необязательно)</small></label>
-                    <input type="url" id="student-zoom-link" placeholder="Если пусто — используется общая ссылка">
-                    <small class="field-hint">Заполняйте только если этому ученику нужна другая ссылка.</small>
-                </div>
-                <div class="form-group">
-                    <label>Контакт ученика</label>
-                    <div id="student-card-student-contacts" class="contacts-list"></div>
-                    <button type="button" class="secondary-btn add-contact-btn" data-target="student-card-student-contacts">＋ Добавить контакт</button>
-                </div>
-                <div class="form-group">
-                    <label>Контакт родителя</label>
-                    <div id="student-card-parent-contacts" class="contacts-list"></div>
-                    <button type="button" class="secondary-btn add-contact-btn" data-target="student-card-parent-contacts">＋ Добавить контакт</button>
-                </div>
-                <div class="form-group student-history-section">
-                    <div class="student-history-head">
-                        <label>История занятий</label>
-                        <small id="student-history-summary" class="muted-inline"></small>
-                    </div>
-                    <div id="student-history-list" class="student-history-list">
-                        <div class="student-history-empty">Загрузка…</div>
-                    </div>
-                </div>
-                <button id="btn-archive-student" class="secondary-btn" type="button">Убрать ученика в архив</button>
-                <details class="settings-details student-delete-section">
-                    <summary>Удаление ученика</summary>
-                    <div class="details-body">
-                        <small class="field-hint">Профиль и будущие занятия удалятся без возможности восстановления. Прошедшие занятия, оплаты, чеки и книга учёта сохранятся.</small>
-                        <button id="btn-delete-student" class="danger-btn" type="button">Удалить ученика полностью</button>
-                    </div>
-                </details>
-            </div>
-            <div class="modal-actions">
-                <button id="btn-save-student-card" class="primary-btn" type="button">Сохранить</button>
-                <button id="btn-cancel-student-card" class="secondary-btn" type="button">Закрыть</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ОПЛАТА ОТ УЧЕНИКА / РОДИТЕЛЯ -->
-    <div id="student-payment-overlay" class="hidden">
-        <div class="modal-content compact-modal">
-            <header class="modal-header">
-                <h2 id="student-payment-title">Оплата</h2>
-                <span id="btn-close-student-payment" class="close-modal">&times;</span>
-            </header>
-            <div class="modal-body">
-                <div id="student-payment-options" class="quick-payment-options"></div>
-                <p id="student-payment-explanation" class="field-hint"></p>
-                <div class="form-group">
-                    <label>Сумма, ₽</label>
-                    <input type="number" id="student-payment-amount" min="1" step="1" inputmode="decimal" placeholder="Например: 15000">
-                </div>
-                <label class="checkbox-label receipt-send-checkbox">
-                    <input type="checkbox" id="student-payment-send-receipt" checked>
-                    <span>Отправить чек родителю</span>
-                </label>
-            </div>
-            <div class="modal-actions-column">
-                <button id="btn-apply-student-payment" class="primary-btn" type="button">Зачесть оплату</button>
-                <button id="btn-cancel-student-payment" class="secondary-btn" type="button">Отмена</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ОБЩИЕ НАСТРОЙКИ -->
-    <div id="app-settings-overlay" class="hidden">
-        <div class="modal-content compact-modal">
-            <header class="modal-header">
-                <h2>Настройки</h2>
-                <span id="btn-close-app-settings" class="close-modal">&times;</span>
-            </header>
-            <div class="modal-body compact-stack">
-                <label class="checkbox-label settings-checkbox compact-setting-row">
-                    <input type="checkbox" id="default-reminders-enabled" checked>
-                    <span>Напоминания для новых занятий</span>
-                </label>
-                <button id="month-label" class="settings-link-row" type="button" title="Выбрать дату">
-                    <span>Выбрать дату</span><span>›</span>
-                </button>
-                <div class="form-group compact-setting-field">
-                    <label>Рабочие часы</label>
-                    <div class="working-hours-row">
-                        <input type="time" id="work-start" step="300">
-                        <span>—</span>
-                        <input type="time" id="work-end" step="300">
-                    </div>
-                </div>
-                <div class="form-group compact-setting-field">
-                    <label>Общая ссылка Zoom / Telemost</label>
-                    <input type="url" id="default-zoom-link" placeholder="https://zoom.us/...">
-                    <small class="field-hint">Используется для всех учеников, у которых не указана своя ссылка.</small>
-                </div>
-                <label class="checkbox-label settings-checkbox compact-setting-row">
-                    <input type="checkbox" id="default-send-receipts" checked>
-                    <span>Отправлять чек родителю</span>
-                </label>
-                <label class="checkbox-label settings-checkbox compact-setting-row">
-                    <input type="checkbox" id="default-send-receipt-copy" checked>
-                    <span>Присылать копию чека мне</span>
-                </label>
-                <button id="btn-open-receipt-settings" class="settings-link-row" type="button">
-                    <span>🧾 Данные для чека</span><span>›</span>
-                </button>
-                <div class="settings-mini-title">Файлы и экспорт</div>
-                <button id="btn-download-book" class="settings-link-row export-link-row" type="button">
-                    <span class="settings-link-main"><strong>📗 Книга учёта</strong><small>Прислать Excel в Telegram</small></span><span>›</span>
-                </button>
-                <button id="btn-export-week-pdf" class="settings-link-row export-link-row" type="button">
-                    <span class="settings-link-main"><strong>📄 Расписание недели</strong><small>Прислать PDF в Telegram</small></span><span>›</span>
-                </button>
-            </div>
-            <div class="modal-actions">
-                <button id="btn-save-app-settings" class="primary-btn" type="button">Сохранить</button>
-                <button id="btn-cancel-app-settings" class="secondary-btn" type="button">Закрыть</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ДАННЫЕ ДЛЯ ЧЕКА -->
-    <div id="receipt-settings-overlay" class="hidden">
-        <div class="modal-content receipt-settings-modal">
-            <header class="modal-header">
-                <button id="btn-back-receipt-settings" class="icon-btn" type="button">‹</button>
-                <h2>Данные для чека</h2>
-                <span id="btn-close-receipt-settings" class="close-modal">&times;</span>
-            </header>
-            <div class="modal-body">
-                <div class="settings-section receipt-fields-section">
-                    <label>Наименование / ИП</label><input type="text" id="settings-company_name" placeholder="Например: ИП Иванов Иван Иванович">
-                    <div class="compact-grid-two">
-                        <div><label>ИНН</label><input type="text" id="settings-inn" placeholder="ИНН"></div>
-                        <div><label>ОГРНИП</label><input type="text" id="settings-ogrnip" placeholder="ОГРНИП"></div>
-                    </div>
-                    <label>Адрес</label><input type="text" id="settings-address" placeholder="Адрес">
-                    <div class="compact-grid-two">
-                        <div><label>Телефон</label><input type="text" id="settings-phone" placeholder="Телефон"></div>
-                        <div><label>Email</label><input type="text" id="settings-email_sender" placeholder="Email"></div>
-                    </div>
-                    <label>Наименование услуги</label><input type="text" id="settings-service_name" placeholder="Например: Индивидуальное занятие">
-                    <div class="compact-grid-two">
-                        <div><label>Система налогообложения</label><input type="text" id="settings-tax_system" placeholder="ПСН / УСН"></div>
-                        <div><label>Сайт</label><input type="text" id="settings-website" placeholder="https://..."></div>
-                    </div>
-                    <label>Текст после оплаты</label><textarea id="settings-thanks_text" rows="2" placeholder="Спасибо за оплату!"></textarea>
-                </div>
-
-                <details class="settings-details">
-                    <summary>Банковские реквизиты</summary>
-                    <div class="details-body">
-                        <label>Получатель</label><input type="text" id="settings-recipient" placeholder="Получатель платежа">
-                        <label>Банк</label><input type="text" id="settings-bank_name" placeholder="Название банка">
-                        <div class="compact-grid-two">
-                            <div><label>БИК</label><input type="text" id="settings-bik" placeholder="БИК"></div>
-                            <div><label>Корр. счёт</label><input type="text" id="settings-corr_account" placeholder="Корреспондентский счёт"></div>
-                        </div>
-                        <label>Расчётный счёт</label><input type="text" id="settings-account_number" placeholder="Расчётный счёт">
-                        <label>Комментарий к оплате</label><textarea id="settings-payment_comment" rows="2" placeholder="Например: оплата занятий"></textarea>
-                    </div>
-                </details>
-
-                <details class="settings-details">
-                    <summary>Оформление чека</summary>
-                    <div class="details-body">
-                        <div class="receipt-file-row"><label>Эмблема / логотип</label><input type="file" id="settings-logo-file" accept="image/png,image/jpeg"><small>Сейчас: <span id="current-logo-name">не загружена</span></small></div>
-                        <div class="receipt-file-row"><label>Подпись</label><input type="file" id="settings-signature-file" accept="image/png,image/jpeg"><small>Сейчас: <span id="current-signature-name">не загружена</span></small></div>
-                        <div class="receipt-file-row"><label>QR-код</label><input type="file" id="settings-qrcode-file" accept="image/png,image/jpeg"><small>Сейчас: <span id="current-qrcode-name">не загружен</span></small></div>
-                    </div>
-                </details>
-            </div>
-            <div class="modal-actions">
-                <button id="btn-save-receipt-settings" class="primary-btn" type="button">Сохранить</button>
-                <button id="btn-cancel-receipt-settings" class="secondary-btn" type="button">Назад</button>
-            </div>
-        </div>
-    </div>
-
-    <script src="app.js?v=30.8.14"></script>
+    <script>
+        // ГЛОБАЛЬНЫЙ ОБРАБОТЧИК
+        window.handleBotResponse = function(data) {
+            console.log('📥 ПОЛУЧЕН ОТВЕТ:', data);
+            try {
+                if (typeof data === 'string' && data.includes('__MINIAPP_RESPONSE__')) {
+                    const jsonStr = data.replace('__MINIAPP_RESPONSE__', '');
+                    const parsed = JSON.parse(jsonStr);
+                    console.log('📥 ПАРСИНГ:', parsed);
+                    
+                    if (parsed.action === 'get_schedule') {
+                        const container = document.getElementById('schedule-container');
+                        if (!container) {
+                            console.error('❌ Контейнер не найден!');
+                            return;
+                        }
+                        
+                        const slots = parsed.slots || [];
+                        const lessons = parsed.lessons || [];
+                        let html = '';
+                        
+                        if (lessons.length === 0) {
+                            html = '<div class="empty-state"><div class="big-icon">📅</div><p>Нет занятий</p></div>';
+                        } else {
+                            slots.forEach(slot => {
+                                const lesson = lessons.find(l => l.time === slot);
+                                if (lesson) {
+                                    html += `<div class="slot-row">
+                                        <span class="slot-time">${slot}</span>
+                                        <span class="slot-student">${lesson.student || 'Неизвестно'}</span>
+                                        <span class="slot-bell">🔔</span>
+                                        <span class="slot-delete">🗑</span>
+                                    </div>`;
+                                } else {
+                                    html += `<div class="slot-row">
+                                        <span class="slot-time">${slot}</span>
+                                        <span class="slot-empty">➕</span>
+                                        <span class="slot-bell"></span>
+                                        <span class="slot-delete"></span>
+                                    </div>`;
+                                }
+                            });
+                        }
+                        
+                        container.innerHTML = html;
+                        console.log('✅ Расписание обновлено!');
+                    }
+                }
+            } catch(e) {
+                console.error('❌ Ошибка:', e);
+            }
+        };
+        
+        console.log('✅ Обработчик готов!');
+        console.log('🔍 Контейнер:', document.getElementById('schedule-container'));
+    </script>
+    <script src="app.js"></script>
 </body>
 </html>

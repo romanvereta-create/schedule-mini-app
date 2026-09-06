@@ -1113,7 +1113,7 @@ async function saveLesson(options = {}) {
 }
 
 function closeAllModals() {
-    ['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay', 'subscription-pay-overlay', 'lesson-report-overlay', 'students-overlay', 'student-payment-overlay'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+    ['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'help-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay', 'subscription-pay-overlay', 'lesson-report-overlay', 'students-overlay', 'student-payment-overlay'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
 }
 
 // Палитра цветов в меню действий
@@ -1547,7 +1547,7 @@ document.getElementById('btn-day-off-cancel').onclick = closeDayOffWarning;
 document.getElementById('day-off-warning-overlay').addEventListener('click', event => {
     if (event.target.id === 'day-off-warning-overlay') closeDayOffWarning();
 });
-['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay', 'subscription-pay-overlay', 'lesson-report-overlay', 'students-overlay', 'student-payment-overlay'].forEach(id => {
+['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'help-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay', 'subscription-pay-overlay', 'lesson-report-overlay', 'students-overlay', 'student-payment-overlay'].forEach(id => {
     document.getElementById(id).addEventListener('click', event => { if (event.target.id === id) closeAllModals(); });
 });
 
@@ -2025,6 +2025,20 @@ document.getElementById('btn-open-receipt-settings').onclick = () => {
     document.getElementById('app-settings-overlay').classList.add('hidden');
     document.getElementById('receipt-settings-overlay').classList.remove('hidden');
 };
+document.getElementById('btn-open-help').onclick = () => {
+    document.getElementById('app-settings-overlay').classList.add('hidden');
+    const helpOverlay = document.getElementById('help-overlay');
+    helpOverlay.classList.remove('hidden');
+    const helpBody = helpOverlay.querySelector('.modal-body');
+    if (helpBody) helpBody.scrollTop = 0;
+};
+function closeHelp(openMain = true) {
+    document.getElementById('help-overlay').classList.add('hidden');
+    if (openMain) document.getElementById('app-settings-overlay').classList.remove('hidden');
+}
+document.getElementById('btn-back-help').onclick = () => closeHelp(true);
+document.getElementById('btn-help-back-bottom').onclick = () => closeHelp(true);
+document.getElementById('btn-close-help').onclick = () => closeHelp(false);
 function closeReceiptSettings(openMain = true) {
     document.getElementById('receipt-settings-overlay').classList.add('hidden');
     if (openMain) document.getElementById('app-settings-overlay').classList.remove('hidden');

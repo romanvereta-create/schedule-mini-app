@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Расписание</title>
+    <title>TEMLI — расписание</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css?v=30.12.2">
+    <link rel="stylesheet" href="styles.css?v=30.13.0">
 </head>
 <body>
     <svg class="thread-icon-sprite" aria-hidden="true">
@@ -37,6 +37,7 @@
             <symbol id="ti-add" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/><circle cx="19" cy="12" r="1.15" fill="currentColor" stroke="none"/></symbol>
             <symbol id="ti-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/><circle cx="19" cy="7.5" r="1.15" fill="currentColor" stroke="none"/></symbol>
             <symbol id="ti-copy" viewBox="0 0 24 24"><rect x="8" y="5" width="11" height="13" rx="2"/><path d="M15.5 18v1a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1"/><circle cx="19" cy="5" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M9.7 9.2a2.5 2.5 0 0 1 4.8.9c0 2.2-2.5 2.3-2.5 4.2"/><circle cx="12" cy="17.5" r="1.15" fill="currentColor" stroke="none"/></symbol>
             <symbol id="ti-receipt" viewBox="0 0 24 24"><path d="M6 4.5h12V20l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 20zM9 9h6M9 13h4"/><circle cx="16" cy="16" r="1.15" fill="currentColor" stroke="none"/></symbol>
             <symbol id="ti-book" viewBox="0 0 24 24"><path d="M4.5 5.5c3.2-.7 5.7.1 7.5 2.2 1.8-2.1 4.3-2.9 7.5-2.2v13c-3.2-.7-5.7.1-7.5 2.2-1.8-2.1-4.3-2.9-7.5-2.2zM12 7.7v13"/><circle cx="19.5" cy="18.5" r="1.15" fill="currentColor" stroke="none"/></symbol>
             <symbol id="ti-pdf" viewBox="0 0 24 24"><path d="M6 4.5h9l3 3V20H6zM15 4.5v3h3M9 11h6M9 15h6"/><circle cx="18" cy="20" r="1.15" fill="currentColor" stroke="none"/></symbol>
@@ -607,7 +608,7 @@
             </div>
             <div id="onboarding-step-done" class="hidden text-center">
                 <div class="onboarding-done-mark"><svg class="thread-icon" aria-hidden="true"><use href="#ti-check"></use></svg></div>
-                <h2>Расписание готово</h2>
+                <h2>TEMLI готов к работе</h2>
                 <p class="modal-subtitle">Первое занятие уже в календаре. Данные для чеков можно заполнить сейчас или позже.</p>
                 <div class="modal-actions-column">
                     <button id="btn-onboarding-finish" class="primary-btn" type="button">Открыть расписание</button>
@@ -621,10 +622,13 @@
     <div id="app-settings-overlay" class="hidden">
         <div class="modal-content compact-modal">
             <header class="modal-header">
-                <h2>Настройки</h2>
+                <h2>Настройки TEMLI</h2>
                 <button id="btn-close-app-settings" class="close-modal" type="button" aria-label="Закрыть"><svg class="thread-icon" aria-hidden="true"><use href="#ti-close"></use></svg></button>
             </header>
             <div class="modal-body compact-stack">
+                <button id="btn-open-help" class="settings-link-row help-link-row" type="button">
+                    <span class="settings-link-main"><strong><svg class="thread-icon" aria-hidden="true"><use href="#ti-help"></use></svg>Как пользоваться</strong><small>Первые шаги и все возможности</small></span><svg class="thread-icon row-chevron" aria-hidden="true"><use href="#ti-chevron-right"></use></svg>
+                </button>
                 <label class="checkbox-label settings-checkbox compact-setting-row">
                     <input type="checkbox" id="default-reminders-enabled" checked>
                     <span>Напоминания для новых занятий</span>
@@ -680,6 +684,130 @@
             <div class="modal-actions">
                 <button id="btn-save-app-settings" class="primary-btn" type="button">Сохранить</button>
                 <button id="btn-cancel-app-settings" class="secondary-btn" type="button">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- СПРАВКА -->
+    <div id="help-overlay" class="hidden">
+        <div class="modal-content help-modal">
+            <header class="modal-header">
+                <button id="btn-back-help" class="icon-btn" type="button" aria-label="Назад в настройки"><svg class="thread-icon" aria-hidden="true"><use href="#ti-chevron-left"></use></svg></button>
+                <h2>Как пользоваться TEMLI</h2>
+                <button id="btn-close-help" class="close-modal" type="button" aria-label="Закрыть"><svg class="thread-icon" aria-hidden="true"><use href="#ti-close"></use></svg></button>
+            </header>
+            <div class="modal-body help-body">
+                <p class="help-lead">Чтобы начать работу в TEMLI, достаточно настроить календарь и добавить первое занятие. Остальное можно заполнить позже.</p>
+
+                <section class="help-start">
+                    <h3>Начните с четырёх шагов</h3>
+                    <ol class="help-step-list">
+                        <li><strong>Откройте «Настройки».</strong><span>Нажмите кнопку в правом верхнем углу, укажите рабочие часы и выходные дни, затем нажмите «Сохранить».</span></li>
+                        <li><strong>Добавьте занятие.</strong><span>Нажмите свободное место в календаре или зелёную кнопку «Добавить занятие».</span></li>
+                        <li><strong>Заполните главное.</strong><span>Выберите ученика или группу, время, длительность и стоимость. При необходимости включите повтор и напоминание.</span></li>
+                        <li><strong>Работайте из календаря.</strong><span>Нажмите готовое занятие, чтобы отметить оплату, написать человеку, перенести или отменить урок.</span></li>
+                    </ol>
+                </section>
+
+                <div class="help-section-list">
+                    <details class="help-section" open>
+                        <summary>Календарь на каждый день</summary>
+                        <div class="help-section-body">
+                            <ul>
+                                <li><strong>Сегодня</strong> возвращает к текущей неделе. Стрелки и свайп вправо или влево переключают недели.</li>
+                                <li>Верхняя плашка показывает ближайшее занятие. Если у ученика сохранена доска, её можно открыть оттуда.</li>
+                                <li>Кнопки с лупой меняют высоту часов. Они не меняют время и длительность занятий.</li>
+                                <li>Значок <strong>₽</strong> на занятии означает оплату. У группы счётчик показывает, сколько участников оплатили.</li>
+                            </ul>
+                        </div>
+                    </details>
+
+                    <details class="help-section">
+                        <summary>Добавить или изменить занятие</summary>
+                        <div class="help-section-body">
+                            <ul>
+                                <li>Нажмите пустой час или «Добавить занятие». Выберите ученика либо создайте группу и добавьте участников.</li>
+                                <li>Для еженедельных уроков выберите повтор и дату окончания. Разовый урок оставьте без повтора.</li>
+                                <li>В выходной приложение предупредит, но разрешит сохранить занятие.</li>
+                                <li>Чтобы изменить урок, нажмите его и откройте <strong>«Настройки занятия»</strong>.</li>
+                                <li><strong>«Перенести»</strong>: сначала выберите новое место, затем решите — добавить копию, перенести один урок или все будущие.</li>
+                                <li><strong>«Отменить»</strong> оставляет урок в истории как отменённый. <strong>«Удалить»</strong> убирает его из расписания.</li>
+                            </ul>
+                        </div>
+                    </details>
+
+                    <details class="help-section">
+                        <summary>Ученики и группы</summary>
+                        <div class="help-section-body">
+                            <ul>
+                                <li>Список учеников открывается кнопкой с двумя человечками в шапке.</li>
+                                <li>В карточке ученика хранятся контакты, заметка, день рождения, ссылки, история занятий и оплат.</li>
+                                <li><strong>Пауза</strong> и <strong>архив</strong> сохраняют данные. Такой ученик не предлагается при создании нового занятия.</li>
+                                <li>Полное удаление убирает профиль и будущие уроки. Прошлая финансовая история сохраняется.</li>
+                                <li>В групповом уроке нажмите имя участника, чтобы написать ему или родителю и управлять его оплатой отдельно.</li>
+                            </ul>
+                        </div>
+                    </details>
+
+                    <details class="help-section">
+                        <summary>Оплаты</summary>
+                        <div class="help-section-body">
+                            <ul>
+                                <li>Откройте занятие и нажмите <strong>«Оплачено»</strong>, <strong>«Абонемент»</strong> или <strong>«Бесплатно»</strong>.</li>
+                                <li>У каждого участника группы свой статус и своя цена. Вся группа считается оплаченной только после оплаты всех участников.</li>
+                                <li>В карточке ученика кнопка <strong>«Распределить общую сумму»</strong> предлагает оплату за 4 или 8 будущих занятий либо другую сумму.</li>
+                                <li>Разовую оплату можно снять. Общий платёж отменяется целиком в истории общих оплат.</li>
+                                <li>При изменении цены выберите: только этот урок или этот и будущие неоплаченные. Прошедшие и оплаченные занятия не меняются.</li>
+                            </ul>
+                        </div>
+                    </details>
+
+                    <details class="help-section">
+                        <summary>Чеки, книга учёта и PDF</summary>
+                        <div class="help-section-body">
+                            <ul>
+                                <li>В настройках откройте <strong>«Данные для чека»</strong> и один раз заполните нужные реквизиты и оформление.</li>
+                                <li>При подтверждении оплаты проверьте флажок <strong>«Отправить чек родителю»</strong>.</li>
+                                <li>Флажок <strong>«Присылать копию чека мне»</strong> управляет копией для преподавателя.</li>
+                                <li><strong>«Книга учёта»</strong> присылает преподавателю Excel в Telegram. <strong>«Расписание недели»</strong> присылает PDF открытой недели.</li>
+                            </ul>
+                        </div>
+                    </details>
+
+                    <details class="help-section">
+                        <summary>Помощник</summary>
+                        <div class="help-section-body">
+                            <ul>
+                                <li>Кнопка с листом в шапке открывает долги, свободные окна, сводку недели и ближайшие дни рождения.</li>
+                                <li>Свободные окна рассчитываются по рабочим часам, занятиям и выходным дням.</li>
+                                <li>В разделе <strong>«Окна этой недели»</strong> нажмите значок копирования справа сверху — получится готовый текст для родителя.</li>
+                            </ul>
+                        </div>
+                    </details>
+
+                    <details class="help-section">
+                        <summary>Что меняют общие настройки</summary>
+                        <div class="help-section-body">
+                            <ul>
+                                <li><strong>Рабочие часы</strong> задают видимый диапазон календаря и границы поиска свободных окон.</li>
+                                <li><strong>Выходные</strong> приглушаются в календаре и исключаются из свободных окон. Уже созданные занятия остаются.</li>
+                                <li><strong>Напоминания для новых занятий</strong> задают значение по умолчанию; в отдельном уроке его можно изменить.</li>
+                                <li><strong>Общая ссылка Zoom / Telemost</strong> используется, если у ученика не заполнена своя ссылка.</li>
+                                <li>После изменений обязательно нажмите <strong>«Сохранить»</strong>.</li>
+                            </ul>
+                        </div>
+                    </details>
+
+                    <details class="help-section help-current-limit">
+                        <summary>Что пока не отправляется автоматически</summary>
+                        <div class="help-section-body">
+                            <p>Кнопки <strong>«Я задержусь»</strong> и <strong>«Ученик задерживается»</strong> сейчас показывают будущую функцию. Они пока не отправляют сообщения и не меняют расписание.</p>
+                        </div>
+                    </details>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button id="btn-help-back-bottom" class="secondary-btn" type="button">Назад в настройки</button>
             </div>
         </div>
     </div>
@@ -742,6 +870,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=30.12.2"></script>
+    <script src="app.js?v=30.13.0"></script>
 </body>
 </html>

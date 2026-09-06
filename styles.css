@@ -710,7 +710,7 @@ body {
     transform: translate3d(0, 0, 0);
     backface-visibility: hidden;
 }
-#calendar-container { overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
+#calendar-container { overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
 
 .field-hint { display:block; margin-top:4px; font-size:11px; color:#6b7280; line-height:1.25; }
 

@@ -23,6 +23,12 @@ const ZOOM_STEP = 20;
 let hourHeight = DEFAULT_HOUR_HEIGHT;
 let weekTransitioning = false;
 let autoFitWeekPending = true;
+const WEEK_CACHE_TTL_MS = 60 * 1000;
+const WEEK_CACHE_LIMIT = 3;
+const weekScheduleCache = new Map();
+const weekScheduleInflight = new Map();
+let weekCacheGeneration = 0;
+let adjacentWeekPrefetchTimer = null;
 
 const state = {
     currentMonday: getMonday(new Date()),
@@ -179,15 +185,79 @@ async function apiFetch(path, options = {}) {
     return response;
 }
 
-async function fetchWeekSchedule(monday) {
+function cachedWeekSchedule(weekKey) {
+    const cached = weekScheduleCache.get(weekKey);
+    if (!cached || Date.now() - cached.savedAt > WEEK_CACHE_TTL_MS) {
+        weekScheduleCache.delete(weekKey);
+        return null;
+    }
+    weekScheduleCache.delete(weekKey);
+    weekScheduleCache.set(weekKey, cached);
+    return { requestedWeek: weekKey, schedule: cached.schedule };
+}
+
+function storeWeekSchedule(weekKey, schedule) {
+    weekScheduleCache.delete(weekKey);
+    weekScheduleCache.set(weekKey, { schedule, savedAt: Date.now() });
+    while (weekScheduleCache.size > WEEK_CACHE_LIMIT) {
+        weekScheduleCache.delete(weekScheduleCache.keys().next().value);
+    }
+}
+
+function clearWeekScheduleCache() {
+    weekCacheGeneration += 1;
+    weekScheduleCache.clear();
+    window.clearTimeout(adjacentWeekPrefetchTimer);
+}
+
+function backgroundWeekPrefetchAllowed() {
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    return !(connection?.saveData || ['slow-2g', '2g'].includes(connection?.effectiveType));
+}
+
+async function fetchWeekSchedule(monday, { allowCached = false } = {}) {
     const requestedWeek = dateKey(monday);
-    const response = await apiFetch('/get_week_schedule', {
-        method: 'POST',
-        body: JSON.stringify({ week_start: requestedWeek })
-    });
-    const data = await response.json();
-    if (data.status !== 'ok') throw new Error(data.message || 'Ошибка расписания');
-    return { requestedWeek, schedule: data.schedule || {} };
+    if (allowCached) {
+        const cached = cachedWeekSchedule(requestedWeek);
+        if (cached) return cached;
+    }
+    const generation = weekCacheGeneration;
+    const inflight = weekScheduleInflight.get(requestedWeek);
+    if (inflight?.generation === generation) return inflight.promise;
+    const promise = (async () => {
+        const response = await apiFetch('/get_week_schedule', {
+            method: 'POST',
+            body: JSON.stringify({ week_start: requestedWeek })
+        });
+        const data = await response.json();
+        if (data.status !== 'ok') throw new Error(data.message || 'Ошибка расписания');
+        const schedule = data.schedule || {};
+        if (generation === weekCacheGeneration) storeWeekSchedule(requestedWeek, schedule);
+        return { requestedWeek, schedule };
+    })();
+    weekScheduleInflight.set(requestedWeek, { generation, promise });
+    try {
+        return await promise;
+    } finally {
+        const current = weekScheduleInflight.get(requestedWeek);
+        if (current?.promise === promise) weekScheduleInflight.delete(requestedWeek);
+    }
+}
+
+function scheduleAdjacentWeekPrefetch(monday) {
+    window.clearTimeout(adjacentWeekPrefetchTimer);
+    if (!backgroundWeekPrefetchAllowed() || document.hidden) return;
+    const base = new Date(monday);
+    const generation = weekCacheGeneration;
+    adjacentWeekPrefetchTimer = window.setTimeout(async () => {
+        for (const days of [-7, 7]) {
+            if (generation !== weekCacheGeneration || document.hidden) return;
+            const target = new Date(base);
+            target.setDate(target.getDate() + days);
+            try { await fetchWeekSchedule(target, { allowCached: true }); }
+            catch (error) { console.warn('Фоновая загрузка недели пропущена:', error); }
+        }
+    }, 450);
 }
 
 async function loadSchedule() {
@@ -198,6 +268,7 @@ async function loadSchedule() {
     if (data.requestedWeek !== dateKey(state.currentMonday)) return false;
     state.schedule = data.schedule;
     renderCalendar();
+    scheduleAdjacentWeekPrefetch(requestedMonday);
     return true;
 }
 
@@ -248,6 +319,7 @@ async function fetchData() {
 
 async function refreshScheduleOnly({ refreshHelper = true } = {}) {
     try {
+        clearWeekScheduleCache();
         const applied = await loadSchedule();
         if (applied && refreshHelper) scheduleWorkCenterRefresh();
     } catch (error) {
@@ -257,6 +329,7 @@ async function refreshScheduleOnly({ refreshHelper = true } = {}) {
 
 async function refreshScheduleAndStudents() {
     try {
+        clearWeekScheduleCache();
         await Promise.all([loadSchedule(), loadStudents()]);
         renderCalendar();
         scheduleWorkCenterRefresh();
@@ -1478,12 +1551,15 @@ function clearWeekDragStyles() {
         header.style.transform = '';
         header.style.willChange = '';
     }
+    weekDragOffset = 0;
 }
 
 function setWeekDragOffset(dx) {
     const grid = document.querySelector('#calendar-container > .calendar-grid');
     const header = document.getElementById('days-header');
-    const offset = Math.max(-150, Math.min(150, dx * 0.48));
+    const limit = Math.max(100, calendarContainer.clientWidth * 0.72);
+    const offset = Math.max(-limit, Math.min(limit, dx * 0.82));
+    weekDragOffset = offset;
     const transform = `translate3d(${offset}px, 0, 0)`;
     if (grid) {
         grid.style.willChange = 'transform';
@@ -1512,30 +1588,43 @@ async function shiftWeek(days, { fromSwipe = false } = {}) {
 
     const direction = days > 0 ? -1 : 1;
     const container = document.getElementById('calendar-container');
-    const currentGrid = container.querySelector(':scope > .calendar-grid');
-    const header = document.getElementById('days-header');
-    const headerParent = header?.parentElement;
-
-    const gridSnapshot = currentGrid?.cloneNode(true) || null;
-    const headerSnapshot = header?.cloneNode(true) || null;
-    if (gridSnapshot) {
-        stripCloneIds(gridSnapshot);
-        gridSnapshot.classList.add('week-slide-snapshot');
-        gridSnapshot.style.transform = currentGrid.style.transform || 'translate3d(0,0,0)';
-        container.appendChild(gridSnapshot);
-    }
-    if (headerSnapshot && headerParent) {
-        stripCloneIds(headerSnapshot);
-        headerSnapshot.classList.add('week-header-snapshot');
-        headerSnapshot.style.transform = header.style.transform || 'translate3d(0,0,0)';
-        headerParent.appendChild(headerSnapshot);
-    }
-
     const targetMonday = new Date(state.currentMonday);
     targetMonday.setDate(targetMonday.getDate() + days);
+    const targetWeekKey = dateKey(targetMonday);
+    const readyFromCache = Boolean(cachedWeekSchedule(targetWeekKey));
+    const dataPromise = fetchWeekSchedule(targetMonday, { allowCached: true });
+    let releasePromise = Promise.resolve();
+    let gridSnapshot = null;
+    let headerSnapshot = null;
 
     try {
-        const data = await fetchWeekSchedule(targetMonday);
+        if (fromSwipe && !readyFromCache) {
+            animateBackFromWeekDrag();
+            releasePromise = new Promise(resolve => window.setTimeout(resolve, 210));
+        }
+        // Подписываемся на сетевой запрос сразу, чтобы ранняя ошибка не стала
+        // необработанным отклонением во время возвратной анимации.
+        const [data] = await Promise.all([dataPromise, releasePromise]);
+        const currentGrid = container.querySelector(':scope > .calendar-grid');
+        const header = document.getElementById('days-header');
+        const headerParent = header?.parentElement;
+        const releaseOffset = readyFromCache && fromSwipe ? weekDragOffset : 0;
+
+        gridSnapshot = currentGrid?.cloneNode(true) || null;
+        headerSnapshot = header?.cloneNode(true) || null;
+        if (gridSnapshot) {
+            stripCloneIds(gridSnapshot);
+            gridSnapshot.classList.add('week-slide-snapshot');
+            gridSnapshot.style.transform = `translate3d(${releaseOffset}px,0,0)`;
+            container.appendChild(gridSnapshot);
+        }
+        if (headerSnapshot && headerParent) {
+            stripCloneIds(headerSnapshot);
+            headerSnapshot.classList.add('week-header-snapshot');
+            headerSnapshot.style.transform = `translate3d(${releaseOffset}px,0,0)`;
+            headerParent.appendChild(headerSnapshot);
+        }
+
         state.currentMonday = targetMonday;
         state.schedule = data.schedule;
         // Во время анимации сохраняем геометрию старой недели; автоподбор запускаем после слайда.
@@ -1545,14 +1634,12 @@ async function shiftWeek(days, { fromSwipe = false } = {}) {
 
         const newGrid = container.querySelector(':scope > .calendar-grid');
         const newHeader = document.getElementById('days-header');
-        const startX = direction * -100;
-        const exitX = direction * 100;
-
         [newGrid, newHeader].forEach(el => {
             if (!el) return;
+            const startX = -direction * el.clientWidth + releaseOffset;
             el.style.transition = 'none';
             el.style.willChange = 'transform';
-            el.style.transform = `translate3d(${startX}%,0,0)`;
+            el.style.transform = `translate3d(${startX}px,0,0)`;
         });
 
         // Два кадра гарантируют, что браузер увидит начальную позицию новой недели.
@@ -1564,8 +1651,9 @@ async function shiftWeek(days, { fromSwipe = false } = {}) {
             });
             [gridSnapshot, headerSnapshot].forEach(el => {
                 if (!el) return;
+                const exitX = direction * el.clientWidth;
                 el.style.transition = 'transform 230ms cubic-bezier(.22,.61,.36,1)';
-                el.style.transform = `translate3d(${exitX}%,0,0)`;
+                el.style.transform = `translate3d(${exitX}px,0,0)`;
             });
         }));
 
@@ -1576,6 +1664,7 @@ async function shiftWeek(days, { fromSwipe = false } = {}) {
             weekTransitioning = false;
             autoFitWeekPending = true;
             scheduleCalendarAutoFit();
+            scheduleAdjacentWeekPrefetch(targetMonday);
         }, 270);
         scheduleWorkCenterRefresh();
     } catch (error) {
@@ -2175,9 +2264,23 @@ document.getElementById('btn-save-student-card').onclick = async () => {
 };
 
 // Рабочий центр: внимание, окна, сводка и дни рождения
-function shortDateRu(dateString) {
+function shortWeekdayRu(dateString) {
     const d = new Date(`${dateString}T12:00:00`);
-    return d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' });
+    const value = d.toLocaleDateString('ru-RU', { weekday: 'short' }).replace(/\.$/, '');
+    return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function groupedWorkCenterWindows(windows) {
+    const byDate = new Map();
+    (windows || []).forEach(item => {
+        if (!item?.date || !item?.from || !item?.to) return;
+        if (!byDate.has(item.date)) byDate.set(item.date, []);
+        byDate.get(item.date).push(`${item.from}–${item.to}`);
+    });
+    return Array.from(byDate, ([date, intervals]) => ({
+        day: shortWeekdayRu(date),
+        intervals
+    }));
 }
 function money(value) { return `${Number(value || 0).toLocaleString('ru-RU')} ₽`; }
 function escapeHtml(value) {
@@ -2301,8 +2404,9 @@ function renderWorkCenter() {
         ? `<div class="hub-debt-total"><span>Всего к оплате</span><strong>${money(data.debt_total || 0)}</strong></div>` + debts.map(item => `<div class="hub-item"><strong>${escapeHtml(item.name || 'Ученик')}</strong><span>${item.unpaid_count || 0} зан. · ${money(item.amount || 0)}</span></div>`).join('')
         : '<div class="hub-empty">Просроченных неоплаченных занятий нет.</div>';
 
-    document.getElementById('hub-windows').innerHTML = (data.windows || []).length
-        ? data.windows.map(item => `<div class="hub-item"><strong>${shortDateRu(item.date)}</strong><span>${item.from}–${item.to}</span></div>`).join('')
+    const groupedWindows = groupedWorkCenterWindows(data.windows);
+    document.getElementById('hub-windows').innerHTML = groupedWindows.length
+        ? groupedWindows.map(item => `<div class="hub-item"><strong>${escapeHtml(item.day)}</strong><span>${item.intervals.map(escapeHtml).join('; ')}</span></div>`).join('')
         : '<div class="hub-empty">Свободных окон от 60 минут нет.</div>';
 
     const summaryData = data.summary || {};
@@ -2348,8 +2452,10 @@ let pendingPinchHeight = null;
 let pinchFrame = null;
 let swipeStartX = null;
 let swipeStartY = null;
+let swipeStartAt = 0;
 let swipeTracking = false;
 let swipeHorizontal = false;
+let weekDragOffset = 0;
 const calendarContainer = document.getElementById('calendar-container');
 
 function applyHourHeightSmooth(nextHeight) {
@@ -2419,6 +2525,7 @@ calendarContainer.addEventListener('touchstart', event => {
         finishPinch();
         swipeStartX = event.touches[0].clientX;
         swipeStartY = event.touches[0].clientY;
+        swipeStartAt = performance.now();
         swipeTracking = true;
         swipeHorizontal = false;
     }
@@ -2452,10 +2559,12 @@ calendarContainer.addEventListener('touchend', event => {
     if (!swipeTracking || swipeStartX === null || !event.changedTouches.length) return;
     const dx = event.changedTouches[0].clientX - swipeStartX;
     const dy = event.changedTouches[0].clientY - swipeStartY;
+    const elapsed = Math.max(1, performance.now() - swipeStartAt);
     swipeTracking = false;
     swipeStartX = null;
     swipeStartY = null;
-    const shouldShift = swipeHorizontal && Math.abs(dx) >= 58 && Math.abs(dx) > Math.abs(dy) * 1.18;
+    const fastSwipe = Math.abs(dx) >= 30 && Math.abs(dx) / elapsed >= 0.45;
+    const shouldShift = swipeHorizontal && (Math.abs(dx) >= 58 || fastSwipe) && Math.abs(dx) > Math.abs(dy) * 1.18;
     swipeHorizontal = false;
     if (shouldShift) {
         haptic('light');
@@ -2471,6 +2580,7 @@ calendarContainer.addEventListener('touchcancel', () => {
     swipeHorizontal = false;
     swipeStartX = null;
     swipeStartY = null;
+    swipeStartAt = 0;
     animateBackFromWeekDrag();
 });
 

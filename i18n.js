@@ -1,5 +1,5 @@
 (() => {
-    const VERSION = '30.15.2';
+    const VERSION = '30.15.5';
     const LANGUAGES = {
         ru: { label: 'Русский', locale: 'ru-RU', currency: 'RUB' },
         en: { label: 'English', locale: 'en-US', currency: 'USD' },
@@ -50,7 +50,7 @@
 
     function shouldSkip(node) {
         const parent = node.parentElement;
-        return !parent || Boolean(parent.closest('script, style, svg'));
+        return !parent || Boolean(parent.closest('script, style, svg, [data-i18n-ignore]'));
     }
 
     function translateTextNode(node) {
@@ -65,7 +65,7 @@
     }
 
     function translateAttributes(element) {
-        if (!(element instanceof Element) || element.closest('script, style, svg')) return;
+        if (!(element instanceof Element) || element.closest('script, style, svg, [data-i18n-ignore]')) return;
         let records = attrState.get(element);
         if (!records) records = {};
         for (const name of ['placeholder', 'title', 'aria-label']) {

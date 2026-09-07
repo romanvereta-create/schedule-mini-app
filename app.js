@@ -63,6 +63,12 @@ function dateKey(date) {
 function uiLocale() { return window.TEMLI_I18N?.locale() || 'ru-RU'; }
 function currencySymbol() { return window.TEMLI_I18N?.currencySymbol() || '₽'; }
 function localizeText(value) { return window.TEMLI_I18N?.translated(value) || value; }
+function shortDateRu(value) {
+    const source = String(value || '').trim();
+    const date = new Date(`${source}T12:00:00`);
+    if (!source || Number.isNaN(date.getTime())) return source || '—';
+    return date.toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short' }).replace(/\.$/, '');
+}
 function formatUiNumber(value, options = {}) {
     return window.TEMLI_I18N?.formatNumber(value, options) ?? Number(value || 0).toLocaleString(uiLocale(), options);
 }
@@ -2149,7 +2155,7 @@ async function loadStudentLessonStats(studentId) {
                 const dateLabel = shortDateRu(item.date);
                 const paidLabel = item.paid ? 'оплачено' : 'не оплачено';
                 const report = String(item.report || '').trim();
-                return `<div class="student-history-row student-history-row-report"><div class="student-history-main"><span>${escapeHtml(dateLabel)} · ${escapeHtml(item.time || '')}</span><span class="student-history-paid ${item.paid ? 'is-paid' : ''}">${paidLabel}</span></div>${report ? `<div class="student-history-report">${escapeHtml(report)}</div>` : ''}</div>`;
+                return `<div class="student-history-row student-history-row-report"><div class="student-history-main"><span>${escapeHtml(dateLabel)} · ${escapeHtml(item.time || '')}</span><span class="student-history-paid ${item.paid ? 'is-paid' : ''}">${paidLabel}</span></div>${report ? `<div class="student-history-report" data-i18n-ignore>${escapeHtml(report)}</div>` : ''}</div>`;
             }).join('') : '<div class="student-history-empty">Занятий пока нет</div>';
         }
     } catch (error) {

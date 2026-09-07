@@ -202,6 +202,31 @@ async function apiFetch(path, options = {}) {
     return response;
 }
 
+const PENDING_STUDENT_PAYMENT_KEY = 'temli.pending-student-payment.v1';
+
+function newPaymentRequestId() {
+    if (window.crypto?.randomUUID) return `payment-${window.crypto.randomUUID()}`;
+    return `payment-${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function pendingStudentPayment(payload) {
+    const fingerprint = JSON.stringify(payload);
+    try {
+        const saved = JSON.parse(sessionStorage.getItem(PENDING_STUDENT_PAYMENT_KEY) || 'null');
+        if (saved?.fingerprint === fingerprint && typeof saved.requestId === 'string') return saved.requestId;
+    } catch (error) {}
+    const requestId = newPaymentRequestId();
+    try { sessionStorage.setItem(PENDING_STUDENT_PAYMENT_KEY, JSON.stringify({ fingerprint, requestId })); } catch (error) {}
+    return requestId;
+}
+
+function clearPendingStudentPayment(requestId) {
+    try {
+        const saved = JSON.parse(sessionStorage.getItem(PENDING_STUDENT_PAYMENT_KEY) || 'null');
+        if (saved?.requestId === requestId) sessionStorage.removeItem(PENDING_STUDENT_PAYMENT_KEY);
+    } catch (error) {}
+}
+
 function cachedWeekSchedule(weekKey) {
     const cached = weekScheduleCache.get(weekKey);
     if (!cached || Date.now() - cached.savedAt > WEEK_CACHE_TTL_MS) {
@@ -2929,20 +2954,26 @@ document.getElementById('btn-apply-student-payment').onclick = async () => {
     const button = document.getElementById('btn-apply-student-payment');
     if (button.disabled) return;
     const quote = selectedPaymentQuote;
+    const paymentPayload = {
+        student_id: studentId,
+        amount,
+        ...(quote ? { quick_count: quote.count, preview_token: quote.preview_token } : {}),
+        send_receipt: document.getElementById('student-payment-send-receipt').checked
+    };
+    const requestId = pendingStudentPayment(paymentPayload);
     button.disabled = true;
     document.querySelectorAll('#student-payment-options button').forEach(item => { item.disabled = true; });
     try {
         const response = await apiFetch('/apply_student_payment', {
             method: 'POST',
-            body: JSON.stringify({
-                student_id: studentId,
-                amount,
-                ...(quote ? { quick_count: quote.count, preview_token: quote.preview_token } : {}),
-                send_receipt: document.getElementById('student-payment-send-receipt').checked
-            })
+            body: JSON.stringify({ ...paymentPayload, request_id: requestId })
         });
         const result = await response.json();
-        if (result.status !== 'ok') return alert(result.message || 'Ошибка оплаты');
+        if (result.status !== 'ok') {
+            clearPendingStudentPayment(requestId);
+            return alert(result.message || 'Ошибка оплаты');
+        }
+        clearPendingStudentPayment(requestId);
         overlay.classList.add('hidden');
         await Promise.all([refreshScheduleOnly(), loadStudentLessonStats(studentId)]);
         await loadStudentPayments(studentId);

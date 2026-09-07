@@ -1,5 +1,5 @@
 (() => {
-    const VERSION = '30.15.5';
+    const VERSION = '30.16.0';
     const LANGUAGES = {
         ru: { label: 'Русский', locale: 'ru-RU', currency: 'RUB' },
         en: { label: 'English', locale: 'en-US', currency: 'USD' },
@@ -31,7 +31,7 @@
             .replace(/\bруб\.?\b/giu, currencySymbol());
     }
 
-    function translated(value) {
+    function translated(value, { fragments = true } = {}) {
         const source = String(value ?? '');
         if (!source || language === 'ru') return replaceCurrency(source);
         const dictionary = dictionaries[language] || {};
@@ -41,8 +41,10 @@
         let result = dictionary[core];
         if (result == null) {
             result = core;
-            for (const [from, to] of (dictionaryEntries[language] || [])) {
-                if (result.includes(from)) result = result.split(from).join(to);
+            if (fragments) {
+                for (const [from, to] of (dictionaryEntries[language] || [])) {
+                    if (result.includes(from)) result = result.split(from).join(to);
+                }
             }
         }
         return leading + replaceCurrency(result) + trailing;
@@ -144,8 +146,8 @@
 
     const nativeAlert = window.alert.bind(window);
     const nativeConfirm = window.confirm.bind(window);
-    window.alert = message => nativeAlert(translated(message));
-    window.confirm = message => nativeConfirm(translated(message));
+    window.alert = message => nativeAlert(translated(message, { fragments: false }));
+    window.confirm = message => nativeConfirm(translated(message, { fragments: false }));
 
     const observer = new MutationObserver(mutations => {
         for (const mutation of mutations) {

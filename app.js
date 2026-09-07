@@ -378,6 +378,7 @@ function fillStudentsDropdown() {
         const option = document.createElement('option');
         option.value = id;
         option.textContent = info.name || id;
+        option.setAttribute('data-i18n-ignore', '');
         option.dataset.name = info.name || id;
         select.appendChild(option);
     });
@@ -389,13 +390,29 @@ function groupMemberOptions(selectedId = '') {
         const info = typeof raw === 'string' ? { name: raw } : (raw || {});
         if ((info.status === 'paused' || info.archived) && String(id) !== String(selectedId)) return;
         const selected = String(id) === String(selectedId) ? ' selected' : '';
-        options.push(`<option value="${escapeHtml(String(id))}" data-name="${escapeHtml(info.name || String(id))}"${selected}>${escapeHtml(info.name || String(id))}</option>`);
+        options.push(`<option value="${escapeHtml(String(id))}" data-name="${escapeHtml(info.name || String(id))}" data-i18n-ignore${selected}>${escapeHtml(info.name || String(id))}</option>`);
     });
     return options.join('');
 }
 
 function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
+}
+
+function userContent(value) {
+    return `<span data-i18n-ignore>${escapeHtml(value)}</span>`;
+}
+
+function uiText(value) {
+    return window.TEMLI_I18N?.translated(value) ?? String(value ?? '');
+}
+
+function userContentOr(value, fallback) {
+    return value ? userContent(value) : `<span>${escapeHtml(uiText(fallback))}</span>`;
+}
+
+function uiMessage(strings, ...values) {
+    return strings.map((part, index) => uiText(part) + (index < values.length ? String(values[index] ?? '') : '')).join('');
 }
 
 function threadIcon(name, extraClass = '') {
@@ -548,7 +565,7 @@ function renderCalendar() {
     layer.innerHTML = '<div id="current-time-line" class="current-time-line hidden"><div class="time-line-dot"></div></div>';
     document.documentElement.style.setProperty('--hour-height', `${hourHeight}px`);
 
-    document.getElementById('btn-date-picker').title = `Выбрать дату · ${formatWeekRange(state.currentMonday)}`;
+    document.getElementById('btn-date-picker').title = `${uiText('Выбрать дату')} · ${formatWeekRange(state.currentMonday)}`;
 
     const todayKey = dateKey(new Date());
     const header = document.getElementById('days-header');
@@ -636,9 +653,11 @@ function renderEvents() {
             const title = document.createElement('div');
             title.className = 'event-title';
             const studentInfo = isGroup ? {} : getStudentInfo(lesson.student_id);
-            title.textContent = isGroup
-                ? (lesson.group_name || lesson.student || 'Группа')
-                : (studentInfo.calendar_name || lesson.student || studentInfo.name || 'Ученик');
+            const calendarTitle = isGroup
+                ? (lesson.group_name || lesson.student)
+                : (studentInfo.calendar_name || lesson.student || studentInfo.name);
+            title.textContent = calendarTitle || uiText(isGroup ? 'Группа' : 'Ученик');
+            title.toggleAttribute('data-i18n-ignore', Boolean(calendarTitle));
             const cardHeight = height;
             if (cardHeight < 34) card.classList.add('event-card-compact');
             else if (cardHeight < 54) card.classList.add('event-card-medium');
@@ -716,7 +735,8 @@ function openActionMenu(date, lesson) {
     const isGroup = lesson.lesson_type === 'group';
     const cancelled = !!lesson.cancelled;
     document.getElementById('action-contact-label').textContent = isGroup ? 'Участники — нажмите имя для связи и оплаты' : 'Связь';
-    document.getElementById('action-menu-title').textContent = `${isGroup ? (lesson.group_name || lesson.student || 'Группа') : (lesson.student || 'Ученик')} · ${lesson.time || '--:--'}`;
+    const actionTitle = isGroup ? (lesson.group_name || lesson.student) : lesson.student;
+    document.getElementById('action-menu-title').innerHTML = `${userContentOr(actionTitle, isGroup ? 'Группа' : 'Ученик')} · ${userContent(lesson.time || '--:--')}`;
 
     const paidButton = document.getElementById('btn-action-paid');
     setThreadButtonLabel(paidButton, paymentActionIcon(lesson), paymentActionLabel(lesson));
@@ -750,7 +770,7 @@ function openActionMenu(date, lesson) {
             const status = paymentStatusLabel(member);
             row.innerHTML = `
                 <button type="button" class="group-action-member-head" aria-expanded="false">
-                    <strong>${escapeHtml(member.name || 'Ученик')}</strong>
+                    <strong>${userContentOr(member.name, 'Ученик')}</strong>
                     <span class="group-member-summary">${price > 0 ? `${money(price)}` : 'цена —'} <i class="group-member-status ${statusClass}">${status}</i> ${threadIcon('chevron-right', 'row-chevron')}</span>
                 </button>
                 <div class="group-member-actions hidden">
@@ -794,8 +814,8 @@ async function setGroupMemberPaidState(lesson, member, makePaid) {
     if (!lesson || !member || member.free) return;
     if (hasAllocatedPayment(member)) return explainAllocatedPayment(member.student_id);
     if (member.paid_via_subscription) return alert('Занятие оплачено абонементом. Снятие оплаты одного занятия заблокировано.');
-    const verb = makePaid ? 'Отметить оплату' : 'Снять оплату';
-    if (!confirm(`${verb}: ${member.name || 'ученик'}?`)) return;
+    const verb = uiText(makePaid ? 'Отметить оплату' : 'Снять оплату');
+    if (!confirm(uiMessage`${verb}: ${member.name || uiText('ученик')}?`)) return;
     const response = await apiFetch('/mark_paid', {
         method: 'POST',
         body: JSON.stringify({
@@ -1122,7 +1142,7 @@ async function saveLesson(options = {}) {
         closeAllModals();
         await refreshScheduleAndStudents();
         if (Number(result.updated_prices || 0) > 1) {
-            alert(`Цена изменена в ${result.updated_prices} будущих занятиях.`);
+            alert(uiMessage`Цена изменена в ${result.updated_prices} будущих занятиях.`);
         }
     } catch (error) {
         alert(error?.message || 'Не удалось сохранить занятие');
@@ -1189,8 +1209,8 @@ document.getElementById('student-select').addEventListener('change', event => {
 function openLessonReport() {
     const lesson = state.selectedLesson;
     if (!lesson) return;
-    const title = lesson.lesson_type === 'group' ? (lesson.group_name || lesson.student || 'Группа') : (lesson.student || 'Ученик');
-    document.getElementById('lesson-report-title').textContent = `Итог · ${title} · ${lesson.time || ''}`;
+    const title = lesson.lesson_type === 'group' ? (lesson.group_name || lesson.student) : lesson.student;
+    document.getElementById('lesson-report-title').innerHTML = `<span>${uiText('Итог')}</span> · ${userContentOr(title, lesson.lesson_type === 'group' ? 'Группа' : 'Ученик')} · ${userContent(lesson.time || '')}`;
     document.getElementById('lesson-report-text').value = lesson.report || '';
     document.getElementById('lesson-report-overlay').classList.remove('hidden');
 }
@@ -1226,7 +1246,7 @@ function openStudentContactFor(studentId) {
     const entries = Object.entries(info.student_contacts || {}).filter(([, value]) => value);
     if (entries.length === 1) return openContact(entries[0][0], entries[0][1]);
     if (entries.length > 1) {
-        const choice = prompt('Выберите контакт ученика:\n' + entries.map(([type, value], i) => `${i + 1}. ${type.toUpperCase()}: ${value}`).join('\n') + '\n\nВведите номер:');
+        const choice = prompt(uiText('Выберите контакт ученика:\n') + entries.map(([type, value], i) => `${i + 1}. ${type.toUpperCase()}: ${value}`).join('\n') + uiText('\n\nВведите номер:'));
         const idx = parseInt(choice, 10) - 1;
         if (idx >= 0 && idx < entries.length) return openContact(entries[idx][0], entries[idx][1]);
     }
@@ -1239,7 +1259,7 @@ function openParentContactFor(studentId) {
     const entries = Object.entries(info.contacts || {}).filter(([, value]) => value);
     if (entries.length === 1) return openContact(entries[0][0], entries[0][1]);
     if (entries.length > 1) {
-        const choice = prompt('Выберите контакт родителя:\n' + entries.map(([type, value], i) => `${i + 1}. ${type.toUpperCase()}: ${value}`).join('\n') + '\n\nВведите номер:');
+        const choice = prompt(uiText('Выберите контакт родителя:\n') + entries.map(([type, value], i) => `${i + 1}. ${type.toUpperCase()}: ${value}`).join('\n') + uiText('\n\nВведите номер:'));
         const idx = parseInt(choice, 10) - 1;
         if (idx >= 0 && idx < entries.length) return openContact(entries[idx][0], entries[idx][1]);
     }
@@ -1285,8 +1305,8 @@ function openSubscriptionForStudent(lesson, studentId) {
     }
     state.subscriptionStudentId = String(studentId || '');
     state.subscriptionPrice = price;
-    document.getElementById('subscription-pay-title').textContent = `Абонемент · ${name}`;
-    document.getElementById('subscription-pay-desc').textContent = `Стоимость одного урока: ${money(price)}. Укажите общую сумму абонемента.`;
+    document.getElementById('subscription-pay-title').innerHTML = `<span>${uiText('Абонемент')}</span> · ${userContent(name)}`;
+    document.getElementById('subscription-pay-desc').textContent = `${uiText('Стоимость одного урока:')} ${money(price)}. ${uiText('Укажите общую сумму абонемента.')}`;
     const amountInput = document.getElementById('subscription-pay-amount');
     amountInput.value = String(price * 3);
     document.getElementById('subscription-custom-count').dataset.count = '3';
@@ -1332,7 +1352,7 @@ document.getElementById('btn-action-paid').onclick = async () => {
     if (!isGroup && lesson.free) return alert('Сначала отмените бесплатный статус.');
 
     if (!isGroup && lesson.paid) {
-        if (!confirm(`Снять отметку об оплате у занятия ${lesson.student || ''} ${lesson.time || ''}?`)) return;
+        if (!confirm(uiMessage`Снять отметку об оплате у занятия ${lesson.student || ''} ${lesson.time || ''}?`)) return;
         const response = await apiFetch('/mark_paid', {
             method: 'POST',
             body: JSON.stringify({ date: lesson.date, id: lesson.id, paid: false, send_receipt: false })
@@ -1344,7 +1364,7 @@ document.getElementById('btn-action-paid').onclick = async () => {
         return;
     }
 
-    document.getElementById('paid-confirm-title').textContent = `${isGroup ? (lesson.group_name || 'Группа') : (lesson.student || 'Ученик')} · ${lesson.time || '--:--'}`;
+    document.getElementById('paid-confirm-title').innerHTML = `${userContentOr(isGroup ? lesson.group_name : lesson.student, isGroup ? 'Группа' : 'Ученик')} · ${userContent(lesson.time || '--:--')}`;
     document.getElementById('paid-confirm-desc').textContent = isGroup
         ? 'Отметьте учеников, которые оплатили. Сумма берётся из стоимости каждого участника в этом занятии.'
         : (() => { const price = Number(lessonPriceValue(lesson)); return `Подтвердить оплату${price > 0 ? ` на ${money(price)}` : ''}?`; })();
@@ -1356,7 +1376,7 @@ document.getElementById('btn-action-paid').onclick = async () => {
             const label = document.createElement('label');
             label.className = 'group-paid-member-row';
             const memberPrice = lessonPriceValue(lesson, member);
-            label.innerHTML = `<input type="checkbox" value="${escapeHtml(member.student_id || '')}" ${member.paid ? 'checked' : ''}><span>${escapeHtml(member.name || 'Ученик')}${memberPrice > 0 ? ` · ${money(memberPrice)}` : ' · цена не указана'}</span>`;
+            label.innerHTML = `<input type="checkbox" value="${escapeHtml(member.student_id || '')}" ${member.paid ? 'checked' : ''}><span>${userContentOr(member.name, 'Ученик')}${memberPrice > 0 ? ` · ${money(memberPrice)}` : ` · ${uiText('Цена не указана')}`}</span>`;
             membersBox.appendChild(label);
         });
     }
@@ -1407,8 +1427,8 @@ function updateSubscriptionPayHint() {
     const effectivePrice = amount / lessonCount;
     const regularTotal = price * lessonCount;
     const discount = regularTotal > amount ? ((regularTotal - amount) / regularTotal) * 100 : 0;
-    const discountText = discount > 0.01 ? ` · скидка ${formatUiNumber(discount, { maximumFractionDigits: 1 })}%` : '';
-    hint.textContent = `Будет оплачено: ${lessonCount} ${subscriptionCountWord(lessonCount)} · ${money(Number(effectivePrice.toFixed(2)))} / занятие${discountText}.`;
+    const discountText = discount > 0.01 ? ` · ${uiText('скидка')} ${formatUiNumber(discount, { maximumFractionDigits: 1 })}%` : '';
+    hint.textContent = `${uiText('Будет оплачено:')} ${lessonCount} ${uiText(subscriptionCountWord(lessonCount))} · ${money(Number(effectivePrice.toFixed(2)))} ${uiText('/ занятие')}${discountText}.`;
 }
 
 document.getElementById('subscription-pay-amount').addEventListener('input', () => {
@@ -1439,7 +1459,7 @@ document.getElementById('btn-subscription-pay-apply').onclick = async () => {
         document.getElementById('subscription-pay-overlay').classList.add('hidden');
         await Promise.all([refreshScheduleOnly(), refreshStudentsOnly()]);
         await refreshOpenPaymentCard();
-        alert(`Абонемент оплачен: ${result.lessons_paid} занятий. Чек № ${result.receipt_number || '—'}. ${result.receipt_message || ''}`);
+        alert(uiMessage`Абонемент оплачен: ${result.lessons_paid} занятий. Чек № ${result.receipt_number || '—'}. ${result.receipt_message || ''}`);
     } finally {
         button.disabled = false;
     }
@@ -1465,8 +1485,8 @@ document.getElementById('btn-paid-confirm-apply').onclick = async () => {
         if (result.status !== 'ok') return alert(result.message || 'Ошибка изменения оплаты');
         document.getElementById('paid-confirm-overlay').classList.add('hidden');
         await refreshScheduleOnly();
-        if (isGroup) alert(`Оплаты группы сохранены. ${result.receipt_message || ''}`);
-        else alert(`Оплата отмечена. Чек № ${result.receipt_number || '—'}. ${result.receipt_message || ''}`);
+        if (isGroup) alert(uiMessage`Оплаты группы сохранены. ${result.receipt_message || ''}`);
+        else alert(uiMessage`Оплата отмечена. Чек № ${result.receipt_number || '—'}. ${result.receipt_message || ''}`);
     } finally {
         button.disabled = false;
     }
@@ -1481,7 +1501,7 @@ document.getElementById('btn-action-chat-student').onclick = () => {
     if (lesson.lesson_type === 'group') {
         const members = lesson.group_members || [];
         if (!members.length) return alert('В группе нет учеников.');
-        const choice = prompt('Кому написать?\n' + members.map((m, i) => `${i + 1}. ${m.name || 'Ученик'}`).join('\n') + '\n\nВведите номер:');
+        const choice = prompt(uiText('Кому написать?\n') + members.map((m, i) => `${i + 1}. ${m.name || uiText('Ученик')}`).join('\n') + uiText('\n\nВведите номер:'));
         const idx = parseInt(choice, 10) - 1;
         if (idx >= 0 && idx < members.length) openStudentContactFor(members[idx].student_id);
     } else {
@@ -1497,7 +1517,7 @@ document.getElementById('btn-action-chat-parent').onclick = () => {
     if (lesson.lesson_type === 'group') {
         const members = lesson.group_members || [];
         if (!members.length) return alert('В группе нет учеников.');
-        const choice = prompt('Родителю какого ученика написать?\n' + members.map((m, i) => `${i + 1}. ${m.name || 'Ученик'}`).join('\n') + '\n\nВведите номер:');
+        const choice = prompt(uiText('Родителю какого ученика написать?\n') + members.map((m, i) => `${i + 1}. ${m.name || uiText('Ученик')}`).join('\n') + uiText('\n\nВведите номер:'));
         const idx = parseInt(choice, 10) - 1;
         if (idx >= 0 && idx < members.length) openParentContactFor(members[idx].student_id);
     } else {
@@ -1521,10 +1541,10 @@ function openContact(type, value) {
             window.open(`tel:${value}`, '_blank');
             break;
         case 'max':
-            alert(`Max: ${value}`);
+            alert(uiMessage`Max: ${value}`);
             break;
         default:
-            alert(`Контакт: ${value}`);
+            alert(uiMessage`Контакт: ${value}`);
     }
 }
 
@@ -2148,7 +2168,7 @@ async function loadStudentLessonStats(studentId) {
         const result = await response.json();
         if (result.status !== 'ok') throw new Error(result.message || 'Ошибка статистики');
         ratio.textContent = `${result.paid_lessons || 0} / ${result.conducted_lessons || 0}`;
-        if (historySummary) historySummary.textContent = `${result.total_lessons || 0} всего`;
+        if (historySummary) historySummary.textContent = `${result.total_lessons || 0} ${uiText('всего')}`;
         if (historyList) {
             const history = Array.isArray(result.history) ? result.history : [];
             historyList.innerHTML = history.length ? history.map(item => {
@@ -2244,9 +2264,9 @@ async function loadStudentPayments(studentId) {
                 note = 'Оплачено абонементом. Снятие оплаты одного занятия заблокировано, чтобы сохранить учёт абонемента.';
             }
             row.innerHTML = `<strong>${escapeHtml(item.date)} · ${escapeHtml(item.time || '')}</strong>
-                <div>${escapeHtml(item.lesson_type === 'group' ? `Группа · ${item.group_name}` : 'Индивидуальное')} · ${escapeHtml(price)}</div>
-                <div class="student-finance-status">${escapeHtml(paymentStatusLabel(item))}${allocated ? ` · ${escapeHtml(money(item.paid_amount))} из ${escapeHtml(price)}` : ''}${item.cancelled ? ' · Занятие отменено' : ''}</div>
-                ${note ? `<p class="field-hint">${escapeHtml(note)}</p>` : ''}
+                <div>${item.lesson_type === 'group' ? `<span>${uiText('Группа')}</span> · ${userContent(item.group_name || '')}` : `<span>${uiText('Индивидуальное')}</span>`} · ${escapeHtml(price)}</div>
+                <div class="student-finance-status">${escapeHtml(uiText(paymentStatusLabel(item)))}${allocated ? ` · ${escapeHtml(money(item.paid_amount))} ${uiText('из')} ${escapeHtml(price)}` : ''}${item.cancelled ? ` · ${uiText('Занятие отменено')}` : ''}</div>
+                ${note ? `<p class="field-hint">${escapeHtml(uiText(note))}</p>` : ''}
                 <div class="student-finance-actions">${item.cancelled && item.source === 'unpaid' ? '' : actions}</div>`;
             row.querySelectorAll('[data-finance-action]').forEach(button => {
                 button.onclick = () => changeStudentLessonPayment(studentId, item, button.dataset.financeAction, row);
@@ -2258,14 +2278,14 @@ async function loadStudentPayments(studentId) {
         (result.transactions || []).forEach(tx => {
             const row = document.createElement('article');
             row.className = 'student-finance-row';
-            const allocations = (tx.allocations || []).map(a => `<li>${escapeHtml(a.date)} · ${escapeHtml(a.time || '')} · ${a.is_group ? 'Групповое' : 'Индивидуальное'} · ${escapeHtml(money(a.amount))}</li>`).join('');
-            row.innerHTML = `<strong>${escapeHtml(money(tx.amount))} · ${tx.reversed_at ? 'Отменена' : 'Общая оплата'}</strong>
+            const allocations = (tx.allocations || []).map(a => `<li>${escapeHtml(a.date)} · ${escapeHtml(a.time || '')} · ${uiText(a.is_group ? 'Групповое' : 'Индивидуальное')} · ${escapeHtml(money(a.amount))}</li>`).join('');
+            row.innerHTML = `<strong>${escapeHtml(money(tx.amount))} · ${uiText(tx.reversed_at ? 'Отменена' : 'Общая оплата')}</strong>
                 <div>${escapeHtml(new Date(tx.created_at).toLocaleString(uiLocale()))} · № ${escapeHtml(tx.receipt_number || '')}</div>
                 <ul>${allocations}</ul>
-                ${tx.reversed_at ? `<small>Отменена ${escapeHtml(new Date(tx.reversed_at).toLocaleString(uiLocale()))}</small>` : `<button type="button" class="secondary-btn">${threadIcon('restore')}Отменить весь платёж</button>`}`;
+                ${tx.reversed_at ? `<small>${uiText('Отменена')} ${escapeHtml(new Date(tx.reversed_at).toLocaleString(uiLocale()))}</small>` : `<button type="button" class="secondary-btn">${threadIcon('restore')}Отменить весь платёж</button>`}`;
             const button = row.querySelector('button');
             if (button) button.onclick = async () => {
-                if (!confirm(`Отменить всю общую оплату ${money(tx.amount)}? Будут восстановлены ${tx.allocations.length} занятий и добавлена отрицательная запись в книгу.`)) return;
+                if (!confirm(uiMessage`Отменить всю общую оплату ${money(tx.amount)}? Будут восстановлены ${tx.allocations.length} занятий и добавлена отрицательная запись в книгу.`)) return;
                 button.disabled = true;
                 try {
                     const response = await apiFetch('/reverse_student_payment', { method: 'POST', body: JSON.stringify({ student_id: studentId, transaction_id: tx.id }) });
@@ -2294,7 +2314,7 @@ async function changeStudentLessonPayment(studentId, item, action, row) {
         return;
     }
     const descriptions = { direct: 'Отметить занятие оплаченным', reverse: 'Снять оплату', free: 'Сделать занятие бесплатным', unfree: 'Отменить бесплатный статус' };
-    if (!confirm(`${descriptions[action]}: ${item.date} ${item.time || ''}?`)) return;
+    if (!confirm(uiMessage`${uiText(descriptions[action])}: ${item.date} ${item.time || ''}?`)) return;
     row.querySelectorAll('button').forEach(button => { button.disabled = true; });
     try {
         const isState = action === 'free' || action === 'unfree';
@@ -2321,7 +2341,9 @@ function openStudentCard(studentId) {
     const info = getStudentInfo(studentId);
     document.getElementById('student-card-overlay').dataset.studentId = studentId;
     document.getElementById('btn-archive-student').textContent = info.archived ? 'Вернуть ученика из архива' : 'Убрать ученика в архив';
-    document.getElementById('student-card-title').textContent = info.name || 'Ученик';
+    const studentCardTitle = document.getElementById('student-card-title');
+    studentCardTitle.textContent = info.name || uiText('Ученик');
+    studentCardTitle.toggleAttribute('data-i18n-ignore', Boolean(info.name));
     document.getElementById('student-calendar-name').value = info.calendar_name || '';
     document.getElementById('student-birthday').value = info.birthday || '';
     document.getElementById('student-note').value = info.note || '';
@@ -2514,12 +2536,12 @@ function renderTopLesson() {
     }
 
     if (current) {
-        const currentText = `<span class="top-live-node" aria-hidden="true"></span><span class="top-summary-text">${escapeHtml(current.student || 'Ученик')} ${escapeHtml(current.time || '')}</span>`;
+        const currentText = `<span class="top-live-node" aria-hidden="true"></span><span class="top-summary-text">${userContentOr(current.student, 'Ученик')} ${userContent(current.time || '')}</span>`;
         summary.innerHTML = showNextBesideCurrent && next
-            ? `${currentText}${threadIcon('chevron-right', 'top-summary-chevron')}<span class="top-summary-text">${escapeHtml(next.student || 'Ученик')} ${escapeHtml(next.time || '')}</span>`
+            ? `${currentText}${threadIcon('chevron-right', 'top-summary-chevron')}<span class="top-summary-text">${userContentOr(next.student, 'Ученик')} ${userContent(next.time || '')}</span>`
             : currentText;
     } else if (next) {
-        summary.innerHTML = `<span>Далее</span>${threadIcon('chevron-right', 'top-summary-chevron')}<span class="top-summary-text">${escapeHtml(next.student || 'Ученик')} ${escapeHtml(next.time || '')}</span>`;
+        summary.innerHTML = `<span>Далее</span>${threadIcon('chevron-right', 'top-summary-chevron')}<span class="top-summary-text">${userContentOr(next.student, 'Ученик')} ${userContent(next.time || '')}</span>`;
     } else {
         summary.textContent = 'Ближайших занятий нет';
     }
@@ -2534,7 +2556,7 @@ function renderTopLesson() {
             `<button type="button" class="next-link-btn future-notification-btn" data-top-teacher-delay="${i}">${threadIcon('delay-teacher')}Я задержусь</button>`,
             `<button type="button" class="next-link-btn future-notification-btn" data-top-student-delay="${i}">${threadIcon('delay-student')}Ученик задерживается</button>`
         ].filter(Boolean).join('');
-        return `<div class="top-next-detail-row"><div><small>${label}</small><strong>${escapeHtml(item.student || 'Ученик')} · ${escapeHtml(item.time || '')}</strong></div>${buttons ? `<div class="next-lesson-actions">${buttons}</div>` : ''}</div>`;
+        return `<div class="top-next-detail-row"><div><small>${label}</small><strong>${userContentOr(item.student, 'Ученик')} · ${userContent(item.time || '')}</strong></div>${buttons ? `<div class="next-lesson-actions">${buttons}</div>` : ''}</div>`;
     }).join('') || '<div class="hub-empty">Ближайших занятий нет.</div>';
     items.forEach(({item}, i) => {
         details.querySelector(`[data-top-link="${i}-board"]`)?.addEventListener('click', e => { e.stopPropagation(); openExternalLink(item.board_link); });
@@ -2557,7 +2579,7 @@ function renderWorkCenter() {
     }
     document.getElementById('hub-debts-count').textContent = debts.length;
     document.getElementById('hub-debts').innerHTML = debts.length
-        ? `<div class="hub-debt-total"><span>Всего к оплате</span><strong>${money(data.debt_total || 0)}</strong></div>` + debts.map(item => `<div class="hub-item"><strong>${escapeHtml(item.name || 'Ученик')}</strong><span>${item.unpaid_count || 0} зан. · ${money(item.amount || 0)}</span></div>`).join('')
+        ? `<div class="hub-debt-total"><span>Всего к оплате</span><strong>${money(data.debt_total || 0)}</strong></div>` + debts.map(item => `<div class="hub-item"><strong>${userContentOr(item.name, 'Ученик')}</strong><span>${item.unpaid_count || 0} ${uiText('зан.')} · ${money(item.amount || 0)}</span></div>`).join('')
         : '<div class="hub-empty">Просроченных неоплаченных занятий нет.</div>';
 
     const groupedWindows = groupedWorkCenterWindows(data.windows);
@@ -2576,8 +2598,8 @@ function renderWorkCenter() {
         </div>`;
 
     document.getElementById('hub-birthdays').innerHTML = (data.birthdays || []).length
-        ? data.birthdays.map(item => `<div class="hub-item"><strong>${escapeHtml(item.name)}</strong><span>${item.days === 0 ? 'сегодня' : `${shortDateRu(item.date)} · через ${item.days} дн.`}</span></div>`).join('')
-        : '<div class="hub-empty">В ближайшие 30 дней дней рождения нет.</div>';
+        ? data.birthdays.map(item => `<div class="hub-item"><strong>${userContent(item.name)}</strong><span>${item.days === 0 ? uiText('сегодня') : `${shortDateRu(item.date)} · ${uiText('через')} ${item.days} ${uiText('дн.')}`}</span></div>`).join('')
+        : `<div class="hub-empty">${uiText('В ближайшие 30 дней дней рождения нет.')}</div>`;
 }
 
 async function refreshWorkCenterBadge() {
@@ -2772,7 +2794,7 @@ function renderStudentsList(filter = '') {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'student-list-row';
-        btn.innerHTML = `<strong>${escapeHtml(info.name || id)}</strong>${threadIcon('chevron-right', 'row-chevron')}`;
+        btn.innerHTML = `<strong>${userContent(info.name || id)}</strong>${threadIcon('chevron-right', 'row-chevron')}`;
         btn.onclick = () => {
             document.getElementById('students-overlay').classList.add('hidden');
             openStudentCard(id);
@@ -2810,7 +2832,7 @@ document.getElementById('btn-archive-student').onclick = async () => {
 document.getElementById('btn-delete-student').onclick = async () => {
     const studentId = document.getElementById('student-card-overlay').dataset.studentId;
     const studentName = String(getStudentInfo(studentId).name || '').trim();
-    const typedName = prompt(`Удалить ученика «${studentName}»? Профиль и все будущие занятия будут удалены без возможности восстановления. Прошедшие занятия, оплаты, чеки и книга учёта сохранятся.\n\nДля подтверждения введите имя ученика:`);
+    const typedName = prompt(uiMessage`Удалить ученика «${studentName}»? Профиль и все будущие занятия будут удалены без возможности восстановления. Прошедшие занятия, оплаты, чеки и книга учёта сохранятся.\n\nДля подтверждения введите имя ученика:`);
     if (typedName === null) return;
     if (typedName.trim() !== studentName) return alert('Имя не совпало. Удаление отменено.');
     const button = document.getElementById('btn-delete-student');
@@ -2839,7 +2861,7 @@ document.getElementById('btn-student-payment').onclick = async () => {
     if (!studentId) return;
     const info = getStudentInfo(studentId);
     document.getElementById('student-payment-overlay').dataset.studentId = studentId;
-    document.getElementById('student-payment-title').textContent = `Оплата · ${info.name || 'Ученик'}`;
+    document.getElementById('student-payment-title').innerHTML = `<span>${uiText('Оплата')}</span> · ${userContentOr(info.name, 'Ученик')}`;
     document.getElementById('student-payment-amount').value = '';
     document.getElementById('student-payment-send-receipt').checked = state.settings.default_send_receipts !== false;
     document.getElementById('student-payment-overlay').classList.remove('hidden');
@@ -2864,7 +2886,7 @@ document.getElementById('btn-student-payment').onclick = async () => {
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'primary-btn';
-            button.textContent = `${quote.count} ${quote.count === 4 ? 'занятия' : 'занятий'} — ${money(quote.amount)}`;
+            button.textContent = `${quote.count} ${uiText(quote.count === 4 ? 'занятия' : 'занятий')} — ${money(quote.amount)}`;
             button.onclick = () => {
                 if (applyButton.disabled) return;
                 selectedPaymentQuote = quote;
@@ -2873,7 +2895,7 @@ document.getElementById('btn-student-payment').onclick = async () => {
             };
             const details = document.createElement('details');
             details.innerHTML = '<summary>Какие занятия</summary><ul>' + (quote.lessons || []).map(lesson =>
-                `<li>${escapeHtml(lesson.date)} · ${escapeHtml(lesson.time)} · ${lesson.is_group ? 'Группа' : 'Индивидуальное'} · ${escapeHtml(money(lesson.amount))}</li>`).join('') + '</ul>';
+                `<li>${escapeHtml(lesson.date)} · ${escapeHtml(lesson.time)} · ${uiText(lesson.is_group ? 'Группа' : 'Индивидуальное')} · ${escapeHtml(money(lesson.amount))}</li>`).join('') + '</ul>';
             block.append(button, details);
             options.appendChild(block);
         });
@@ -2924,8 +2946,8 @@ document.getElementById('btn-apply-student-payment').onclick = async () => {
         overlay.classList.add('hidden');
         await Promise.all([refreshScheduleOnly(), loadStudentLessonStats(studentId)]);
         await loadStudentPayments(studentId);
-        const restText = Number(result.unallocated || 0) > 0 ? ` Не распределено: ${money(result.unallocated)}.` : '';
-        alert(`Оплата распределена.${restText} ${result.receipt_message || ''}`.trim());
+        const restText = Number(result.unallocated || 0) > 0 ? uiMessage` Не распределено: ${money(result.unallocated)}.` : '';
+        alert(uiMessage`Оплата распределена.${restText} ${result.receipt_message || ''}`.trim());
     } catch (error) {
         alert('Не удалось получить результат оплаты. Перед повторной оплатой проверьте историю ученика.');
     } finally {

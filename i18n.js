@@ -1,5 +1,5 @@
 (() => {
-    const VERSION = '30.14.0';
+    const VERSION = '30.15.2';
     const LANGUAGES = {
         ru: { label: 'Русский', locale: 'ru-RU', currency: 'RUB' },
         en: { label: 'English', locale: 'en-US', currency: 'USD' },
@@ -156,7 +156,10 @@
             }
         }
     });
-    window.addEventListener('DOMContentLoaded', () => {
+    let initialized = false;
+    function initialize() {
+        if (initialized) return;
+        initialized = true;
         document.documentElement.style.setProperty('--currency-symbol', `"${currencySymbol()}"`);
         apply();
         observer.observe(document.body, {
@@ -167,7 +170,13 @@
             attributeFilter: ['placeholder', 'title', 'aria-label']
         });
         setLanguage(language).catch(error => console.warn('TEMLI locale:', error));
-    });
+    }
+
+    if (document.readyState === 'loading') {
+        window.addEventListener('DOMContentLoaded', initialize, { once: true });
+    } else {
+        initialize();
+    }
 
     window.TEMLI_I18N = {
         VERSION, LANGUAGES, CURRENCIES, register, apply, translated,

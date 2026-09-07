@@ -106,7 +106,7 @@
         }
 
         try {
-            await loadScript('i18n.js?v=30.14.0');
+            await loadScript('i18n.js?v=30.15.2');
             await loadScript('app.js?v=30.15.0');
             hideStatus();
         } catch (error) {

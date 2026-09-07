@@ -542,7 +542,7 @@ function renderCalendar() {
     layer.innerHTML = '<div id="current-time-line" class="current-time-line hidden"><div class="time-line-dot"></div></div>';
     document.documentElement.style.setProperty('--hour-height', `${hourHeight}px`);
 
-    document.getElementById('month-label').title = `Выбрать дату · ${formatWeekRange(state.currentMonday)}`;
+    document.getElementById('btn-date-picker').title = `Выбрать дату · ${formatWeekRange(state.currentMonday)}`;
 
     const todayKey = dateKey(new Date());
     const header = document.getElementById('days-header');
@@ -1750,10 +1750,7 @@ function renderDatePicker() {
     }
 }
 
-document.getElementById('month-label').onclick = () => {
-    document.getElementById('app-settings-overlay').classList.add('hidden');
-    openDatePicker();
-};
+document.getElementById('btn-date-picker').onclick = openDatePicker;
 document.getElementById('date-picker-prev').onclick = () => { state.datePickerMonth.setMonth(state.datePickerMonth.getMonth() - 1); renderDatePicker(); };
 document.getElementById('date-picker-next').onclick = () => { state.datePickerMonth.setMonth(state.datePickerMonth.getMonth() + 1); renderDatePicker(); };
 document.getElementById('date-picker-today').onclick = () => {
@@ -1848,8 +1845,20 @@ const receiptSettingFields = [
     'corr_account', 'recipient', 'payment_comment'
 ];
 
+function syncLanguageSegment(language = document.getElementById('interface-language').value) {
+    const segment = document.getElementById('interface-language-segment');
+    if (!segment) return;
+    segment.dataset.active = language;
+    segment.querySelectorAll('[data-language]').forEach(button => {
+        const active = button.dataset.language === language;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-checked', String(active));
+    });
+}
+
 function fillAppSettingsForm() {
     document.getElementById('interface-language').value = state.settings.language || 'ru';
+    syncLanguageSegment(state.settings.language || 'ru');
     document.getElementById('interface-currency').value = state.settings.currency || 'RUB';
     document.getElementById('default-reminders-enabled').checked = state.settings.default_reminders_enabled !== false;
     document.getElementById('default-zoom-link').value = state.settings.zoom_link || '';
@@ -2013,8 +2022,16 @@ document.getElementById('btn-cancel-app-settings').onclick = closeAppSettings;
 document.getElementById('interface-currency').onchange = event => {
     window.TEMLI_I18N?.setCurrency(event.target.value, { persist: false });
 };
+document.querySelectorAll('#interface-language-segment [data-language]').forEach(button => {
+    button.onclick = () => {
+        const select = document.getElementById('interface-language');
+        select.value = button.dataset.language;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+});
 document.getElementById('interface-language').onchange = async event => {
     const language = event.target.value;
+    syncLanguageSegment(language);
     try {
         await window.TEMLI_I18N?.setLanguage(language, { persist: false });
     } catch (error) {

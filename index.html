@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TEMLI — расписание</title>
-    <link rel="stylesheet" href="styles.css?v=30.15.0">
+    <link rel="stylesheet" href="styles.css?v=30.15.4">
 </head>
 <body>
     <div id="startup-status" role="status" aria-live="polite">
@@ -25,6 +25,7 @@
             <symbol id="ti-settings" viewBox="0 0 24 24"><path d="M4 6h5M14 6h6M4 12h9M18 12h2M4 18h3M12 18h8"/><circle cx="11.5" cy="6" r="2.2"/><circle cx="15.5" cy="12" r="2.2"/><circle cx="9.5" cy="18" r="2.2"/></symbol>
             <symbol id="ti-zoom-in" viewBox="0 0 24 24"><circle cx="10" cy="10" r="5.5"/><path d="m14 14 5 5M10 7v6M7 10h6"/><circle cx="19" cy="19" r="1.15" fill="currentColor" stroke="none"/></symbol>
             <symbol id="ti-zoom-out" viewBox="0 0 24 24"><circle cx="10" cy="10" r="5.5"/><path d="m14 14 5 5M7 10h6"/><circle cx="19" cy="19" r="1.15" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="ti-calendar" viewBox="0 0 24 24"><rect x="4.5" y="6.5" width="15" height="13" rx="2"/><path d="M8 4v5M16 4v5M4.5 10.5h15M8 14h2M14 14h2M8 17h2"/><circle cx="16" cy="17" r="1.15" fill="currentColor" stroke="none"/></symbol>
             <symbol id="ti-pin" viewBox="0 0 24 24"><path d="M12 21s6-5.4 6-11a6 6 0 0 0-12 0c0 5.6 6 11 6 11Z"/><circle cx="12" cy="10" r="2.2"/><circle cx="12" cy="21" r="1.15" fill="currentColor" stroke="none"/></symbol>
             <symbol id="ti-message" viewBox="0 0 24 24"><path d="M5 5.5h14v10H10l-4.5 3v-3H5z"/><path d="M9 10h6"/><circle cx="18.5" cy="15.5" r="1.15" fill="currentColor" stroke="none"/></symbol>
             <symbol id="ti-delay-teacher" viewBox="0 0 24 24"><circle cx="11" cy="12" r="7"/><path d="M11 8v4l3 2M18.5 5.5l1.5-1.5"/><circle cx="19.5" cy="4.5" r="1.15" fill="currentColor" stroke="none"/></symbol>
@@ -84,6 +85,7 @@
             <div class="time-spacer">
                 <button id="btn-zoom-in" class="zoom-btn" title="Увеличить высоту" aria-label="Увеличить высоту"><svg class="thread-icon" aria-hidden="true"><use href="#ti-zoom-in"></use></svg></button>
                 <button id="btn-zoom-out" class="zoom-btn" title="Уменьшить высоту" aria-label="Уменьшить высоту"><svg class="thread-icon" aria-hidden="true"><use href="#ti-zoom-out"></use></svg></button>
+                <button id="btn-date-picker" class="zoom-btn date-picker-trigger" type="button" title="Выбрать дату" aria-label="Выбрать дату"><svg class="thread-icon" aria-hidden="true"><use href="#ti-calendar"></use></svg></button>
             </div>
             <div class="days-row" id="days-header"></div>
         </div>
@@ -639,7 +641,12 @@
                 <div class="compact-grid-two settings-locale-grid">
                     <div class="form-group compact-setting-field">
                         <label for="interface-language">Язык интерфейса</label>
-                        <select id="interface-language">
+                        <div id="interface-language-segment" class="language-segment" role="radiogroup" aria-label="Язык интерфейса">
+                            <span class="language-segment-glow" aria-hidden="true"></span>
+                            <button class="language-segment-option" type="button" data-language="ru" role="radio" aria-checked="true"><strong>RU</strong><small>Русский</small></button>
+                            <button class="language-segment-option" type="button" data-language="en" role="radio" aria-checked="false"><strong>EN</strong><small>English</small></button>
+                        </div>
+                        <select id="interface-language" class="language-native-select" tabindex="-1" aria-hidden="true">
                             <option value="ru">Русский</option>
                             <option value="en">English</option>
                         </select>
@@ -686,9 +693,6 @@
                     <input type="checkbox" id="default-reminders-enabled" checked>
                     <span>Напоминания для новых занятий</span>
                 </label>
-                <button id="month-label" class="settings-link-row" type="button" title="Выбрать дату">
-                    <span>Выбрать дату</span><svg class="thread-icon row-chevron" aria-hidden="true"><use href="#ti-chevron-right"></use></svg>
-                </button>
                 <div class="settings-mini-title">Чеки</div>
                 <label class="checkbox-label settings-checkbox compact-setting-row">
                     <input type="checkbox" id="default-send-receipts" checked>
@@ -901,6 +905,6 @@
         </div>
     </div>
 
-    <script src="startup.js?v=30.15.2"></script>
+    <script src="startup.js?v=30.15.4"></script>
 </body>
 </html>

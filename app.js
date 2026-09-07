@@ -38,7 +38,7 @@ const state = {
     isMoving: false,
     pendingMove: null,
     editingExisting: false,
-    settings: { default_reminders_enabled: true, default_send_receipts: true, default_send_receipt_copy: true, zoom_link: '', work_start: '06:00', work_end: '00:00', days_off: [] },
+    settings: { default_reminders_enabled: true, default_send_receipts: true, default_send_receipt_copy: true, zoom_link: '', work_start: '06:00', work_end: '00:00', days_off: [], language: 'ru', currency: 'RUB' },
     datePickerMonth: new Date(),
     workCenter: null,
     subscriptionStudentId: '',
@@ -60,15 +60,22 @@ function dateKey(date) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function uiLocale() { return window.TEMLI_I18N?.locale() || 'ru-RU'; }
+function currencySymbol() { return window.TEMLI_I18N?.currencySymbol() || '₽'; }
+function localizeText(value) { return window.TEMLI_I18N?.translated(value) || value; }
+function formatUiNumber(value, options = {}) {
+    return window.TEMLI_I18N?.formatNumber(value, options) ?? Number(value || 0).toLocaleString(uiLocale(), options);
+}
+
 function formatWeekRange(monday) {
-    const months = ['янв.', 'февр.', 'мар.', 'апр.', 'мая', 'июн.', 'июл.', 'авг.', 'сен.', 'окт.', 'нояб.', 'дек.'];
     const start = new Date(monday);
     const end = new Date(monday);
     end.setDate(end.getDate() + 6);
+    const month = date => new Intl.DateTimeFormat(uiLocale(), { month: 'short' }).format(date).replace(/\.$/, '');
     if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
-        return `${start.getDate()}–${end.getDate()} ${months[end.getMonth()]}`;
+        return `${start.getDate()}–${end.getDate()} ${month(end)}`;
     }
-    return `${start.getDate()} ${months[start.getMonth()]}–${end.getDate()} ${months[end.getMonth()]}`;
+    return `${start.getDate()} ${month(start)}–${end.getDate()} ${month(end)}`;
 }
 
 function haptic(type = 'light') {
@@ -91,7 +98,7 @@ function visibleStudentEntries() {
         .sort((a, b) => {
             const aInfo = typeof a[1] === 'string' ? { name: a[1] } : (a[1] || {});
             const bInfo = typeof b[1] === 'string' ? { name: b[1] } : (b[1] || {});
-            return String(aInfo.name || a[0]).localeCompare(String(bInfo.name || b[0]), 'ru', { sensitivity: 'base' });
+            return String(aInfo.name || a[0]).localeCompare(String(bInfo.name || b[0]), uiLocale(), { sensitivity: 'base' });
         });
 }
 
@@ -166,8 +173,12 @@ function getStudentColor(studentId, name) {
 }
 
 function apiHeaders(extraHeaders = {}, body = null) {
+    const initData = String(tg.initData || '');
+    if (!initData) {
+        throw new Error('Доступ к API невозможен без авторизации Telegram.');
+    }
     const headers = {
-        'X-Telegram-Init-Data': tg.initData || '',
+        'X-Telegram-Init-Data': initData,
         ...extraHeaders
     };
     if (!(body instanceof FormData) && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
@@ -288,6 +299,8 @@ async function loadSettings() {
         const data = await response.json();
         if (data.status === 'ok') {
             state.settings = data.settings || state.settings;
+            await window.TEMLI_I18N?.setLanguage(state.settings.language || 'ru');
+            window.TEMLI_I18N?.setCurrency(state.settings.currency || 'RUB');
             state.onboardingNeeded = data.onboarding_needed === true;
             updateVisibleHoursFromSettingsAndLessons();
         }
@@ -628,7 +641,7 @@ function renderEvents() {
             if (isGroup && groupMembers.length) {
                 const meta = document.createElement('div');
                 meta.className = 'event-group-meta';
-                meta.textContent = `₽ ${groupPaidCount}/${groupMembers.length}`;
+                meta.textContent = `${currencySymbol()} ${groupPaidCount}/${groupMembers.length}`;
                 card.appendChild(meta);
             }
 
@@ -732,7 +745,7 @@ function openActionMenu(date, lesson) {
             row.innerHTML = `
                 <button type="button" class="group-action-member-head" aria-expanded="false">
                     <strong>${escapeHtml(member.name || 'Ученик')}</strong>
-                    <span class="group-member-summary">${price > 0 ? `${price.toLocaleString('ru-RU')} ₽` : 'цена —'} <i class="group-member-status ${statusClass}">${status}</i> ${threadIcon('chevron-right', 'row-chevron')}</span>
+                    <span class="group-member-summary">${price > 0 ? `${money(price)}` : 'цена —'} <i class="group-member-status ${statusClass}">${status}</i> ${threadIcon('chevron-right', 'row-chevron')}</span>
                 </button>
                 <div class="group-member-actions hidden">
                     <div class="action-section-label">Связь</div>
@@ -1267,7 +1280,7 @@ function openSubscriptionForStudent(lesson, studentId) {
     state.subscriptionStudentId = String(studentId || '');
     state.subscriptionPrice = price;
     document.getElementById('subscription-pay-title').textContent = `Абонемент · ${name}`;
-    document.getElementById('subscription-pay-desc').textContent = `Стоимость одного урока: ${price.toLocaleString('ru-RU')} ₽. Укажите общую сумму абонемента.`;
+    document.getElementById('subscription-pay-desc').textContent = `Стоимость одного урока: ${money(price)}. Укажите общую сумму абонемента.`;
     const amountInput = document.getElementById('subscription-pay-amount');
     amountInput.value = String(price * 3);
     document.getElementById('subscription-custom-count').dataset.count = '3';
@@ -1328,7 +1341,7 @@ document.getElementById('btn-action-paid').onclick = async () => {
     document.getElementById('paid-confirm-title').textContent = `${isGroup ? (lesson.group_name || 'Группа') : (lesson.student || 'Ученик')} · ${lesson.time || '--:--'}`;
     document.getElementById('paid-confirm-desc').textContent = isGroup
         ? 'Отметьте учеников, которые оплатили. Сумма берётся из стоимости каждого участника в этом занятии.'
-        : (() => { const price = Number(lessonPriceValue(lesson)); return `Подтвердить оплату${price > 0 ? ` на ${price.toLocaleString('ru-RU')} ₽` : ''}?`; })();
+        : (() => { const price = Number(lessonPriceValue(lesson)); return `Подтвердить оплату${price > 0 ? ` на ${money(price)}` : ''}?`; })();
     const membersBox = document.getElementById('group-paid-members');
     membersBox.innerHTML = '';
     membersBox.classList.toggle('hidden', !isGroup);
@@ -1337,7 +1350,7 @@ document.getElementById('btn-action-paid').onclick = async () => {
             const label = document.createElement('label');
             label.className = 'group-paid-member-row';
             const memberPrice = lessonPriceValue(lesson, member);
-            label.innerHTML = `<input type="checkbox" value="${escapeHtml(member.student_id || '')}" ${member.paid ? 'checked' : ''}><span>${escapeHtml(member.name || 'Ученик')}${memberPrice > 0 ? ` · ${memberPrice.toLocaleString('ru-RU')} ₽` : ' · цена не указана'}</span>`;
+            label.innerHTML = `<input type="checkbox" value="${escapeHtml(member.student_id || '')}" ${member.paid ? 'checked' : ''}><span>${escapeHtml(member.name || 'Ученик')}${memberPrice > 0 ? ` · ${money(memberPrice)}` : ' · цена не указана'}</span>`;
             membersBox.appendChild(label);
         });
     }
@@ -1354,6 +1367,7 @@ document.getElementById('btn-action-subscription').onclick = () => {
 
 
 function subscriptionCountWord(count) {
+    if ((state.settings.language || 'ru') === 'en') return count === 1 ? 'lesson' : 'lessons';
     const mod100 = count % 100;
     const mod10 = count % 10;
     if (mod100 >= 11 && mod100 <= 14) return 'занятий';
@@ -1387,8 +1401,8 @@ function updateSubscriptionPayHint() {
     const effectivePrice = amount / lessonCount;
     const regularTotal = price * lessonCount;
     const discount = regularTotal > amount ? ((regularTotal - amount) / regularTotal) * 100 : 0;
-    const discountText = discount > 0.01 ? ` · скидка ${discount.toLocaleString('ru-RU', { maximumFractionDigits: 1 })}%` : '';
-    hint.textContent = `Будет оплачено: ${lessonCount} ${subscriptionCountWord(lessonCount)} · ${effectivePrice.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽ / занятие${discountText}.`;
+    const discountText = discount > 0.01 ? ` · скидка ${formatUiNumber(discount, { maximumFractionDigits: 1 })}%` : '';
+    hint.textContent = `Будет оплачено: ${lessonCount} ${subscriptionCountWord(lessonCount)} · ${money(Number(effectivePrice.toFixed(2)))} / занятие${discountText}.`;
 }
 
 document.getElementById('subscription-pay-amount').addEventListener('input', () => {
@@ -1707,7 +1721,7 @@ function renderDatePicker() {
     const base = new Date(state.datePickerMonth);
     const year = base.getFullYear();
     const month = base.getMonth();
-    document.getElementById('date-picker-title').textContent = base.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+    document.getElementById('date-picker-title').textContent = base.toLocaleDateString(uiLocale(), { month: 'long', year: 'numeric' });
     const grid = document.getElementById('date-picker-grid');
     grid.innerHTML = '';
 
@@ -1835,6 +1849,8 @@ const receiptSettingFields = [
 ];
 
 function fillAppSettingsForm() {
+    document.getElementById('interface-language').value = state.settings.language || 'ru';
+    document.getElementById('interface-currency').value = state.settings.currency || 'RUB';
     document.getElementById('default-reminders-enabled').checked = state.settings.default_reminders_enabled !== false;
     document.getElementById('default-zoom-link').value = state.settings.zoom_link || '';
     document.getElementById('work-start').value = state.settings.work_start || '06:00';
@@ -1987,8 +2003,24 @@ document.getElementById('btn-app-settings').onclick = () => {
     fillAppSettingsForm();
     document.getElementById('app-settings-overlay').classList.remove('hidden');
 };
-document.getElementById('btn-close-app-settings').onclick = () => document.getElementById('app-settings-overlay').classList.add('hidden');
-document.getElementById('btn-cancel-app-settings').onclick = () => document.getElementById('app-settings-overlay').classList.add('hidden');
+async function closeAppSettings() {
+    await window.TEMLI_I18N?.setLanguage(state.settings.language || 'ru', { persist: false });
+    window.TEMLI_I18N?.setCurrency(state.settings.currency || 'RUB', { persist: false });
+    document.getElementById('app-settings-overlay').classList.add('hidden');
+}
+document.getElementById('btn-close-app-settings').onclick = closeAppSettings;
+document.getElementById('btn-cancel-app-settings').onclick = closeAppSettings;
+document.getElementById('interface-currency').onchange = event => {
+    window.TEMLI_I18N?.setCurrency(event.target.value, { persist: false });
+};
+document.getElementById('interface-language').onchange = async event => {
+    const language = event.target.value;
+    try {
+        await window.TEMLI_I18N?.setLanguage(language, { persist: false });
+    } catch (error) {
+        alert('Не удалось загрузить выбранный язык.');
+    }
+};
 document.getElementById('btn-save-app-settings').onclick = async () => {
     const button = document.getElementById('btn-save-app-settings');
     const workStart = document.getElementById('work-start').value || '06:00';
@@ -1997,6 +2029,8 @@ document.getElementById('btn-save-app-settings').onclick = async () => {
     button.disabled = true;
     try {
         const settings = {
+            language: document.getElementById('interface-language').value || 'ru',
+            currency: document.getElementById('interface-currency').value || 'RUB',
             default_reminders_enabled: document.getElementById('default-reminders-enabled').checked,
             zoom_link: normalizeExternalUrl(document.getElementById('default-zoom-link').value),
             work_start: workStart,
@@ -2009,7 +2043,9 @@ document.getElementById('btn-save-app-settings').onclick = async () => {
         const result = await response.json();
         if (result.status !== 'ok') return alert(result.message || 'Ошибка сохранения настроек');
         state.settings = result.settings || { ...state.settings, ...settings };
-        updateVisibleHoursFromSettingsAndLessons();
+        await window.TEMLI_I18N?.setLanguage(state.settings.language || 'ru');
+        window.TEMLI_I18N?.setCurrency(state.settings.currency || 'RUB');
+            updateVisibleHoursFromSettingsAndLessons();
         renderCalendar();
         scheduleWorkCenterRefresh();
         document.getElementById('app-settings-overlay').classList.add('hidden');
@@ -2201,9 +2237,9 @@ async function loadStudentPayments(studentId) {
             row.className = 'student-finance-row';
             const allocations = (tx.allocations || []).map(a => `<li>${escapeHtml(a.date)} · ${escapeHtml(a.time || '')} · ${a.is_group ? 'Групповое' : 'Индивидуальное'} · ${escapeHtml(money(a.amount))}</li>`).join('');
             row.innerHTML = `<strong>${escapeHtml(money(tx.amount))} · ${tx.reversed_at ? 'Отменена' : 'Общая оплата'}</strong>
-                <div>${escapeHtml(new Date(tx.created_at).toLocaleString('ru-RU'))} · № ${escapeHtml(tx.receipt_number || '')}</div>
+                <div>${escapeHtml(new Date(tx.created_at).toLocaleString(uiLocale()))} · № ${escapeHtml(tx.receipt_number || '')}</div>
                 <ul>${allocations}</ul>
-                ${tx.reversed_at ? `<small>Отменена ${escapeHtml(new Date(tx.reversed_at).toLocaleString('ru-RU'))}</small>` : `<button type="button" class="secondary-btn">${threadIcon('restore')}Отменить весь платёж</button>`}`;
+                ${tx.reversed_at ? `<small>Отменена ${escapeHtml(new Date(tx.reversed_at).toLocaleString(uiLocale()))}</small>` : `<button type="button" class="secondary-btn">${threadIcon('restore')}Отменить весь платёж</button>`}`;
             const button = row.querySelector('button');
             if (button) button.onclick = async () => {
                 if (!confirm(`Отменить всю общую оплату ${money(tx.amount)}? Будут восстановлены ${tx.allocations.length} занятий и добавлена отрицательная запись в книгу.`)) return;
@@ -2304,7 +2340,7 @@ document.getElementById('btn-save-student-card').onclick = async () => {
 // Рабочий центр: внимание, окна, сводка и дни рождения
 function shortWeekdayRu(dateString) {
     const d = new Date(`${dateString}T12:00:00`);
-    const value = d.toLocaleDateString('ru-RU', { weekday: 'short' }).replace(/\.$/, '');
+    const value = d.toLocaleDateString(uiLocale(), { weekday: 'short' }).replace(/\.$/, '');
     return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
@@ -2323,7 +2359,7 @@ function groupedWorkCenterWindows(windows) {
 function workCenterWindowsCopyText(windows) {
     const grouped = groupedWorkCenterWindows(windows);
     if (!grouped.length) return '';
-    return ['Свободные окна на этой неделе:', ...grouped.map(item => `${item.day}: ${item.intervals.join('; ')}`)].join('\n');
+    return [localizeText('Свободные окна на этой неделе:'), ...grouped.map(item => `${item.day}: ${item.intervals.join('; ')}`)].join('\n');
 }
 
 async function copyTextToClipboard(text) {
@@ -2370,7 +2406,11 @@ async function copyWeekWindows() {
         alert(error.message || 'Не удалось скопировать текст');
     }
 }
-function money(value) { return `${Number(value || 0).toLocaleString('ru-RU')} ₽`; }
+function money(value) {
+    const formatted = window.TEMLI_I18N?.formatNumber(value) ?? Number(value || 0).toLocaleString(uiLocale());
+    const symbol = window.TEMLI_I18N?.currencySymbol() || '₽';
+    return `${formatted} ${symbol}`;
+}
 function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
 }

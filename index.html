@@ -4,10 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TEMLI — расписание</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css?v=30.13.0">
+    <link rel="stylesheet" href="styles.css?v=30.15.0">
 </head>
 <body>
+    <div id="startup-status" role="status" aria-live="polite">
+        <div class="startup-status-card">
+            <strong id="startup-status-title">TEMLI</strong>
+            <p id="startup-status-message">Загрузка приложения…</p>
+            <button id="startup-status-retry" type="button" hidden>Повторить</button>
+        </div>
+    </div>
     <svg class="thread-icon-sprite" aria-hidden="true">
         <defs>
             <symbol id="ti-chevron-left" viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/><circle cx="8" cy="12" r="1.15" fill="currentColor" stroke="none"/></symbol>
@@ -629,6 +635,26 @@
                 <button id="btn-open-help" class="settings-link-row help-link-row" type="button">
                     <span class="settings-link-main"><strong><svg class="thread-icon" aria-hidden="true"><use href="#ti-help"></use></svg>Как пользоваться</strong><small>Первые шаги и все возможности</small></span><svg class="thread-icon row-chevron" aria-hidden="true"><use href="#ti-chevron-right"></use></svg>
                 </button>
+                <div class="settings-mini-title">Язык и валюта</div>
+                <div class="compact-grid-two settings-locale-grid">
+                    <div class="form-group compact-setting-field">
+                        <label for="interface-language">Язык интерфейса</label>
+                        <select id="interface-language">
+                            <option value="ru">Русский</option>
+                            <option value="en">English</option>
+                        </select>
+                    </div>
+                    <div class="form-group compact-setting-field">
+                        <label for="interface-currency">Валюта</label>
+                        <select id="interface-currency">
+                            <option value="RUB">RUB — ₽</option>
+                            <option value="USD">USD — $</option>
+                            <option value="EUR">EUR — €</option>
+                            <option value="CNY">CNY — ¥</option>
+                            <option value="TRY">TRY — ₺</option>
+                        </select>
+                    </div>
+                </div>
                 <div class="form-group compact-setting-field">
                     <label>Рабочие часы</label>
                     <div class="working-hours-row">
@@ -872,6 +898,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=30.13.0"></script>
+    <script src="startup.js?v=30.15.0"></script>
 </body>
 </html>

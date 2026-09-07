@@ -36,6 +36,57 @@ body {
     -webkit-tap-highlight-color: transparent;
 }
 
+#startup-status {
+    position: fixed;
+    inset: 0;
+    z-index: 5000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+    overflow: auto;
+    background: #ffffff;
+}
+
+#startup-status.hidden { display: none; }
+
+.startup-status-card {
+    width: min(100%, 420px);
+    padding: 24px 20px;
+    border: 1px solid #dadce0;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 8px 28px rgba(32, 33, 36, 0.12);
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+#startup-status-title {
+    display: block;
+    margin-bottom: 10px;
+    font-size: 20px;
+    line-height: 1.25;
+}
+
+#startup-status-message {
+    color: #5f6368;
+    font-size: 15px;
+    line-height: 1.45;
+}
+
+#startup-status-retry {
+    margin-top: 18px;
+    padding: 10px 18px;
+    border: 0;
+    border-radius: 9px;
+    background: #1a73e8;
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
 /* Header */
 .main-header {
     position: sticky;
@@ -177,7 +228,7 @@ body {
     box-shadow: inset 0 0 0 2px #22c55e, 0 2px 5px rgba(0,0,0,0.25);
 }
 .event-card.paid-status::after {
-    content: "₽";
+    content: var(--currency-symbol, "₽");
     position: absolute;
     right: 3px;
     bottom: 2px;
@@ -561,6 +612,14 @@ body {
     font-size: 11px;
     font-weight: 700;
     color: #80868b;
+}
+
+.settings-locale-grid {
+    align-items: end;
+}
+
+.settings-locale-grid .form-group {
+    margin: 0;
 }
 .settings-link-main {
     min-width: 0;

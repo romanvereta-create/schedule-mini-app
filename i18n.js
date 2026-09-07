@@ -1,5 +1,5 @@
 (() => {
-    const VERSION = '30.16.0';
+    const VERSION = '30.16.1';
     const LANGUAGES = {
         ru: { label: 'Русский', locale: 'ru-RU', currency: 'RUB' },
         en: { label: 'English', locale: 'en-US', currency: 'USD' },
@@ -98,6 +98,8 @@
             else translateAttributes(walker.currentNode);
         }
         document.documentElement.lang = language;
+        const dateInputLanguage = language === 'en' ? 'en-US' : 'ru-RU';
+        document.querySelectorAll('input[type="date"]').forEach(input => { input.lang = dateInputLanguage; });
         document.title = translated('TEMLI — расписание');
     }
 

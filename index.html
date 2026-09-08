@@ -499,6 +499,19 @@
                     <div id="student-card-parent-contacts" class="contacts-list"></div>
                     <button type="button" class="secondary-btn add-contact-btn" data-target="student-card-parent-contacts">＋ Добавить контакт</button>
                 </div>
+                <details id="student-bot-invites" class="form-group" data-i18n-ignore>
+                    <summary id="student-bot-invites-title">Пригласить в моего бота</summary>
+                    <p id="student-bot-invites-help" class="field-hint"></p>
+                    <p id="student-bot-invites-status" role="status" style="overflow-wrap:anywhere"></p>
+                    <button id="student-bot-invite-student" class="secondary-btn" type="button">Ссылка ученику</button>
+                    <button id="student-bot-invite-parent" class="secondary-btn" type="button">Ссылка родителю</button>
+                    <div id="student-bot-invite-result" hidden>
+                        <input id="student-bot-invite-url" type="text" readonly aria-label="Ссылка-приглашение">
+                        <button id="student-bot-invite-copy" class="secondary-btn" type="button">Копировать ссылку</button>
+                    </div>
+                    <div id="student-bot-bindings" style="overflow-wrap:anywhere"></div>
+                    <button id="student-bot-invites-refresh" class="secondary-btn" type="button">Обновить привязки</button>
+                </details>
                 <div class="form-group student-history-section">
                     <div class="student-history-head">
                         <label>История занятий</label>
@@ -914,6 +927,6 @@
         </div>
     </div>
 
-    <script src="startup.js?v=30.17.0"></script>
+    <script src="startup.js?v=30.17.2"></script>
 </body>
 </html>

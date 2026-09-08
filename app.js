@@ -2061,6 +2061,7 @@ async function uploadReceiptAsset(assetType, inputId) {
 
 let personalBotCurrent = null;
 let personalBotBusy = false;
+let personalBotView = null;
 function botText(ru, en) { return uiLocale().startsWith('en') ? en : ru; }
 function botMessage(code) {
     const messages = {
@@ -2074,32 +2075,52 @@ function botMessage(code) {
         expired_preview: ['Проверка истекла. Проверьте токен заново.', 'Verification expired. Check the token again.'],
         key_mismatch: ['Не удалось открыть сохранённое подключение. Обратитесь к администратору.', 'The saved connection cannot be read. Contact the administrator.'],
         changed: ['Подключение изменилось. Откройте настройки заново.', 'The connection changed. Reopen settings.']
+        ,bot_required: ['Сначала подключите личного бота в настройках.', 'Connect your personal bot in settings first.']
+        ,student_missing: ['Карточка ученика не найдена.', 'Student profile not found.']
+        ,binding_missing: ['Привязка изменилась. Обновите список.', 'The connection changed. Refresh the list.']
+        ,public_url: ['Не настроен адрес приёма сообщений. Обратитесь к администратору TEMLI.', 'The message endpoint is not configured. Contact TEMLI support.']
     };
     const pair = messages[code] || ['Не удалось выполнить действие. Повторите позже.', 'Unable to complete the action. Try later.'];
     return botText(...pair);
 }
 function renderPersonalBot(result) {
+    personalBotView = result;
+    renderPersonalBotLabels();
     personalBotCurrent = result.bot || null;
+    const connected = Boolean(personalBotCurrent);
     document.getElementById('personal-bot-status').textContent = !result.enabled ? botMessage('unavailable')
-        : personalBotCurrent ? botText('Сохранён: ', 'Saved: ') + personalBotCurrent.name + ' · @' + personalBotCurrent.username
+        : connected ? botText('Подключён: ', 'Connected: ') + personalBotCurrent.name + ' · @' + personalBotCurrent.username
         : botText('Бот пока не подключён.', 'No bot connected yet.');
+    document.getElementById('personal-bot-help').hidden = connected;
+    document.getElementById('personal-bot-label').hidden = connected;
+    document.getElementById('personal-bot-token').hidden = connected;
+    document.getElementById('personal-bot-check').hidden = connected;
     document.getElementById('personal-bot-check').disabled = !result.enabled;
     document.getElementById('personal-bot-token').disabled = !result.enabled;
-    document.getElementById('personal-bot-disconnect').hidden = !personalBotCurrent;
+    document.getElementById('personal-bot-disconnect').hidden = !connected;
 }
-async function loadPersonalBot() {
-    if (personalBotBusy) return;
+function renderPersonalBotLabels() {
     const text = (id, ru, en) => { document.getElementById(id).textContent = botText(ru, en); };
     text('personal-bot-title', 'Мой бот', 'My bot');
     text('personal-bot-label', 'Токен BotFather', 'BotFather token');
     text('personal-bot-check', 'Проверить и подключить', 'Verify and connect');
     text('personal-bot-disconnect', 'Отключить', 'Disconnect');
-    text('personal-bot-help', 'В @BotFather отправьте /newbot, задайте имя и username, затем вставьте токен. Используйте отдельного бота, не работающего в другом сервисе. Приглашения и сообщения появятся на следующем этапе.',
-        'Send /newbot to @BotFather, choose a name and username, then paste the token. Use a dedicated bot that is not running in another service. Invitations and messaging will follow in the next stage.');
+    text('personal-bot-help', 'Создайте отдельного бота через /newbot в @BotFather и вставьте его токен. Приглашения ученика и родителя доступны в карточке ученика. Бот не должен работать в другом сервисе.',
+        'Create a dedicated bot using /newbot in @BotFather and paste its token. Student and parent invitations are available in the student profile. The bot must not be running in another service.');
+}
+window.addEventListener('temli-language-change', () => {
+    renderPersonalBotLabels();
+    if (personalBotView) renderPersonalBot(personalBotView);
+    renderInviteLabels();
+});
+async function loadPersonalBot() {
+    if (personalBotBusy) return;
+    personalBotView = null;
+    renderPersonalBotLabels();
     document.getElementById('personal-bot-token').value = '';
     document.getElementById('personal-bot-check').disabled = true;
     document.getElementById('personal-bot-disconnect').hidden = true;
-    text('personal-bot-status', 'Загрузка…', 'Loading…');
+    document.getElementById('personal-bot-status').textContent = botText('Загрузка…', 'Loading…');
     try {
         const response = await apiFetch('/personal_bot');
         const result = await response.json();
@@ -2166,7 +2187,7 @@ document.getElementById('interface-language').onchange = async event => {
     syncLanguageSegment(language);
     try {
         await window.TEMLI_I18N?.setLanguage(language, { persist: false });
-        await loadPersonalBot();
+        renderPersonalBotLabels();
     } catch (error) {
         alert('Не удалось загрузить выбранный язык.');
     }
@@ -2440,6 +2461,124 @@ async function changeStudentLessonPayment(studentId, item, action, row) {
     }
 }
 
+let inviteView = null;
+let inviteRequest = 0;
+let inviteBusy = false;
+function inviteStudentId() {
+    return document.getElementById('student-card-overlay').dataset.studentId;
+}
+function renderInviteLabels() {
+    const labels = [
+        ['student-bot-invites-title', 'Пригласить в моего бота', 'Invite to my bot'],
+        ['student-bot-invites-help', 'Отправьте ссылку нужному человеку. Она действует 48 часов и используется один раз. После запуска бота обновите список и подтвердите человека. Новая ссылка отменяет предыдущую для этой роли.',
+            'Send the link to the intended person. It expires in 48 hours and can be used once. After they start the bot, refresh this list and confirm their identity. A new link replaces the previous link for that role.'],
+        ['student-bot-invite-student', 'Ссылка ученику', 'Student invitation'],
+        ['student-bot-invite-parent', 'Ссылка родителю', 'Parent invitation'],
+        ['student-bot-invite-copy', 'Копировать ссылку', 'Copy link'],
+        ['student-bot-invites-refresh', 'Обновить привязки', 'Refresh connections']
+    ];
+    for (const [id, ru, en] of labels) document.getElementById(id).textContent = botText(ru, en);
+    document.getElementById('student-bot-invite-url').setAttribute('aria-label', botText('Ссылка-приглашение', 'Invitation link'));
+    if (inviteView) renderInviteBindings();
+}
+function renderInviteBindings() {
+    const list = document.getElementById('student-bot-bindings');
+    list.replaceChildren();
+    const view = inviteView;
+    if (!view || view.studentId !== inviteStudentId()) return;
+    document.getElementById('student-bot-invites-status').textContent = view.bot_username
+        ? '@' + view.bot_username : botMessage('bot_required');
+    for (const binding of view.bindings || []) {
+        const row = document.createElement('div');
+        row.className = 'form-group';
+        const label = document.createElement('p');
+        label.textContent = (binding.role === 'parent' ? botText('Родитель', 'Parent') : botText('Ученик', 'Student'))
+            + ' · ' + binding.name + (binding.username ? ' · @' + binding.username : '')
+            + ' · ID ' + binding.telegram_id + ' · '
+            + (binding.state === 'active' ? botText('Подтверждён', 'Confirmed') : botText('Ожидает подтверждения', 'Awaiting confirmation'));
+        row.append(label);
+        for (const action of binding.state === 'active' ? ['revoke'] : ['approve', 'revoke']) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'secondary-btn';
+            button.disabled = inviteBusy;
+            button.textContent = action === 'approve' ? botText('Подтвердить', 'Confirm') : botText('Удалить привязку', 'Remove connection');
+            button.onclick = () => runInviteAction(async studentId => {
+                if (!confirm(action === 'approve'
+                    ? botText('Вы проверили, что это нужный человек?', 'Have you verified this is the intended person?')
+                    : botText('Удалить эту привязку? Карточка ученика сохранится.', 'Remove this connection? The student profile will be kept.'))) return;
+                await inviteApi({action, student_id: studentId, binding_id: binding.id});
+                await loadStudentBotBindings(studentId);
+            });
+            row.append(button);
+        }
+        list.append(row);
+    }
+    for (const id of ['student-bot-invite-student','student-bot-invite-parent']) {
+        document.getElementById(id).disabled = inviteBusy || !view.bot_username;
+    }
+}
+async function inviteApi(payload) {
+    const response = await apiFetch('/personal_invites', {method:'POST', body:JSON.stringify(payload)});
+    const result = await response.json();
+    if (!response.ok || result.status !== 'ok') throw new Error(result.code || '');
+    return result;
+}
+async function loadStudentBotBindings(studentId = inviteStudentId()) {
+    const sequence = ++inviteRequest;
+    inviteView = null;
+    renderInviteLabels();
+    document.getElementById('student-bot-bindings').replaceChildren();
+    for (const id of ['student-bot-invite-student','student-bot-invite-parent']) document.getElementById(id).disabled = true;
+    document.getElementById('student-bot-invites-status').textContent = botText('Загрузка…', 'Loading…');
+    try {
+        const result = await inviteApi({action:'list', student_id:studentId});
+        if (sequence !== inviteRequest || studentId !== inviteStudentId()) return;
+        inviteView = {...result, studentId};
+        renderInviteBindings();
+    } catch (error) {
+        if (sequence === inviteRequest && studentId === inviteStudentId())
+            document.getElementById('student-bot-invites-status').textContent = botMessage(error.message);
+    }
+}
+async function runInviteAction(action) {
+    if (inviteBusy) return;
+    const studentId = inviteStudentId();
+    inviteBusy = true;
+    document.querySelectorAll('#student-bot-invites button').forEach(b => { b.disabled = true; });
+    try { await action(studentId); }
+    catch (error) {
+        if (studentId === inviteStudentId()) document.getElementById('student-bot-invites-status').textContent = botMessage(error.message);
+    } finally {
+        inviteBusy = false;
+        document.querySelectorAll('#student-bot-invites button').forEach(b => { b.disabled = false; });
+        if (!inviteView?.bot_username) {
+            document.getElementById('student-bot-invite-student').disabled = true;
+            document.getElementById('student-bot-invite-parent').disabled = true;
+        }
+    }
+}
+for (const role of ['student','parent']) {
+    document.getElementById('student-bot-invite-' + role).onclick = () => runInviteAction(async studentId => {
+        const result = await inviteApi({action:'create', student_id:studentId, role});
+        if (studentId !== inviteStudentId()) return;
+        document.getElementById('student-bot-invite-url').value = result.url;
+        document.getElementById('student-bot-invite-result').hidden = false;
+        document.getElementById('student-bot-invites-status').textContent = botText('Ссылка готова. Скопируйте и отправьте её адресату.', 'Link ready. Copy it and send it to the intended person.');
+    });
+}
+document.getElementById('student-bot-invites-refresh').onclick = () => loadStudentBotBindings();
+document.getElementById('student-bot-invite-copy').onclick = async () => {
+    const input = document.getElementById('student-bot-invite-url');
+    try {
+        await navigator.clipboard.writeText(input.value);
+        document.getElementById('student-bot-invites-status').textContent = botText('Ссылка скопирована.', 'Link copied.');
+    } catch {
+        input.focus(); input.select();
+        document.getElementById('student-bot-invites-status').textContent = botText('Скопируйте выделенную ссылку вручную.', 'Copy the selected link manually.');
+    }
+};
+
 function openStudentCard(studentId) {
     if (!studentId || !state.students[studentId]) return alert('Карточка доступна после сохранения ученика.');
     document.getElementById('student-finances').open = false;
@@ -2462,6 +2601,10 @@ function openStudentCard(studentId) {
     document.getElementById('student-card-overlay').classList.remove('hidden');
     loadStudentLessonStats(studentId);
     loadStudentPayments(studentId);
+    document.getElementById('student-bot-invites').open = false;
+    document.getElementById('student-bot-invite-result').hidden = true;
+    document.getElementById('student-bot-invite-url').value = '';
+    loadStudentBotBindings(studentId);
 }
 
 document.getElementById('btn-close-student-card').onclick = () => document.getElementById('student-card-overlay').classList.add('hidden');

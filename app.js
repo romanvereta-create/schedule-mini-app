@@ -548,23 +548,19 @@ function autoFitCalendarToWeek() {
         return;
     }
 
-    // Небольшой воздух сверху/снизу, чтобы первое и последнее занятие не прилипали к краям.
-    const paddingMinutes = 15;
-    const visibleStart = Math.max(START_HOUR * 60, bounds.earliest - paddingMinutes);
-    const visibleEnd = Math.min((END_HOUR + 1) * 60, bounds.latest + paddingMinutes);
+    // При первом открытии показываем весь настроенный рабочий диапазон.
+    // Календарь не должен сам уезжать к вечерним занятиям и скрывать верх дня.
+    const visibleStart = START_HOUR * 60;
+    const visibleEnd = (END_HOUR + 1) * 60;
     const spanMinutes = Math.max(60, visibleEnd - visibleStart);
     const viewportHeight = Math.max(1, container.clientHeight - 12);
 
-    // Автоподбор только сжимает стандартный масштаб. Если диапазон небольшой,
-    // привычный масштаб 80 px/час сохраняется и календарь просто прокручивается к первому уроку.
+    // Автоподбор только сжимает стандартный масштаб, чтобы вместить рабочий день.
+    // После этого пользователь по-прежнему может увеличить календарь вручную.
     const fitHeight = viewportHeight * 60 / spanMinutes;
     const targetHeight = Math.max(MIN_HOUR_HEIGHT, Math.min(DEFAULT_HOUR_HEIGHT, fitHeight));
     applyHourHeightSmooth(targetHeight);
-
-    const offsetMinutes = Math.max(0, visibleStart - START_HOUR * 60);
-    const desiredTop = offsetMinutes * hourHeight / 60;
-    const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight);
-    container.scrollTop = Math.min(maxScroll, Math.max(0, desiredTop));
+    container.scrollTop = 0;
 }
 
 function scheduleCalendarAutoFit() {
@@ -589,6 +585,7 @@ function renderCalendar() {
     grid.innerHTML = '';
     layer.innerHTML = '<div id="current-time-line" class="current-time-line hidden"><div class="time-line-dot"></div></div>';
     document.documentElement.style.setProperty('--hour-height', `${hourHeight}px`);
+    document.documentElement.style.setProperty('--visible-hour-count', String(END_HOUR - START_HOUR + 1));
 
     document.getElementById('btn-date-picker').title = `${uiText('Выбрать дату')} · ${formatWeekRange(state.currentMonday)}`;
 

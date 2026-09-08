@@ -106,8 +106,8 @@
         }
 
         try {
-            await loadScript('i18n.js?v=30.17.3');
-            await loadScript('app.js?v=30.17.3');
+            await loadScript('i18n.js?v=30.17.5');
+            await loadScript('app.js?v=30.17.5');
             hideStatus();
         } catch (error) {
             console.error('Не удалось загрузить TEMLI:', error);

@@ -637,6 +637,15 @@
                 <button id="btn-open-help" class="settings-link-row help-link-row" type="button">
                     <span class="settings-link-main"><strong><svg class="thread-icon" aria-hidden="true"><use href="#ti-help"></use></svg>Как пользоваться</strong><small>Первые шаги и все возможности</small></span><svg class="thread-icon row-chevron" aria-hidden="true"><use href="#ti-chevron-right"></use></svg>
                 </button>
+                <details id="personal-bot-panel" class="form-group" translate="no" data-i18n-ignore>
+                    <summary id="personal-bot-title">Мой бот</summary>
+                    <p id="personal-bot-help"></p>
+                    <p id="personal-bot-status" role="status" style="overflow-wrap:anywhere"></p>
+                    <label id="personal-bot-label" for="personal-bot-token">Токен BotFather</label>
+                    <input id="personal-bot-token" type="password" autocomplete="new-password" spellcheck="false" maxlength="128">
+                    <button id="personal-bot-check" class="secondary-btn" type="button">Проверить</button>
+                    <button id="personal-bot-disconnect" class="secondary-btn" type="button" hidden>Отключить</button>
+                </details>
                 <div class="settings-mini-title">Язык и валюта</div>
                 <div class="compact-grid-two settings-locale-grid">
                     <div class="form-group compact-setting-field">
@@ -905,6 +914,6 @@
         </div>
     </div>
 
-    <script src="startup.js?v=30.16.2"></script>
+    <script src="startup.js?v=30.17.0"></script>
 </body>
 </html>

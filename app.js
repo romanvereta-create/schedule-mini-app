@@ -2059,11 +2059,92 @@ async function uploadReceiptAsset(assetType, inputId) {
     return result.settings || null;
 }
 
+let personalBotCurrent = null;
+let personalBotBusy = false;
+function botText(ru, en) { return uiLocale().startsWith('en') ? en : ru; }
+function botMessage(code) {
+    const messages = {
+        unavailable: ['Подключение пока не включено на сервере.', 'Bot connections are not enabled on the server yet.'],
+        invalid_token: ['Проверьте токен BotFather.', 'Check your BotFather token.'],
+        telegram_unavailable: ['Telegram не подтвердил токен. Проверьте его или повторите позже.', 'Telegram could not verify the token. Check it or try later.'],
+        central_bot: ['Главный бот TEMLI подключать нельзя.', 'The central TEMLI bot cannot be connected.'],
+        existing_webhook: ['Бот уже подключён к другому сервису. Используйте отдельного бота.', 'This bot has a webhook. Use a dedicated bot.'],
+        already_connected: ['Бот уже подключён к другому аккаунту.', 'This bot is already connected to another account.'],
+        disconnect_first: ['Сначала отключите текущего бота.', 'Disconnect the current bot first.'],
+        expired_preview: ['Проверка истекла. Проверьте токен заново.', 'Verification expired. Check the token again.'],
+        key_mismatch: ['Не удалось открыть сохранённое подключение. Обратитесь к администратору.', 'The saved connection cannot be read. Contact the administrator.'],
+        changed: ['Подключение изменилось. Откройте настройки заново.', 'The connection changed. Reopen settings.']
+    };
+    const pair = messages[code] || ['Не удалось выполнить действие. Повторите позже.', 'Unable to complete the action. Try later.'];
+    return botText(...pair);
+}
+function renderPersonalBot(result) {
+    personalBotCurrent = result.bot || null;
+    document.getElementById('personal-bot-status').textContent = !result.enabled ? botMessage('unavailable')
+        : personalBotCurrent ? botText('Сохранён: ', 'Saved: ') + personalBotCurrent.name + ' · @' + personalBotCurrent.username
+        : botText('Бот пока не подключён.', 'No bot connected yet.');
+    document.getElementById('personal-bot-check').disabled = !result.enabled;
+    document.getElementById('personal-bot-token').disabled = !result.enabled;
+    document.getElementById('personal-bot-disconnect').hidden = !personalBotCurrent;
+}
+async function loadPersonalBot() {
+    if (personalBotBusy) return;
+    const text = (id, ru, en) => { document.getElementById(id).textContent = botText(ru, en); };
+    text('personal-bot-title', 'Мой бот', 'My bot');
+    text('personal-bot-label', 'Токен BotFather', 'BotFather token');
+    text('personal-bot-check', 'Проверить и подключить', 'Verify and connect');
+    text('personal-bot-disconnect', 'Отключить', 'Disconnect');
+    text('personal-bot-help', 'В @BotFather отправьте /newbot, задайте имя и username, затем вставьте токен. Используйте отдельного бота, не работающего в другом сервисе. Приглашения и сообщения появятся на следующем этапе.',
+        'Send /newbot to @BotFather, choose a name and username, then paste the token. Use a dedicated bot that is not running in another service. Invitations and messaging will follow in the next stage.');
+    document.getElementById('personal-bot-token').value = '';
+    document.getElementById('personal-bot-check').disabled = true;
+    document.getElementById('personal-bot-disconnect').hidden = true;
+    text('personal-bot-status', 'Загрузка…', 'Loading…');
+    try {
+        const response = await apiFetch('/personal_bot');
+        const result = await response.json();
+        if (!response.ok || result.status !== 'ok') throw new Error(result.code || '');
+        renderPersonalBot(result);
+    } catch (error) {
+        document.getElementById('personal-bot-status').textContent = botMessage(error.message);
+    }
+}
+async function personalBotAction(payload) {
+    const response = await apiFetch('/personal_bot', {method: 'POST', body: JSON.stringify(payload)});
+    const result = await response.json();
+    if (!response.ok || result.status !== 'ok') throw new Error(result.code || '');
+    return result;
+}
+async function runPersonalBotAction(action) {
+    if (personalBotBusy) return;
+    personalBotBusy = true;
+    const check = document.getElementById('personal-bot-check');
+    const disconnect = document.getElementById('personal-bot-disconnect');
+    check.disabled = disconnect.disabled = true;
+    try { await action(); }
+    catch (error) { document.getElementById('personal-bot-status').textContent = botMessage(error.message); }
+    finally { personalBotBusy = false; check.disabled = disconnect.disabled = false; }
+}
+document.getElementById('personal-bot-check').onclick = () => runPersonalBotAction(async () => {
+    const input = document.getElementById('personal-bot-token');
+    const token = input.value.trim();
+    input.value = '';
+    const preview = await personalBotAction({action: 'preview', token});
+    if (!confirm(botText('Подключить ', 'Connect ') + preview.bot.name + ' · @' + preview.bot.username + '?')) return;
+    renderPersonalBot(await personalBotAction({action: 'connect', ticket: preview.ticket}));
+});
+document.getElementById('personal-bot-disconnect').onclick = () => runPersonalBotAction(async () => {
+    if (!personalBotCurrent || !confirm(botText('Отключить личного бота от TEMLI?', 'Disconnect your personal bot from TEMLI?'))) return;
+    renderPersonalBot(await personalBotAction({action: 'disconnect', bot_id: personalBotCurrent.bot_id}));
+});
+
 document.getElementById('btn-app-settings').onclick = () => {
     fillAppSettingsForm();
+    loadPersonalBot();
     document.getElementById('app-settings-overlay').classList.remove('hidden');
 };
 async function closeAppSettings() {
+    document.getElementById('personal-bot-token').value = '';
     await window.TEMLI_I18N?.setLanguage(state.settings.language || 'ru', { persist: false });
     window.TEMLI_I18N?.setCurrency(state.settings.currency || 'RUB', { persist: false });
     document.getElementById('app-settings-overlay').classList.add('hidden');
@@ -2085,6 +2166,7 @@ document.getElementById('interface-language').onchange = async event => {
     syncLanguageSegment(language);
     try {
         await window.TEMLI_I18N?.setLanguage(language, { persist: false });
+        await loadPersonalBot();
     } catch (error) {
         alert('Не удалось загрузить выбранный язык.');
     }

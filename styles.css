@@ -1085,9 +1085,39 @@ body {
 .payment-actions-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .payment-actions-row .action-menu-btn { min-width: 0; text-align: center; padding-left: 7px; padding-right: 7px; }
 .subscription-pay-btn { color: #7a4f00; border-color: #e6c66a; background: #fffaf0; }
+.student-card-overview {
+    display: grid;
+    grid-template-columns: minmax(116px, .86fr) minmax(148px, 1.14fr);
+    gap: 7px;
+    align-items: stretch;
+    margin-bottom: 8px;
+}
+.student-card-overview .student-lesson-stats {
+    min-width: 0;
+    margin: 0;
+    padding: 7px 9px;
+    gap: 5px;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+}
+.student-card-overview #btn-student-payment {
+    min-width: 0;
+    min-height: 48px;
+    padding: 7px 8px;
+    border-radius: 11px;
+    font-size: 12px;
+    line-height: 1.2;
+}
+.student-card-overview #btn-student-payment .thread-icon {
+    width: 15px;
+    height: 15px;
+    margin-right: 4px;
+    vertical-align: -3px;
+}
 .student-lesson-stats { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; margin-bottom: 12px; border: 1px solid #e8eaed; border-radius: 12px; background: #f8f9fa; }
 .student-lesson-stats span { font-size: 12px; color: #5f6368; font-weight: 600; }
-.student-lesson-stats strong { font-size: 20px; color: #202124; white-space: nowrap; }
+.student-lesson-stats strong { font-size: 18px; line-height: 1; color: #202124; white-space: nowrap; }
 .text-left { text-align: left; }
 
 
@@ -1517,8 +1547,8 @@ body {
 .group-member-summary { min-width: 0; max-width: 165px; flex-wrap: wrap; justify-content: flex-end; }
 .group-member-summary .group-member-status { white-space: normal; text-align: right; }
 .payment-actions-row.payment-actions-row-three .action-menu-btn { white-space: normal; overflow-wrap: anywhere; }
-.student-finances { margin: 12px 0 18px; font-size: 13px; }
-.student-finances > summary { padding: 11px 12px; border: 1px solid #dadce0; border-radius: 9px; background: #f8f9fa; cursor: pointer; font-size: 14px; font-weight: 600; }
+.student-finances { margin: 8px 0 10px; font-size: 13px; }
+.student-finances > summary { padding: 9px 11px; border: 1px solid #dadce0; border-radius: 9px; background: #f8f9fa; cursor: pointer; font-size: 13px; font-weight: 600; }
 .student-finances[open] > summary { margin-bottom: 8px; }
 #student-payment-lessons { max-height: 330px; overflow-y: auto; }
 .student-finance-row { border: 1px solid #dadce0; border-radius: 9px; padding: 9px; margin-bottom: 7px; overflow-wrap: anywhere; }
@@ -1539,6 +1569,26 @@ body > div[id$="-overlay"] {
 .modal-content input, .modal-content select, .modal-content textarea { min-width: 0; max-width: 100%; }
 .compact-grid-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .modal-content .flex-1 { min-width: 0; }
+
+/* Compact student profile without shrinking important touch targets. */
+#student-card-overlay .modal-header { margin-bottom: 8px; }
+#student-card-overlay .modal-body > .form-group { margin-bottom: 8px; }
+#student-card-overlay .form-group input,
+#student-card-overlay .form-group select,
+#student-card-overlay .form-group textarea { padding-top: 7px; padding-bottom: 7px; }
+#student-card-overlay .field-hint { margin-top: 3px; line-height: 1.2; }
+#student-card-overlay .student-status-switch { padding: 2px; gap: 4px; }
+#student-card-overlay .student-status-btn { min-height: 31px; font-size: 12px; }
+#student-card-overlay #student-note { min-height: 58px; }
+#student-card-overlay .add-contact-btn { padding: 7px 9px; font-size: 12px; }
+#student-card-overlay .student-bot-invites-card { margin-top: 8px; margin-bottom: 10px; }
+#student-card-overlay .student-history-row { padding-top: 7px; padding-bottom: 7px; }
+#student-card-overlay .student-delete-section { margin-top: 8px; }
+
+@media (max-width: 340px) {
+    .student-card-overview { grid-template-columns: minmax(104px, .8fr) minmax(140px, 1.2fr); gap: 5px; }
+    .student-card-overview #btn-student-payment { padding-left: 5px; padding-right: 5px; font-size: 11px; }
+}
 @media (max-width: 380px) {
     .top-next-lesson { font-size: 14px; }
     .group-member-summary { max-width: 135px; }

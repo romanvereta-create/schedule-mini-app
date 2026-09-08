@@ -2470,14 +2470,20 @@ function inviteStudentId() {
 function renderInviteLabels() {
     const labels = [
         ['student-bot-invites-title', 'Пригласить в моего бота', 'Invite to my bot'],
-        ['student-bot-invites-help', 'Отправьте ссылку нужному человеку. Она действует 48 часов и используется один раз. После запуска бота обновите список и подтвердите человека. Новая ссылка отменяет предыдущую для этой роли.',
-            'Send the link to the intended person. It expires in 48 hours and can be used once. After they start the bot, refresh this list and confirm their identity. A new link replaces the previous link for that role.'],
+        ['student-bot-invites-help', 'Одноразовая ссылка действует 48 часов. После запуска бота обновите привязки и подтвердите человека.',
+            'The one-time link expires in 48 hours. After they start the bot, refresh connections and confirm their identity.'],
         ['student-bot-invite-student', 'Ссылка ученику', 'Student invitation'],
         ['student-bot-invite-parent', 'Ссылка родителю', 'Parent invitation'],
-        ['student-bot-invite-copy', 'Копировать ссылку', 'Copy link'],
+        ['student-bot-invite-copy-label', 'Копировать', 'Copy'],
         ['student-bot-invites-refresh', 'Обновить привязки', 'Refresh connections']
     ];
     for (const [id, ru, en] of labels) document.getElementById(id).textContent = botText(ru, en);
+    const result = document.getElementById('student-bot-invite-result');
+    const role = result.dataset.role;
+    document.getElementById('student-bot-invite-result-label').textContent = role === 'parent'
+        ? botText('Ссылка родителю готова', 'Parent link is ready')
+        : role === 'student' ? botText('Ссылка ученику готова', 'Student link is ready')
+            : botText('Готовая ссылка', 'Invitation link');
     document.getElementById('student-bot-invite-url').setAttribute('aria-label', botText('Ссылка-приглашение', 'Invitation link'));
     if (inviteView) renderInviteBindings();
 }
@@ -2487,10 +2493,10 @@ function renderInviteBindings() {
     const view = inviteView;
     if (!view || view.studentId !== inviteStudentId()) return;
     document.getElementById('student-bot-invites-status').textContent = view.bot_username
-        ? '@' + view.bot_username : botMessage('bot_required');
+        ? botText('Через ', 'Via ') + '@' + view.bot_username : botMessage('bot_required');
     for (const binding of view.bindings || []) {
         const row = document.createElement('div');
-        row.className = 'form-group';
+        row.className = 'student-bot-binding-card';
         const label = document.createElement('p');
         label.textContent = (binding.role === 'parent' ? botText('Родитель', 'Parent') : botText('Ученик', 'Student'))
             + ' · ' + binding.name + (binding.username ? ' · @' + binding.username : '')
@@ -2563,8 +2569,10 @@ for (const role of ['student','parent']) {
         const result = await inviteApi({action:'create', student_id:studentId, role});
         if (studentId !== inviteStudentId()) return;
         document.getElementById('student-bot-invite-url').value = result.url;
-        document.getElementById('student-bot-invite-result').hidden = false;
-        document.getElementById('student-bot-invites-status').textContent = botText('Ссылка готова. Скопируйте и отправьте её адресату.', 'Link ready. Copy it and send it to the intended person.');
+        const resultCard = document.getElementById('student-bot-invite-result');
+        resultCard.dataset.role = role;
+        resultCard.hidden = false;
+        renderInviteLabels();
     });
 }
 document.getElementById('student-bot-invites-refresh').onclick = () => loadStudentBotBindings();
@@ -2603,6 +2611,7 @@ function openStudentCard(studentId) {
     loadStudentPayments(studentId);
     document.getElementById('student-bot-invites').open = false;
     document.getElementById('student-bot-invite-result').hidden = true;
+    delete document.getElementById('student-bot-invite-result').dataset.role;
     document.getElementById('student-bot-invite-url').value = '';
     loadStudentBotBindings(studentId);
 }

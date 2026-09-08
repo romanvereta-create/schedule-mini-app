@@ -131,6 +131,7 @@
         language = safeCode;
         if (persist) localStorage.setItem('temli-language', safeCode);
         apply();
+        window.dispatchEvent(new CustomEvent('temli-language-change', { detail: { language } }));
         return language;
     }
 

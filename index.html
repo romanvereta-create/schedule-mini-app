@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TEMLI — расписание</title>
-    <link rel="stylesheet" href="styles.css?v=30.17.5">
+    <link rel="stylesheet" href="styles.css?v=31.0.0-rc1">
 </head>
 <body>
     <div id="startup-status" role="status" aria-live="polite">
@@ -315,10 +315,8 @@
                     </div>
 
                     <div class="form-group reminder-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="reminder-enabled" checked>
-                            <span>Напоминание</span>
-                        </label>
+                        <input type="checkbox" id="reminder-enabled" checked hidden>
+                        <label id="lesson-reminder-label" data-i18n-ignore>Напоминать за (если включено у ученика)</label>
                         <div id="reminder-minutes-wrap" class="reminder-minutes-wrap">
                             <span>за</span>
                             <input type="number" id="reminder-minutes" value="60" min="0" max="10080" step="5">
@@ -498,6 +496,10 @@
                     <label>Контакт родителя</label>
                     <div id="student-card-parent-contacts" class="contacts-list"></div>
                     <button type="button" class="secondary-btn add-contact-btn" data-target="student-card-parent-contacts">＋ Добавить контакт</button>
+                </div>
+                <div class="student-notification-options" data-i18n-ignore>
+                    <label class="checkbox-label"><input type="checkbox" id="student-reminders"><span id="student-reminders-label">Напоминать ученику о занятии</span></label>
+                    <label class="checkbox-label"><input type="checkbox" id="student-parent-end"><span id="student-parent-end-label">Родителю об окончании</span></label>
                 </div>
                 <details id="student-bot-invites" class="form-group student-bot-invites-card" data-i18n-ignore>
                     <summary id="student-bot-invites-title">Пригласить в моего бота</summary>
@@ -718,10 +720,11 @@
                     <small class="field-hint">Используется для всех учеников, у которых не указана своя ссылка.</small>
                 </div>
                 <div class="settings-mini-title">Дополнительно</div>
-                <label class="checkbox-label settings-checkbox compact-setting-row">
-                    <input type="checkbox" id="default-reminders-enabled" checked>
-                    <span>Напоминания для новых занятий</span>
-                </label>
+                <div class="student-notification-options" data-i18n-ignore>
+                    <small id="notification-defaults-hint" class="field-hint">Для новых учеников. Существующие настройки не меняются.</small>
+                    <label class="checkbox-label settings-checkbox compact-setting-row"><input type="checkbox" id="default-reminders-enabled"><span id="default-reminders-label">Напоминать ученику о занятии</span></label>
+                    <label class="checkbox-label settings-checkbox compact-setting-row"><input type="checkbox" id="default-parent-end"><span id="default-parent-end-label">Родителю об окончании</span></label>
+                </div>
                 <div class="settings-mini-title">Чеки</div>
                 <label class="checkbox-label settings-checkbox compact-setting-row">
                     <input type="checkbox" id="default-send-receipts" checked>
@@ -934,6 +937,6 @@
         </div>
     </div>
 
-    <script src="startup.js?v=30.17.5"></script>
+    <script src="startup.js?v=31.0.0-rc1"></script>
 </body>
 </html>

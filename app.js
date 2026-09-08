@@ -999,7 +999,7 @@ function getContacts(containerId) {
 }
 
 function updateReminderControls() {
-    const enabled = document.getElementById('reminder-enabled').checked;
+    const enabled = true;
     const input = document.getElementById('reminder-minutes');
     const wrap = document.getElementById('reminder-minutes-wrap');
     input.disabled = !enabled;
@@ -1347,8 +1347,8 @@ document.getElementById('btn-action-settings').onclick = () => { closeActionMenu
 function showDeferredNotificationNotice() {
     alert('Пока это макет. После регистрации учеников и родителей преподавательский бот будет автоматически отправлять готовое сообщение. Расписание не изменится.');
 }
-document.getElementById('btn-action-teacher-delay').onclick = showDeferredNotificationNotice;
-document.getElementById('btn-action-student-delay').onclick = showDeferredNotificationNotice;
+document.getElementById('btn-action-teacher-delay').onclick = () => openPersonalNotification(state.selectedLesson, true);
+document.getElementById('btn-action-student-delay').onclick = () => openPersonalNotification(state.selectedLesson, false);
 document.getElementById('btn-action-move-trigger').onclick = () => { closeActionMenu(); if (state.selectedLesson) startMove(state.selectedLesson.date, state.selectedLesson); };
 document.getElementById('btn-action-free').onclick = () => {
     const lesson = state.selectedLesson;
@@ -1908,7 +1908,8 @@ function fillAppSettingsForm() {
     document.getElementById('interface-language').value = state.settings.language || 'ru';
     syncLanguageSegment(state.settings.language || 'ru');
     document.getElementById('interface-currency').value = state.settings.currency || 'RUB';
-    document.getElementById('default-reminders-enabled').checked = state.settings.default_reminders_enabled !== false;
+    document.getElementById('default-reminders-enabled').checked = state.settings.default_student_reminders === true;
+    document.getElementById('default-parent-end').checked = state.settings.parent_lesson_end === true;
     document.getElementById('default-zoom-link').value = state.settings.zoom_link || '';
     document.getElementById('work-start').value = state.settings.work_start || '06:00';
     document.getElementById('work-end').value = state.settings.work_end || '00:00';
@@ -2199,7 +2200,8 @@ document.getElementById('btn-save-app-settings').onclick = async () => {
         const settings = {
             language: document.getElementById('interface-language').value || 'ru',
             currency: document.getElementById('interface-currency').value || 'RUB',
-            default_reminders_enabled: document.getElementById('default-reminders-enabled').checked,
+            default_student_reminders: document.getElementById('default-reminders-enabled').checked,
+            parent_lesson_end: document.getElementById('default-parent-end').checked,
             zoom_link: normalizeExternalUrl(document.getElementById('default-zoom-link').value),
             work_start: workStart,
             work_end: workEnd,
@@ -2508,7 +2510,7 @@ function renderInviteBindings() {
             button.textContent = action === 'approve' ? botText('Подтвердить', 'Confirm') : botText('Удалить привязку', 'Remove connection');
             button.onclick = () => runInviteAction(async studentId => {
                 if (!confirm(action === 'approve'
-                    ? botText('Вы проверили, что это нужный человек?', 'Have you verified this is the intended person?')
+                    ? (binding.role === 'student' ? botText('Подтвердить аккаунт ученика? Предыдущая привязка ученика будет заменена.', 'Confirm this student account? The previous student connection will be replaced.') : botText('Вы проверили, что это нужный человек?', 'Have you verified this is the intended person?'))
                     : botText('Удалить эту привязку? Карточка ученика сохранится.', 'Remove this connection? The student profile will be kept.'))) return;
                 await inviteApi({action, student_id: studentId, binding_id: binding.id});
                 await loadStudentBotBindings(studentId);
@@ -2596,6 +2598,11 @@ function openStudentCard(studentId) {
     studentCardTitle.textContent = info.name || uiText('Ученик');
     studentCardTitle.toggleAttribute('data-i18n-ignore', Boolean(info.name));
     document.getElementById('student-calendar-name').value = info.calendar_name || '';
+    const endToggle = document.getElementById('student-parent-end');
+    endToggle.checked = info.parent_lesson_end === true;
+    document.getElementById('student-reminders').checked = info.student_reminders === true;
+    endToggle.dataset.changed = '';
+    endToggle.onchange = () => endToggle.dataset.changed = 'yes';
     document.getElementById('student-birthday').value = info.birthday || '';
     document.getElementById('student-note').value = info.note || '';
     document.getElementById('student-board-link').value = info.board_link || '';
@@ -2620,6 +2627,8 @@ document.getElementById('btn-save-student-card').onclick = async () => {
     const payload = {
         student_id: studentId,
         calendar_name: document.getElementById('student-calendar-name').value.trim(),
+        parent_lesson_end: document.getElementById('student-parent-end').checked,
+        student_reminders: document.getElementById('student-reminders').checked,
         birthday: document.getElementById('student-birthday').value,
         status: document.getElementById('student-card-overlay').dataset.studentStatus || 'active',
         note: document.getElementById('student-note').value.trim(),
@@ -2816,12 +2825,12 @@ function renderTopLesson() {
     }).join('') || '<div class="hub-empty">Ближайших занятий нет.</div>';
     items.forEach(({item}, i) => {
         details.querySelector(`[data-top-link="${i}-board"]`)?.addEventListener('click', e => { e.stopPropagation(); openExternalLink(item.board_link); });
-        details.querySelector(`[data-top-teacher-delay="${i}"]`)?.addEventListener('click', showDeferredNotificationNotice);
-        details.querySelector(`[data-top-student-delay="${i}"]`)?.addEventListener('click', showDeferredNotificationNotice);
+        details.querySelector(`[data-top-teacher-delay="${i}"]`)?.addEventListener('click', () => openPersonalNotification(item, true));
+        details.querySelector(`[data-top-student-delay="${i}"]`)?.addEventListener('click', () => openPersonalNotification(item, false));
     });
 }
-document.getElementById('btn-top-teacher-delay').onclick = showDeferredNotificationNotice;
-document.getElementById('btn-top-student-delay').onclick = showDeferredNotificationNotice;
+document.getElementById('btn-top-teacher-delay').onclick = () => openPersonalNotification(state.workCenter?.current_lesson || state.workCenter?.next_lesson, true);
+document.getElementById('btn-top-student-delay').onclick = () => openPersonalNotification(state.workCenter?.current_lesson || state.workCenter?.next_lesson, false);
 setInterval(() => { if (!document.hidden) refreshWorkCenterBadge(); }, 60000);
 
 function renderWorkCenter() {

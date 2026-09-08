@@ -426,6 +426,9 @@ body {
 .student-delete-section { margin-top: 10px; }
 .student-delete-section .danger-btn { width: 100%; margin-top: 10px; }
 .hidden { display: none !important; }
+.student-notification-options { margin: 8px 0; display: grid; gap: 6px; }
+.student-notification-options .checkbox-label { font-size: 12px; line-height: 1.35; min-height: 36px; }
+.student-notification-options input[type="checkbox"] { flex: 0 0 18px; width: 18px; height: 18px; }
 
 :root { --hour-height: 80px; }
 .calendar-grid { min-height: calc(var(--visible-hour-count, 18) * var(--hour-height)); }

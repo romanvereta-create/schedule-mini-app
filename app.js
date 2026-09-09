@@ -13,8 +13,8 @@ window.visualViewport?.addEventListener('resize', updateModalViewport);
 window.visualViewport?.addEventListener('scroll', updateModalViewport);
 
 const API_URL = 'https://bot-1787954043-4984-solo1986.bothost.tech/api';
-let START_HOUR = 10;
-let END_HOUR = 21;
+const START_HOUR = 0;
+const END_HOUR = 23;
 const MIN_HOUR_HEIGHT = 40;
 const MAX_HOUR_HEIGHT = 160;
 const DEFAULT_HOUR_HEIGHT = 80;
@@ -142,22 +142,9 @@ function isDayOffDate(value) {
 }
 
 function updateVisibleHoursFromSettingsAndLessons() {
-    let startMinutes = workingTimeMinutes(state.settings.work_start, 6 * 60);
-    let endMinutes = workingTimeMinutes(state.settings.work_end, 24 * 60, true);
-    if (endMinutes <= startMinutes) { startMinutes = 6 * 60; endMinutes = 24 * 60; }
-    let visibleStart = Math.floor(startMinutes / 60);
-    let visibleEndExclusive = Math.ceil(endMinutes / 60);
-    Object.values(state.schedule || {}).forEach(lessons => (lessons || []).forEach(lesson => {
-        const [h, m] = String(lesson.time || '').split(':').map(Number);
-        if (!Number.isFinite(h)) return;
-        const duration = Math.max(5, Number(lesson.duration || 60));
-        const startMinutes = h * 60 + (Number.isFinite(m) ? m : 0);
-        const endMinutes = startMinutes + duration;
-        visibleStart = Math.min(visibleStart, Math.floor(startMinutes / 60));
-        visibleEndExclusive = Math.max(visibleEndExclusive, Math.ceil(endMinutes / 60));
-    }));
-    START_HOUR = Math.max(0, visibleStart);
-    END_HOUR = Math.min(23, Math.max(START_HOUR, visibleEndExclusive - 1));
+    // The grid always contains a full day. Working hours only define the initial viewport,
+    // so personal events can still be created before or after the teaching day.
+    document.documentElement.style.setProperty('--visible-hour-count', '24');
 }
 
 function schoolYearEndFor(dateValue) {
@@ -551,26 +538,20 @@ function autoFitCalendarToWeek() {
     const container = document.getElementById('calendar-container');
     if (!container) return;
 
-    const bounds = lessonBoundsForCurrentWeek();
-    if (!bounds) {
-        applyHourHeightSmooth(DEFAULT_HOUR_HEIGHT);
-        container.scrollTop = 0;
-        return;
+    let visibleStart = workingTimeMinutes(state.settings.work_start, 6 * 60);
+    let visibleEnd = workingTimeMinutes(state.settings.work_end, 24 * 60, true);
+    if (visibleEnd <= visibleStart) {
+        visibleStart = 6 * 60;
+        visibleEnd = 24 * 60;
     }
-
-    // При первом открытии показываем весь настроенный рабочий диапазон.
-    // Календарь не должен сам уезжать к вечерним занятиям и скрывать верх дня.
-    const visibleStart = START_HOUR * 60;
-    const visibleEnd = (END_HOUR + 1) * 60;
     const spanMinutes = Math.max(60, visibleEnd - visibleStart);
     const viewportHeight = Math.max(1, container.clientHeight - 12);
 
-    // Автоподбор только сжимает стандартный масштаб, чтобы вместить рабочий день.
-    // После этого пользователь по-прежнему может увеличить календарь вручную.
+    // Fit the configured working day on first open, while keeping all 24 hours scrollable.
     const fitHeight = viewportHeight * 60 / spanMinutes;
-    const targetHeight = Math.max(MIN_HOUR_HEIGHT, Math.min(DEFAULT_HOUR_HEIGHT, fitHeight));
+    const targetHeight = Math.max(MIN_HOUR_HEIGHT, Math.min(MAX_HOUR_HEIGHT, fitHeight));
     applyHourHeightSmooth(targetHeight);
-    container.scrollTop = 0;
+    container.scrollTop = Math.max(0, visibleStart * hourHeight / 60);
 }
 
 function scheduleCalendarAutoFit() {
@@ -689,7 +670,7 @@ function renderEvents() {
             const calendarTitle = isPersonal ? lesson.title : isGroup
                 ? (lesson.group_name || lesson.student)
                 : (studentInfo.calendar_name || lesson.student || studentInfo.name);
-            title.textContent = `${isPersonal ? '◆ ' : ''}${calendarTitle || uiText(isGroup ? 'Группа' : (isPersonal ? 'Личное дело' : 'Ученик'))}`;
+            title.textContent = calendarTitle || uiText(isGroup ? 'Группа' : (isPersonal ? 'Личное дело' : 'Ученик'));
             title.toggleAttribute('data-i18n-ignore', Boolean(calendarTitle));
             const cardHeight = height;
             if (cardHeight < 34) card.classList.add('event-card-compact');

@@ -236,6 +236,17 @@ body {
     border: 1.5px dashed #65717d;
     box-shadow: 0 1px 3px rgba(32, 33, 36, 0.16);
 }
+.event-card.personal-event::after {
+    content: "◆";
+    position: absolute;
+    right: 3px;
+    bottom: 1px;
+    color: #65717d;
+    font-size: 9px;
+    line-height: 1;
+    opacity: .65;
+    pointer-events: none;
+}
 .event-card.personal-event .event-title { font-weight: 650; }
 .personal-event-notes-view {
     margin: 4px 0 10px;

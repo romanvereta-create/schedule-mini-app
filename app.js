@@ -600,6 +600,10 @@ function renderCalendar() {
         label.textContent = `${String(hour).padStart(2, '0')}:00`;
         labels.appendChild(label);
     }
+    const dayEndLabel = document.createElement('div');
+    dayEndLabel.className = 'day-end-label';
+    dayEndLabel.textContent = '00:00';
+    labels.appendChild(dayEndLabel);
 
     for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
         const column = document.createElement('div');
@@ -618,6 +622,9 @@ function renderCalendar() {
             });
             column.appendChild(slot);
         }
+        const dayEndSpacer = document.createElement('div');
+        dayEndSpacer.className = 'day-end-spacer';
+        column.appendChild(dayEndSpacer);
         grid.appendChild(column);
     }
 

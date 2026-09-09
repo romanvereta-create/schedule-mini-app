@@ -43,7 +43,9 @@ const state = {
     workCenter: null,
     subscriptionStudentId: '',
     subscriptionPrice: 0,
-    onboardingNeeded: false
+    onboardingNeeded: false,
+    pendingAddDate: '',
+    pendingAddTime: ''
 };
 
 function getMonday(date) {
@@ -504,10 +506,18 @@ function collectGroupMembers() {
 function updateLessonTypeUI() {
     const type = document.getElementById('lesson-type-select').value;
     const isGroup = type === 'group';
+    const isPersonal = type === 'personal';
     document.getElementById('group-editor-group').classList.toggle('hidden', !isGroup);
-    document.getElementById('student-select-group').classList.toggle('hidden', isGroup || state.editingExisting);
-    document.getElementById('student-fixed-group').classList.toggle('hidden', isGroup || !state.editingExisting);
-    document.getElementById('student-lesson-price-group')?.classList.toggle('hidden', isGroup);
+    document.getElementById('personal-event-group').classList.toggle('hidden', !isPersonal);
+    document.getElementById('student-select-group').classList.toggle('hidden', isGroup || isPersonal || state.editingExisting);
+    document.getElementById('student-fixed-group').classList.toggle('hidden', isGroup || isPersonal || !state.editingExisting);
+    document.getElementById('student-lesson-price-group')?.classList.toggle('hidden', isGroup || isPersonal);
+    document.querySelector('.reminder-group')?.classList.toggle('hidden', isPersonal);
+    if (!state.editingExisting) {
+        document.getElementById('modal-title').textContent = isPersonal
+            ? 'Добавить личное дело'
+            : (isGroup ? 'Добавить групповое занятие' : 'Добавить занятие');
+    }
 }
 
 function lessonBoundsForCurrentWeek() {
@@ -614,7 +624,7 @@ function renderCalendar() {
         const dayDate = new Date(state.currentMonday);
         dayDate.setDate(dayDate.getDate() + dayIndex);
         const key = dateKey(dayDate);
-        column.className = `day-column ${isDayOffDate(dayDate) ? 'day-off' : ''}`;
+        column.className = `day-column ${dateKey(dayDate) === todayKey ? 'today' : ''} ${isDayOffDate(dayDate) ? 'day-off' : ''}`;
 
         for (let hour = START_HOUR; hour <= END_HOUR; hour++) {
             const slot = document.createElement('div');
@@ -622,7 +632,7 @@ function renderCalendar() {
             slot.addEventListener('click', () => {
                 const time = `${String(hour).padStart(2, '0')}:00`;
                 if (state.isMoving) confirmMoveTarget(key, time);
-                else openAddModal(key, time);
+                else openAddTypeChooser(key, time);
             });
             column.appendChild(slot);
         }
@@ -651,16 +661,17 @@ function renderEvents() {
             const duration = Math.max(5, parseInt(lesson.duration || 60, 10));
             const card = document.createElement('div');
             const isActiveMove = state.isMoving && state.selectedLesson && state.selectedLesson.id === lesson.id;
-            const color = getStudentColor(lesson.student_id, lesson.student);
+            const isPersonal = lesson.entry_type === 'personal';
+            const color = isPersonal ? null : getStudentColor(lesson.student_id, lesson.student);
             const colorClass = typeof color === 'number' ? `color-${color}` : '';
-            const isGroup = lesson.lesson_type === 'group';
+            const isGroup = !isPersonal && lesson.lesson_type === 'group';
             const groupMembers = Array.isArray(lesson.group_members) ? lesson.group_members : [];
             const groupPaidCount = groupMembers.filter(member => member.paid && !member.free).length;
-            const fullyPaid = isGroup
+            const fullyPaid = isPersonal ? false : isGroup
                 ? groupMembers.length > 0 && groupMembers.every(member => member.paid && !member.free)
                 : Boolean(lesson.paid && !lesson.free);
             const partiallyPaid = isGroup && groupPaidCount > 0 && groupPaidCount < groupMembers.length;
-            card.className = `event-card ${colorClass} ${fullyPaid ? 'paid-status' : ''} ${partiallyPaid ? 'partial-paid-status' : ''} ${isGroup ? 'group-event' : ''} ${lesson.cancelled ? 'cancelled-event' : ''} ${isActiveMove ? 'moving-active' : ''}`;
+            card.className = `event-card ${colorClass} ${fullyPaid ? 'paid-status' : ''} ${partiallyPaid ? 'partial-paid-status' : ''} ${isGroup ? 'group-event' : ''} ${isPersonal ? 'personal-event' : ''} ${lesson.cancelled ? 'cancelled-event' : ''} ${isActiveMove ? 'moving-active' : ''}`;
             if (typeof color === 'string') card.style.backgroundColor = color;
 
             const top = ((hour - START_HOUR) * 60 + minute) * hourHeight / 60;
@@ -675,10 +686,10 @@ function renderEvents() {
             const title = document.createElement('div');
             title.className = 'event-title';
             const studentInfo = isGroup ? {} : getStudentInfo(lesson.student_id);
-            const calendarTitle = isGroup
+            const calendarTitle = isPersonal ? lesson.title : isGroup
                 ? (lesson.group_name || lesson.student)
                 : (studentInfo.calendar_name || lesson.student || studentInfo.name);
-            title.textContent = calendarTitle || uiText(isGroup ? 'Группа' : 'Ученик');
+            title.textContent = `${isPersonal ? '◆ ' : ''}${calendarTitle || uiText(isGroup ? 'Группа' : (isPersonal ? 'Личное дело' : 'Ученик'))}`;
             title.toggleAttribute('data-i18n-ignore', Boolean(calendarTitle));
             const cardHeight = height;
             if (cardHeight < 34) card.classList.add('event-card-compact');
@@ -754,11 +765,15 @@ function lessonHasStarted(date, lesson) {
 
 function openActionMenu(date, lesson) {
     state.selectedLesson = { date, ...lesson };
-    const isGroup = lesson.lesson_type === 'group';
+    const isPersonal = lesson.entry_type === 'personal';
+    const isGroup = !isPersonal && lesson.lesson_type === 'group';
     const cancelled = !!lesson.cancelled;
     document.getElementById('action-contact-label').textContent = isGroup ? 'Участники — нажмите имя для связи и оплаты' : 'Связь';
-    const actionTitle = isGroup ? (lesson.group_name || lesson.student) : lesson.student;
-    document.getElementById('action-menu-title').innerHTML = `${userContentOr(actionTitle, isGroup ? 'Группа' : 'Ученик')} · ${userContent(lesson.time || '--:--')}`;
+    const actionTitle = isPersonal ? lesson.title : (isGroup ? (lesson.group_name || lesson.student) : lesson.student);
+    document.getElementById('action-menu-title').innerHTML = `${userContentOr(actionTitle, isGroup ? 'Группа' : (isPersonal ? 'Личное дело' : 'Ученик'))} · ${userContent(lesson.time || '--:--')}`;
+    const personalNotes = document.getElementById('personal-event-notes-view');
+    personalNotes.textContent = lesson.notes || 'Без заметок';
+    personalNotes.classList.toggle('hidden', !isPersonal);
 
     const paidButton = document.getElementById('btn-action-paid');
     setThreadButtonLabel(paidButton, paymentActionIcon(lesson), paymentActionLabel(lesson));
@@ -829,6 +844,15 @@ function openActionMenu(date, lesson) {
             details.appendChild(row);
         });
     }
+    for (const id of ['action-contact-label', 'btn-action-chat-student', 'btn-action-chat-parent',
+        'action-notification-label', 'action-notification-actions', 'individual-payment-label',
+        'action-payment-actions', 'btn-action-student-card', 'btn-action-report',
+        'action-color-label', 'action-color-palette']) {
+        document.getElementById(id)?.classList.toggle('hidden', isPersonal);
+    }
+    document.getElementById('btn-action-cancel-once').classList.toggle('hidden', isPersonal);
+    document.getElementById('action-event-label').textContent = isPersonal ? 'Личное дело' : 'Занятие';
+    setThreadButtonLabel(settingsButton, 'settings', isPersonal ? 'Изменить' : (isGroup ? 'Редактировать группу' : 'Настройки занятия'));
     document.getElementById('action-menu-overlay').classList.remove('hidden');
 }
 
@@ -867,7 +891,11 @@ function startMove(date, lesson) {
 
 function confirmMoveTarget(newDate, newTime) {
     state.pendingMove = { newDate, newTime };
-    document.getElementById('move-modal-desc').textContent = `${state.selectedLesson.student}: ${newDate}, ${newTime}`;
+    const personal = state.selectedLesson.entry_type === 'personal';
+    const name = personal ? state.selectedLesson.title : state.selectedLesson.student;
+    document.getElementById('move-modal-title').textContent = personal ? 'Действие с личным делом' : 'Действие с занятием';
+    document.getElementById('move-modal-desc').textContent = `${name}: ${newDate}, ${newTime}`;
+    setThreadButtonLabel(document.getElementById('btn-action-copy'), 'add', personal ? 'Добавить ещё одним личным делом' : 'Добавить ещё одним занятием');
     document.getElementById('move-modal-overlay').classList.remove('hidden');
 }
 
@@ -1006,9 +1034,11 @@ function updateReminderControls() {
     wrap.classList.toggle('disabled', !enabled);
 }
 
-function resetAddForm() {
-    document.getElementById('lesson-type-select').value = 'student';
+function resetAddForm(type = 'student') {
+    document.getElementById('lesson-type-select').value = ['student', 'group', 'personal'].includes(type) ? type : 'student';
     document.getElementById('group-name').value = '';
+    document.getElementById('personal-event-title').value = '';
+    document.getElementById('personal-event-notes').value = '';
     renderGroupMembers([]);
     document.getElementById('student-select').value = '';
     document.getElementById('manual-student-name').value = '';
@@ -1027,18 +1057,46 @@ function resetAddForm() {
     updateLessonTypeUI();
 }
 
-function openAddModal(date, time) {
+function formatAddTypeContext(date, time) {
+    const value = new Date(`${date}T12:00:00`);
+    const formattedDate = Number.isNaN(value.getTime())
+        ? date
+        : value.toLocaleDateString(uiLocale(), { weekday: 'short', day: 'numeric', month: 'long' }).replace(/\.$/, '');
+    return `${formattedDate} · ${time}`;
+}
+
+function updateAddTypeContext() {
+    const context = document.getElementById('add-type-context');
+    if (context && state.pendingAddDate && state.pendingAddTime) {
+        context.textContent = formatAddTypeContext(state.pendingAddDate, state.pendingAddTime);
+    }
+}
+
+function openAddTypeChooser(date, time) {
+    state.pendingAddDate = date;
+    state.pendingAddTime = time;
+    updateAddTypeContext();
+    document.getElementById('add-type-overlay').classList.remove('hidden');
+}
+
+function chooseAddType(type) {
+    const date = state.pendingAddDate;
+    const time = state.pendingAddTime;
+    document.getElementById('add-type-overlay').classList.add('hidden');
+    if (date && time) openAddModal(date, time, type);
+}
+
+function openAddModal(date, time, type = 'student') {
     state.selectedLesson = null;
     state.editingExisting = false;
-    document.getElementById('modal-title').textContent = 'Добавить занятие';
-    document.getElementById('lesson-type-group').classList.remove('hidden');
+    document.getElementById('lesson-type-group').classList.add('hidden');
     document.getElementById('student-select-group').classList.remove('hidden');
     document.getElementById('student-fixed-group').classList.add('hidden');
     document.getElementById('time-duration-group').classList.remove('hidden');
     document.getElementById('repeat-group').classList.remove('hidden');
     document.getElementById('lesson-price-scope-group').classList.add('hidden');
     document.getElementById('lesson-date').value = date;
-    resetAddForm();
+    resetAddForm(type);
     document.getElementById('lesson-time').value = time;
     document.getElementById('lesson-duration').value = '60';
     document.getElementById('modal-overlay').classList.remove('hidden');
@@ -1047,15 +1105,18 @@ function openAddModal(date, time) {
 function openEditModal(date, lesson) {
     state.selectedLesson = { date, ...lesson };
     state.editingExisting = true;
-    const isGroup = lesson.lesson_type === 'group';
-    document.getElementById('modal-title').textContent = isGroup ? 'Настройки группы' : 'Настройки ученика';
-    document.getElementById('lesson-type-select').value = isGroup ? 'group' : 'student';
+    const isPersonal = lesson.entry_type === 'personal';
+    const isGroup = !isPersonal && lesson.lesson_type === 'group';
+    document.getElementById('modal-title').textContent = isPersonal ? 'Личное дело' : (isGroup ? 'Настройки группы' : 'Настройки ученика');
+    document.getElementById('lesson-type-select').value = isPersonal ? 'personal' : (isGroup ? 'group' : 'student');
     document.getElementById('lesson-type-group').classList.add('hidden');
     document.getElementById('group-name').value = lesson.group_name || lesson.student || '';
     renderGroupMembers(lesson.group_members || []);
     document.getElementById('fixed-student-name').value = lesson.student || '';
+    document.getElementById('personal-event-title').value = lesson.title || '';
+    document.getElementById('personal-event-notes').value = lesson.notes || '';
     updateLessonTypeUI();
-    document.getElementById('time-duration-group').classList.add('hidden');
+    document.getElementById('time-duration-group').classList.toggle('hidden', !isPersonal);
     document.getElementById('repeat-group').classList.add('hidden');
     document.getElementById('lesson-date').value = date;
     document.getElementById('lesson-time').value = lesson.time || '10:00';
@@ -1063,7 +1124,7 @@ function openEditModal(date, lesson) {
     document.getElementById('lesson-id').value = lesson.id || '';
     document.getElementById('lesson-price').value = lesson.price ?? '';
     document.querySelector('input[name="lesson-price-scope"][value="single"]').checked = true;
-    document.getElementById('lesson-price-scope-group').classList.remove('hidden');
+    document.getElementById('lesson-price-scope-group').classList.toggle('hidden', isPersonal);
     document.getElementById('reminder-enabled').checked = lesson.reminder_enabled !== false;
     document.getElementById('reminder-minutes').value = lesson.reminder_minutes ?? 60;
 
@@ -1088,13 +1149,19 @@ async function saveLesson(options = {}) {
     const date = document.getElementById('lesson-date').value;
     const time = document.getElementById('lesson-time').value;
     const duration = parseInt(document.getElementById('lesson-duration').value || 60, 10);
-    const lessonType = document.getElementById('lesson-type-select').value === 'group' ? 'group' : 'student';
+    const selectedType = document.getElementById('lesson-type-select').value;
+    const isPersonal = selectedType === 'personal';
+    const lessonType = selectedType === 'group' ? 'group' : 'student';
+    const eventTitle = document.getElementById('personal-event-title').value.trim();
+    const eventNotes = document.getElementById('personal-event-notes').value.trim();
     let student = '';
     let studentId = '';
     let groupName = '';
     let groupMembers = [];
 
-    if (lessonType === 'group') {
+    if (isPersonal) {
+        if (!eventTitle) return alert('Укажите название личного дела');
+    } else if (lessonType === 'group') {
         groupName = document.getElementById('group-name').value.trim();
         groupMembers = collectGroupMembers();
         if (!groupName) return alert('Укажите название группы');
@@ -1111,7 +1178,7 @@ async function saveLesson(options = {}) {
         }
     }
 
-    if (lessonType === 'student' && !student) return alert('Укажите ученика');
+    if (!isPersonal && lessonType === 'student' && !student) return alert('Укажите ученика');
     if (!time) return alert('Укажите время');
 
     const repeat = state.editingExisting ? 'no' : document.getElementById('lesson-repeat').value;
@@ -1126,23 +1193,28 @@ async function saveLesson(options = {}) {
 
     const priceValue = document.getElementById('lesson-price').value;
     const price = priceValue === '' ? 0 : Number(priceValue);
-    if (lessonType === 'student' && (!Number.isFinite(price) || price < 0)) {
+    if (!isPersonal && lessonType === 'student' && (!Number.isFinite(price) || price < 0)) {
         return alert('Стоимость занятия должна быть неотрицательным числом');
     }
     const reminderMinutes = Number(document.getElementById('reminder-minutes').value || 60);
-    if (!Number.isInteger(reminderMinutes) || reminderMinutes < 0 || reminderMinutes > 10080) {
+    if (!isPersonal && (!Number.isInteger(reminderMinutes) || reminderMinutes < 0 || reminderMinutes > 10080)) {
         return alert('Напоминание должно быть в диапазоне от 0 до 10080 минут');
     }
     if (!state.editingExisting && !skipDayOffWarning && isDayOffDate(date)) {
+        document.getElementById('day-off-warning-title').textContent = isPersonal ? 'Личное дело в выходной' : 'Занятие в выходной';
+        document.getElementById('day-off-warning-desc').textContent = isPersonal
+            ? 'Это ваш выходной день. Всё равно добавить личное дело?'
+            : 'Вообще-то у вас выходной. Не советую 😄 Отдых тоже входит в расписание. Всё равно поставить занятие?';
         openDayOffWarning(() => saveLesson({ skipDayOffWarning: true }));
         return;
     }
 
     const payload = {
-        date, time, duration, lesson_type: lessonType,
+        date, time, duration, entry_type: isPersonal ? 'personal' : 'lesson', lesson_type: lessonType,
+        title: isPersonal ? eventTitle : '', notes: isPersonal ? eventNotes : '',
         student, student_id: studentId,
         group_name: groupName, group_members: groupMembers,
-        price: lessonType === 'student' ? price : '',
+        price: !isPersonal && lessonType === 'student' ? price : '',
         reminder_enabled: document.getElementById('reminder-enabled').checked,
         reminder_minutes: reminderMinutes,
         repeat,
@@ -1174,7 +1246,7 @@ async function saveLesson(options = {}) {
 }
 
 function closeAllModals() {
-    ['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'help-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay', 'subscription-pay-overlay', 'lesson-report-overlay', 'students-overlay', 'student-payment-overlay'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+    ['modal-overlay', 'add-type-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'help-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay', 'subscription-pay-overlay', 'lesson-report-overlay', 'students-overlay', 'student-payment-overlay'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
 }
 
 // Палитра цветов в меню действий
@@ -1513,7 +1585,15 @@ document.getElementById('btn-paid-confirm-apply').onclick = async () => {
         button.disabled = false;
     }
 };
-document.getElementById('btn-action-delete').onclick = () => { closeActionMenu(); document.getElementById('delete-modal-overlay').classList.remove('hidden'); };
+document.getElementById('btn-action-delete').onclick = () => {
+    const personal = state.selectedLesson?.entry_type === 'personal';
+    document.getElementById('delete-modal-title').textContent = personal ? 'Удаление личного дела' : 'Удаление занятия';
+    document.getElementById('delete-modal-desc').textContent = personal ? 'Как удалить личное дело?' : 'Как удалить это занятие?';
+    document.getElementById('btn-delete-once').textContent = personal ? 'Удалить только это личное дело' : 'Удалить только это занятие';
+    document.getElementById('btn-delete-all').textContent = personal ? 'Удалить все будущие повторы' : 'Удалить все будущие (навсегда)';
+    closeActionMenu();
+    document.getElementById('delete-modal-overlay').classList.remove('hidden');
+};
 document.getElementById('btn-action-close').onclick = closeActionMenu;
 
 // Написать ученику
@@ -1600,6 +1680,10 @@ document.getElementById('btn-cancel-move').onclick = cancelMove;
 document.getElementById('btn-save').onclick = saveLesson;
 document.getElementById('btn-cancel-modal').onclick = closeAllModals;
 document.getElementById('btn-close-modal').onclick = closeAllModals;
+document.getElementById('btn-close-add-type').onclick = closeAllModals;
+document.getElementById('btn-add-type-student').onclick = () => chooseAddType('student');
+document.getElementById('btn-add-type-group').onclick = () => chooseAddType('group');
+document.getElementById('btn-add-type-personal').onclick = () => chooseAddType('personal');
 document.getElementById('btn-day-off-confirm').onclick = () => {
     const action = pendingDayOffSave;
     closeDayOffWarning();
@@ -1609,7 +1693,7 @@ document.getElementById('btn-day-off-cancel').onclick = closeDayOffWarning;
 document.getElementById('day-off-warning-overlay').addEventListener('click', event => {
     if (event.target.id === 'day-off-warning-overlay') closeDayOffWarning();
 });
-['modal-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'help-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay', 'subscription-pay-overlay', 'lesson-report-overlay', 'students-overlay', 'student-payment-overlay'].forEach(id => {
+['modal-overlay', 'add-type-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'help-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay', 'subscription-pay-overlay', 'lesson-report-overlay', 'students-overlay', 'student-payment-overlay'].forEach(id => {
     document.getElementById(id).addEventListener('click', event => { if (event.target.id === id) closeAllModals(); });
 });
 
@@ -2107,6 +2191,7 @@ function renderPersonalBotLabels() {
         'Create a dedicated bot using /newbot in @BotFather and paste its token. Student and parent invitations are available in the student profile. The bot must not be running in another service.');
 }
 window.addEventListener('temli-language-change', () => {
+    updateAddTypeContext();
     renderPersonalBotLabels();
     if (personalBotView) renderPersonalBot(personalBotView);
     renderInviteLabels();

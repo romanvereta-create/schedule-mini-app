@@ -182,14 +182,16 @@ body {
 .zoom-btn:active { background: #d0d2d6; }
 
 .days-row { display: grid; grid-template-columns: repeat(7, 1fr); flex-grow: 1; text-align: center; }
-.day-header-cell { padding: 6px 0; font-size: 11px; font-weight: 600; color: #5f6368; border-right: 1px solid #d0d2d6; }
+.day-header-cell { position: relative; padding: 6px 0; font-size: 11px; font-weight: 600; color: #5f6368; border-right: 1px solid #d0d2d6; }
 .day-header-cell:last-child { border-right: none; }
 .day-header-cell .day-num {
     display: inline-block; margin-top: 2px; font-size: 14px; font-weight: 700; width: 25px; height: 25px; line-height: 25px; border-radius: 50%; color: #202124;
 }
-.day-header-cell.today .day-num { background: #1a73e8; color: #ffffff; }
-.day-header-cell.day-off { background: rgba(95, 99, 104, 0.15); color: #5f6368; }
-.day-header-cell.day-off .day-num { background: transparent; box-shadow: none; }
+.day-header-cell.today { color: #185abc; box-shadow: inset 1px 0 #1a73e8, inset -1px 0 #1a73e8, inset 0 1px #1a73e8; }
+.day-header-cell.today::after { content: ""; position: absolute; top: 5px; right: 5px; width: 5px; height: 5px; border-radius: 50%; background: #1a73e8; }
+.day-header-cell.today .day-num { color: #185abc; }
+.day-header-cell.day-off:not(.today) { color: #9aa0a6; }
+.day-header-cell.day-off:not(.today) .day-num { color: #80868b; }
 
 /* Calendar Grid */
 #calendar-container { height: calc(100vh - 85px); overflow-y: auto; overflow-x: hidden; position: relative; }
@@ -205,7 +207,9 @@ body {
 .days-grid { display: grid; grid-template-columns: repeat(7, 1fr); flex-grow: 1; position: relative; }
 .day-column { border-right: 1px solid #d0d2d6; position: relative; }
 .day-column:last-child { border-right: none; }
-.day-column.day-off { background: rgba(95, 99, 104, 0.11); }
+.day-column.today { box-shadow: inset 1px 0 #1a73e8, inset -1px 0 #1a73e8; z-index: 1; }
+.day-column.day-off { background: transparent; }
+.day-column.day-off .time-slot { border-bottom-color: #eef0f2; }
 .time-slot { border-bottom: 1px solid #e2e4e8; box-sizing: border-box; }
 .time-slot:hover { background: #f1f3f4; }
 
@@ -225,6 +229,28 @@ body {
 .event-card.color-5 { background: #0288d1; }
 .event-card.color-6 { background: #455a64; }
 .event-card.color-7 { background: #00897b; }
+
+.event-card.personal-event {
+    background: #f7f8fa;
+    color: #374151;
+    border: 1.5px dashed #65717d;
+    box-shadow: 0 1px 3px rgba(32, 33, 36, 0.16);
+}
+.event-card.personal-event .event-title { font-weight: 650; }
+.personal-event-notes-view {
+    margin: 4px 0 10px;
+    padding: 9px 10px;
+    border: 1px dashed #c4c9cf;
+    border-radius: 9px;
+    background: #f8f9fa;
+    color: #4b5563;
+    font-size: 13px;
+    line-height: 1.4;
+    text-align: left;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.personal-notes-label { margin-top: 10px; }
 
 /* Компактная эмблема оплаты */
 .event-card.paid-status {
@@ -366,10 +392,10 @@ body {
 @media (max-width: 600px) { .top-notification-preview { display: none; } }
 
 /* Modals */
-#modal-overlay, #move-modal-overlay, #action-menu-overlay, #delete-modal-overlay, #date-picker-overlay, #app-settings-overlay, #receipt-settings-overlay, #help-overlay, #student-card-overlay, #work-center-overlay, #paid-confirm-overlay, #subscription-pay-overlay, #onboarding-overlay, #day-off-warning-overlay {
+#modal-overlay, #add-type-overlay, #move-modal-overlay, #action-menu-overlay, #delete-modal-overlay, #date-picker-overlay, #app-settings-overlay, #receipt-settings-overlay, #help-overlay, #student-card-overlay, #work-center-overlay, #paid-confirm-overlay, #subscription-pay-overlay, #onboarding-overlay, #day-off-warning-overlay {
     position: fixed; left: 0; right: 0; background: rgba(0, 0, 0, 0.45); z-index: 1000; display: flex; align-items: center; justify-content: center;
 }
-#modal-overlay.hidden, #move-modal-overlay.hidden, #action-menu-overlay.hidden, #delete-modal-overlay.hidden, #date-picker-overlay.hidden, #app-settings-overlay.hidden, #receipt-settings-overlay.hidden, #help-overlay.hidden, #student-card-overlay.hidden, #work-center-overlay.hidden, #paid-confirm-overlay.hidden, #subscription-pay-overlay.hidden, #onboarding-overlay.hidden, #day-off-warning-overlay.hidden { display: none; }
+#modal-overlay.hidden, #add-type-overlay.hidden, #move-modal-overlay.hidden, #action-menu-overlay.hidden, #delete-modal-overlay.hidden, #date-picker-overlay.hidden, #app-settings-overlay.hidden, #receipt-settings-overlay.hidden, #help-overlay.hidden, #student-card-overlay.hidden, #work-center-overlay.hidden, #paid-confirm-overlay.hidden, #subscription-pay-overlay.hidden, #onboarding-overlay.hidden, #day-off-warning-overlay.hidden { display: none; }
 
 .modal-content { background: #ffffff; border-radius: 16px; width: 100%; max-width: 350px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); display: flex; flex-direction: column; max-height: 100%; min-height: 0; overflow-y: auto; }
 .modal-content > * { flex-shrink: 0; min-width: 0; }
@@ -378,6 +404,25 @@ body {
 .modal-desc { margin: 10px 0 18px 0; font-size: 14px; color: #5f6368; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .modal-header h2 { font-size: 18px; color: #202124; }
+.add-type-modal { max-width: 370px; padding: 14px; overflow: hidden; }
+.add-type-header { margin: 0 2px 10px; align-items: flex-start; }
+.add-type-header h2 { margin: 0; }
+.add-type-context { margin: 4px 0 0; color: #5f6368; font-size: 13px; line-height: 1.25; }
+.add-type-choices { display: grid; gap: 7px; }
+.add-type-choice {
+    display: grid; grid-template-columns: 34px minmax(0, 1fr) 18px; align-items: center; gap: 10px;
+    width: 100%; min-height: 50px; padding: 7px 10px; border: 1px solid #dadce0; border-radius: 11px;
+    background: #fff; color: #202124; text-align: left; font-size: 14px; font-weight: 650; cursor: pointer;
+}
+.add-type-choice:active { background: #f1f3f4; }
+.add-type-icon { width: 34px; height: 34px; border-radius: 10px; background: #e8f0fe; color: #1967d2; display: grid; place-items: center; }
+.add-type-icon .thread-icon { width: 19px; height: 19px; margin: 0; }
+.add-type-choice.personal-choice .add-type-icon { background: #f1f3f4; color: #5f6368; }
+.add-type-chevron { width: 16px; height: 16px; margin: 0; color: #9aa0a6; }
+@media (max-width: 600px) {
+    #add-type-overlay { align-items: flex-end; }
+    #add-type-overlay .add-type-modal { max-width: none; border-radius: 16px 16px 12px 12px; }
+}
 .close-modal {
     width: 32px;
     height: 32px;

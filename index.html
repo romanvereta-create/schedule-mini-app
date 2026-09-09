@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TEMLI — расписание</title>
-    <link rel="stylesheet" href="styles.css?v=31.0.0-rc1">
+    <link rel="stylesheet" href="styles.css?v=31.1.1-rc1">
 </head>
 <body>
     <div id="startup-status" role="status" aria-live="polite">
@@ -113,23 +113,24 @@
     <div id="action-menu-overlay" class="hidden">
         <div class="modal-content text-center">
             <h2 id="action-menu-title">Ученик</h2>
+            <p id="personal-event-notes-view" class="personal-event-notes-view hidden"></p>
             <div class="modal-actions-column">
                 <div class="action-section-label" id="action-contact-label">Связь</div>
                 <button id="btn-action-chat-student" class="action-menu-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-message"></use></svg>Написать ученику</button>
                 <button id="btn-action-chat-parent" class="action-menu-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-message"></use></svg>Написать родителю</button>
                 <div id="group-action-details" class="group-action-details hidden"></div>
-                <div class="action-section-label">Оповещения</div>
-                <div class="payment-actions-row">
+                <div class="action-section-label" id="action-notification-label">Оповещения</div>
+                <div class="payment-actions-row" id="action-notification-actions">
                     <button id="btn-action-teacher-delay" class="action-menu-btn future-notification-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-delay-teacher"></use></svg>Я задержусь</button>
                     <button id="btn-action-student-delay" class="action-menu-btn future-notification-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-delay-student"></use></svg>Ученик задерживается</button>
                 </div>
                 <div class="action-section-label" id="individual-payment-label">Оплата</div>
-                <div class="payment-actions-row payment-actions-row-three">
+                <div class="payment-actions-row payment-actions-row-three" id="action-payment-actions">
                     <button id="btn-action-paid" class="action-menu-btn paid-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-paid"></use></svg>Оплачено</button>
                     <button id="btn-action-subscription" class="action-menu-btn subscription-pay-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-subscription"></use></svg>Абонемент</button>
                     <button id="btn-action-free" class="action-menu-btn free-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-free"></use></svg>Бесплатно</button>
                 </div>
-                <div class="action-section-label">Занятие</div>
+                <div class="action-section-label" id="action-event-label">Занятие</div>
                 <div class="payment-actions-row">
                     <button id="btn-action-move-trigger" class="action-menu-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-move"></use></svg>Перенести</button>
                     <button id="btn-action-cancel-once" class="action-menu-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-cancel"></use></svg>Отменить</button>
@@ -141,8 +142,8 @@
                 <button id="btn-action-delete" class="action-menu-btn delete-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-delete"></use></svg>Удалить</button>
 
                 <!-- ПАЛИТРА ЦВЕТОВ: 7 быстрых цветов + расширенная палитра -->
-                <div class="action-section-label">Цвет</div>
-                <div class="inline-color-palette">
+                <div class="action-section-label" id="action-color-label">Цвет</div>
+                <div class="inline-color-palette" id="action-color-palette">
                     <div class="color-swatch color-0" data-color="0"></div>
                     <div class="color-swatch color-1" data-color="1"></div>
                     <div class="color-swatch color-2" data-color="2"></div>
@@ -161,7 +162,7 @@
     <!-- ДИАЛОГ ПЕРЕНОСА / КОПИРОВАНИЯ -->
     <div id="move-modal-overlay" class="hidden">
         <div class="modal-content text-center">
-            <h2>Действие с занятием</h2>
+            <h2 id="move-modal-title">Действие с занятием</h2>
             <p id="move-modal-desc" class="modal-desc"></p>
             <div class="modal-actions-column">
                 <button id="btn-action-copy" class="primary-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-add"></use></svg>Добавить ещё одним занятием</button>
@@ -175,8 +176,8 @@
     <!-- ДИАЛОГ УДАЛЕНИЯ -->
     <div id="delete-modal-overlay" class="hidden">
         <div class="modal-content text-center">
-            <h2>Удаление занятия</h2>
-            <p class="modal-desc">Как удалить это занятие?</p>
+            <h2 id="delete-modal-title">Удаление занятия</h2>
+            <p class="modal-desc" id="delete-modal-desc">Как удалить это занятие?</p>
             <div class="modal-actions-column">
                 <button id="btn-delete-once" class="danger-btn">Удалить только это занятие</button>
                 <button id="btn-delete-all" class="danger-btn">Удалить все будущие (навсегда)</button>
@@ -231,6 +232,36 @@
         </div>
     </div>
 
+    <!-- КОМПАКТНЫЙ ВЫБОР ТИПА НОВОЙ ЗАПИСИ -->
+    <div id="add-type-overlay" class="hidden">
+        <div class="modal-content add-type-modal" role="dialog" aria-modal="true" aria-labelledby="add-type-title">
+            <header class="modal-header add-type-header">
+                <div>
+                    <h2 id="add-type-title">Что добавить?</h2>
+                    <p id="add-type-context" class="add-type-context" data-i18n-ignore></p>
+                </div>
+                <button id="btn-close-add-type" class="close-modal" type="button" aria-label="Закрыть"><svg class="thread-icon" aria-hidden="true"><use href="#ti-close"></use></svg></button>
+            </header>
+            <div class="add-type-choices">
+                <button id="btn-add-type-student" class="add-type-choice" type="button">
+                    <span class="add-type-icon"><svg class="thread-icon" aria-hidden="true"><use href="#ti-profile"></use></svg></span>
+                    <span>Занятие с учеником</span>
+                    <svg class="thread-icon add-type-chevron" aria-hidden="true"><use href="#ti-chevron-right"></use></svg>
+                </button>
+                <button id="btn-add-type-group" class="add-type-choice" type="button">
+                    <span class="add-type-icon"><svg class="thread-icon" aria-hidden="true"><use href="#ti-students"></use></svg></span>
+                    <span>Групповое занятие</span>
+                    <svg class="thread-icon add-type-chevron" aria-hidden="true"><use href="#ti-chevron-right"></use></svg>
+                </button>
+                <button id="btn-add-type-personal" class="add-type-choice personal-choice" type="button">
+                    <span class="add-type-icon"><svg class="thread-icon" aria-hidden="true"><use href="#ti-pin"></use></svg></span>
+                    <span>Личное дело</span>
+                    <svg class="thread-icon add-type-chevron" aria-hidden="true"><use href="#ti-chevron-right"></use></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- МОДАЛЬНОЕ ОКНО НАСТРОЕК / ДОБАВЛЕНИЯ ЗАНЯТИЯ -->
     <div id="modal-overlay" class="hidden">
         <div class="modal-content">
@@ -243,12 +274,21 @@
                 <input type="hidden" id="lesson-date">
 
                 <div id="form-container">
-                    <div class="form-group" id="lesson-type-group">
+                    <div class="form-group hidden" id="lesson-type-group">
                         <label>Кого добавить в слот</label>
                         <select id="lesson-type-select">
                             <option value="student">Ученика</option>
                             <option value="group">Группу</option>
+                            <option value="personal">Личное дело</option>
                         </select>
+                    </div>
+
+                    <div class="form-group hidden" id="personal-event-group">
+                        <label for="personal-event-title">Название</label>
+                        <input type="text" id="personal-event-title" maxlength="100" placeholder="Например: врач, встреча, дорога">
+                        <label for="personal-event-notes" class="personal-notes-label">Заметки</label>
+                        <textarea id="personal-event-notes" rows="4" maxlength="1000" placeholder="Необязательно"></textarea>
+                        <small class="field-hint">Заметки видны только владельцу расписания.</small>
                     </div>
 
                     <div class="form-group hidden" id="group-editor-group">
@@ -575,8 +615,8 @@
     <!-- ПРЕДУПРЕЖДЕНИЕ О ЗАНЯТИИ В ВЫХОДНОЙ -->
     <div id="day-off-warning-overlay" class="hidden">
         <div class="modal-content text-center">
-            <h2>Занятие в выходной</h2>
-            <p class="modal-desc">Вообще-то у вас выходной. Не советую 😄 Отдых тоже входит в расписание. Всё равно поставить занятие?</p>
+            <h2 id="day-off-warning-title">Занятие в выходной</h2>
+            <p class="modal-desc" id="day-off-warning-desc">Вообще-то у вас выходной. Не советую 😄 Отдых тоже входит в расписание. Всё равно поставить занятие?</p>
             <div class="modal-actions-column">
                 <button id="btn-day-off-confirm" class="primary-btn" type="button">Всё равно поставить</button>
                 <button id="btn-day-off-cancel" class="secondary-btn" type="button">Не сегодня</button>
@@ -802,6 +842,17 @@
                     </details>
 
                     <details class="help-section">
+                        <summary>Личные дела</summary>
+                        <div class="help-section-body">
+                            <ul>
+                                <li>Нажмите свободный слот и выберите <strong>«Личное дело»</strong>. Укажите название, время, длительность и при необходимости заметки.</li>
+                                <li>Личное дело занимает время и исключается из свободных окон, но не связано с учениками, оплатами и уведомлениями.</li>
+                                <li>Заметки видны только владельцу расписания и не показываются прямо на календарной карточке.</li>
+                            </ul>
+                        </div>
+                    </details>
+
+                    <details class="help-section">
                         <summary>Ученики и группы</summary>
                         <div class="help-section-body">
                             <ul>
@@ -866,9 +917,9 @@
                     </details>
 
                     <details class="help-section help-current-limit">
-                        <summary>Что пока не отправляется автоматически</summary>
+                        <summary>Личный бот и уведомления</summary>
                         <div class="help-section-body">
-                            <p>Кнопки <strong>«Я задержусь»</strong> и <strong>«Ученик задерживается»</strong> сейчас показывают будущую функцию. Они пока не отправляют сообщения и не меняют расписание.</p>
+                            <p>Сообщения ученикам и родителям отправляются через личного бота преподавателя. Подключите его в настройках, а получателей подтвердите в карточке ученика.</p>
                         </div>
                     </details>
                 </div>
@@ -937,6 +988,6 @@
         </div>
     </div>
 
-    <script src="startup.js?v=31.0.0-rc1"></script>
+    <script src="startup.js?v=31.1.1-rc1"></script>
 </body>
 </html>

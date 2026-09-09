@@ -1,5 +1,5 @@
 (() => {
-    const VERSION = '30.16.1';
+    const VERSION = '31.1.1-rc1';
     const LANGUAGES = {
         ru: { label: 'Русский', locale: 'ru-RU', currency: 'RUB' },
         en: { label: 'English', locale: 'en-US', currency: 'USD' },
@@ -12,6 +12,38 @@
         TRY: { symbol: '₺', label: 'TRY — ₺' }
     };
     const dictionaries = { ru: {} };
+    const supplementalDictionaries = { en: {
+        'Что добавить?': 'What would you like to add?',
+        'Занятие с учеником': 'Individual lesson',
+        'Групповое занятие': 'Group lesson',
+        'Добавить групповое занятие': 'Add group lesson',
+        'Личное дело': 'Personal event',
+        'Добавить личное дело': 'Add personal event',
+        'Название': 'Title',
+        'Заметки': 'Notes',
+        'Необязательно': 'Optional',
+        'Например: врач, встреча, дорога': 'For example: appointment, meeting, travel',
+        'Заметки видны только владельцу расписания.': 'Notes are visible only to the schedule owner.',
+        'Без заметок': 'No notes',
+        'Изменить': 'Edit',
+        'Личное дело в выходной': 'Personal event on a day off',
+        'Это ваш выходной день. Всё равно добавить личное дело?': 'This is your day off. Add the personal event anyway?',
+        'Действие с личным делом': 'Personal event action',
+        'Добавить ещё одним личным делом': 'Add another personal event',
+        'Удаление личного дела': 'Delete personal event',
+        'Как удалить личное дело?': 'How should this personal event be deleted?',
+        'Удалить только это личное дело': 'Delete only this personal event',
+        'Удалить все будущие повторы': 'Delete all future occurrences'
+        ,'Личные дела': 'Personal events'
+        ,'Нажмите свободный слот и выберите «Личное дело». Укажите название, время, длительность и при необходимости заметки.': 'Tap an empty slot and choose “Personal event”. Enter a title, time, duration, and optional notes.'
+        ,'Нажмите свободный слот и выберите': 'Tap an empty slot and choose'
+        ,'«Личное дело»': '“Personal event”'
+        ,'. Укажите название, время, длительность и при необходимости заметки.': '. Enter a title, time, duration, and optional notes.'
+        ,'Личное дело занимает время и исключается из свободных окон, но не связано с учениками, оплатами и уведомлениями.': 'A personal event blocks its time in available windows but is not connected to students, payments, or notifications.'
+        ,'Заметки видны только владельцу расписания и не показываются прямо на календарной карточке.': 'Notes are visible only to the schedule owner and are not shown directly on the calendar card.'
+        ,'Личный бот и уведомления': 'Personal bot and notifications'
+        ,'Сообщения ученикам и родителям отправляются через личного бота преподавателя. Подключите его в настройках, а получателей подтвердите в карточке ученика.': 'Messages to students and parents are sent through the teacher’s personal bot. Connect it in settings and confirm recipients in the student profile.'
+    } };
     const dictionaryEntries = { ru: [] };
     const loading = {};
     const textState = new WeakMap();
@@ -105,7 +137,7 @@
 
     function register(code, dictionary) {
         if (LANGUAGES[code] && dictionary && typeof dictionary === 'object') {
-            dictionaries[code] = dictionary;
+            dictionaries[code] = { ...(supplementalDictionaries[code] || {}), ...dictionary };
             dictionaryEntries[code] = Object.entries(dictionary)
                 .filter(([from]) => from.length >= 3)
                 .sort((a, b) => b[0].length - a[0].length);

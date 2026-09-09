@@ -10,6 +10,7 @@
     const message = document.getElementById('startup-status-message');
     const retry = document.getElementById('startup-status-retry');
     let starting = false;
+    let appScriptsStarted = false;
 
     function showStatus(nextTitle, nextMessage, canRetry = false) {
         status.classList.remove('hidden');
@@ -24,7 +25,7 @@
         status.remove();
     }
 
-    function loadScript(src, { timeoutMs = 0, id = '' } = {}) {
+    function loadScript(src, { timeoutMs = 15000, id = '' } = {}) {
         return new Promise((resolve, reject) => {
             const script = document.createElement('script');
             let settled = false;
@@ -78,6 +79,9 @@
 
     async function start() {
         if (starting) return;
+        // Reload after a partial script load: evaluating app.js twice duplicates listeners
+        // and top-level declarations. A fresh page also cancels late script execution.
+        if (appScriptsStarted) { window.location.reload(); return; }
         starting = true;
         retry.disabled = true;
         showStatus('TEMLI', 'Загрузка приложения…');
@@ -106,9 +110,10 @@
         }
 
         try {
-            await loadScript('i18n.js?v=31.2.2-rc1');
-            await loadScript('app.js?v=31.2.2-rc1');
-            await loadScript('personal_notifications.js?v=31.2.2-rc1');
+            appScriptsStarted = true;
+            await loadScript('i18n.js?v=31.3.1-rc1');
+            await loadScript('app.js?v=31.3.1-rc1');
+            await loadScript('personal_notifications.js?v=31.3.1-rc1');
             hideStatus();
         } catch (error) {
             console.error('Не удалось загрузить TEMLI:', error);

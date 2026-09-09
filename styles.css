@@ -88,6 +88,14 @@ body {
 }
 
 /* Header */
+#settings-build-version { display: block; margin-top: 3px; color: #5f6368; font-size: 11px; font-weight: 400; }
+#network-status { position: fixed; inset: auto 12px max(12px, env(safe-area-inset-bottom)); z-index: 4900; display: flex; justify-content: center; }
+#network-status.network-blocking { inset: 0; align-items: center; background: #fff; padding: 20px; }
+.network-card { width: min(100%, 440px); max-height: 85dvh; overflow: auto; padding: 16px; border: 1px solid #dadce0; border-radius: 14px; background: #fff; box-shadow: 0 4px 24px #0002; }
+.network-card p { font-size: 14px; line-height: 1.45; }
+.network-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.network-actions button { min-height: 40px; padding: 8px 12px; border: 1px solid #dadce0; border-radius: 8px; background: #f1f3f4; cursor: pointer; }
+.network-card pre { margin-top: 12px; font-size: 11px; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
 .main-header {
     position: sticky;
     top: 0;

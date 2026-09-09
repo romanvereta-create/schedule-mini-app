@@ -180,15 +180,99 @@ function apiHeaders(extraHeaders = {}, body = null) {
     return headers;
 }
 
-async function apiFetch(path, options = {}) {
-    const response = await fetch(API_URL + path, {
-        ...options,
-        headers: apiHeaders(options.headers || {}, options.body || null)
-    });
-    if (response.status === 401) {
-        throw new Error('Доступ к API отклонён. Откройте календарь через Telegram-бота.');
+let initialDataReady = false;
+let dataLoading = false;
+let networkFailure = null;
+const networkPanel = document.createElement('section');
+networkPanel.id = 'network-status';
+networkPanel.className = 'hidden';
+networkPanel.setAttribute('data-i18n-ignore', '');
+networkPanel.innerHTML = '<div class="network-card"><p role="status" aria-live="polite"></p><div class="network-actions"><button type="button" data-network-retry></button><button type="button" data-network-copy></button><button type="button" data-network-close></button></div><pre hidden></pre></div>';
+document.body.appendChild(networkPanel);
+
+function networkText(ru, en) { return uiLocale().startsWith('en') ? en : ru; }
+function renderNetworkStatus(loading = false, show = true) {
+    if (show) networkPanel.classList.remove('hidden');
+    networkPanel.classList.toggle('network-blocking', !initialDataReady);
+    const code = networkFailure?.code;
+    let message = networkText('Загрузка расписания…', 'Loading schedule…');
+    if (!loading) {
+        if (code === 'auth') message = networkText('Сессия Telegram истекла. Закройте приложение и откройте его снова через бота.', 'Your Telegram session has expired. Close the app and reopen it through the bot.');
+        else if (code === 'offline') message = networkText('Нет подключения к интернету. Восстановите соединение и повторите загрузку.', 'No internet connection. Reconnect and retry loading.');
+        else if (code === 'http') message = networkText('Сервер временно недоступен. Повторите загрузку позже.', 'The server is temporarily unavailable. Retry loading later.');
+        else if (code === 'invalid_response') message = networkText('Сервер вернул неполный или некорректный ответ. Повторите загрузку.', 'The server returned an incomplete or invalid response. Retry loading.');
+        else message = networkText('Не удалось связаться с сервером. Проверьте сеть; если используете VPN, попробуйте другой сервер VPN.', 'Could not reach the server. Check your connection; if using a VPN, try another VPN server.');
+        if (networkFailure?.uncertain) message += networkText(' Результат последнего действия неизвестен. Проверьте расписание или историю оплат перед повторением.', ' The last action’s result is unknown. Check the schedule or payment history before repeating it.');
     }
-    return response;
+    networkPanel.querySelector('p').textContent = message;
+    const retry = networkPanel.querySelector('[data-network-retry]');
+    retry.textContent = networkText('Повторить загрузку', 'Retry loading');
+    retry.disabled = loading;
+    retry.hidden = code === 'auth';
+    const copy = networkPanel.querySelector('[data-network-copy]');
+    copy.textContent = networkText('Диагностика', 'Diagnostics');
+    copy.hidden = loading;
+    const close = networkPanel.querySelector('[data-network-close]');
+    close.textContent = networkText('Закрыть', 'Close');
+    close.hidden = !initialDataReady || loading;
+}
+function reportNetworkFailure(code, path, status = 0, uncertain = false) {
+    // Only technical metadata: never record auth headers, query strings or request bodies.
+    if (networkFailure?.uncertain && !uncertain && code !== 'auth') { renderNetworkStatus(); return; }
+    networkFailure = {code, endpoint: path.split('?')[0], status, uncertain,
+        version: window.TEMLI_I18N?.VERSION || '', time: new Date().toISOString()};
+    renderNetworkStatus();
+}
+networkPanel.querySelector('[data-network-close]').onclick = () => networkPanel.classList.add('hidden');
+networkPanel.querySelector('[data-network-retry]').onclick = () => fetchData();
+networkPanel.querySelector('[data-network-copy]').onclick = async () => {
+    const report = JSON.stringify(networkFailure, null, 2);
+    const output = networkPanel.querySelector('pre');
+    output.textContent = report;
+    output.hidden = false;
+    try { await navigator.clipboard.writeText(report); } catch (_) { /* Selectable text remains available. */ }
+};
+window.addEventListener('temli-language-change', () => {
+    renderNetworkStatus(dataLoading, false);
+});
+
+async function apiFetch(path, options = {}) {
+    const { quiet = false, ...fetchOptions } = options;
+    const controller = new AbortController();
+    const readOnly = (fetchOptions.method || 'GET').toUpperCase() === 'GET'
+        || /^\/get_/.test(path);
+    const timer = setTimeout(() => controller.abort(), readOnly ? 15000 : 45000);
+    let status = 0;
+    try {
+        const response = await fetch(API_URL + path, {
+            ...fetchOptions,
+            headers: apiHeaders(fetchOptions.headers || {}, fetchOptions.body || null),
+            signal: controller.signal
+        });
+        status = response.status;
+        if (status === 401 || status === 403) throw Object.assign(new Error(), { networkCode: 'auth' });
+        if (status >= 500 || status === 429) throw Object.assign(new Error(), { networkCode: 'http' });
+        // Read the entire response under the deadline, including a stalled response body.
+        const body = await response.arrayBuffer();
+        const buffered = new Response(body, {status, statusText: response.statusText, headers: response.headers});
+        if (response.headers.get('content-type')?.includes('application/json')) {
+            try { JSON.parse(new TextDecoder().decode(body)); }
+            catch (_) { throw Object.assign(new Error(), { networkCode: 'invalid_response' }); }
+        } else if (!path.startsWith('/download_') && !path.startsWith('/export_')) {
+            throw Object.assign(new Error(), { networkCode: 'invalid_response' });
+        }
+        return buffered;
+    } catch (error) {
+        const code = error.networkCode || (navigator.onLine === false ? 'offline' : controller.signal.aborted ? 'timeout' : 'network');
+        const uncertain = !readOnly && code !== 'auth';
+        if (!quiet) reportNetworkFailure(code, path, status, uncertain);
+        const message = code === 'auth'
+            ? networkText('Откройте приложение заново через Telegram-бота.', 'Reopen the app through the Telegram bot.')
+            : uncertain
+                ? networkText('Ответ не получен. Перед повторением проверьте результат действия.', 'No response received. Check the action’s result before repeating it.')
+                : networkText('Не удалось загрузить данные. Повторите загрузку.', 'Could not load data. Retry loading.');
+        throw Object.assign(new Error(message), {networkCode: code});
+    } finally { clearTimeout(timer); }
 }
 
 const PENDING_STUDENT_PAYMENT_KEY = 'temli.pending-student-payment.v1';
@@ -258,6 +342,7 @@ async function fetchWeekSchedule(monday, { allowCached = false } = {}) {
     const promise = (async () => {
         const response = await apiFetch('/get_week_schedule', {
             method: 'POST',
+            quiet: allowCached,
             body: JSON.stringify({ week_start: requestedWeek })
         });
         const data = await response.json();
@@ -315,7 +400,7 @@ async function loadStudents() {
 async function loadSettings() {
     try {
         const response = await apiFetch('/get_settings');
-        if (!response.ok) return false;
+        if (!response.ok) throw new Error('Settings unavailable');
         const data = await response.json();
         if (data.status === 'ok') {
             state.settings = data.settings || state.settings;
@@ -325,10 +410,11 @@ async function loadSettings() {
             updateVisibleHoursFromSettingsAndLessons();
             autoFitWeekPending = true;
         }
+        if (data.status !== 'ok') throw new Error('Settings unavailable');
         return true;
     } catch (error) {
         console.warn('Настройки пока недоступны:', error);
-        return false;
+        throw error;
     }
 }
 
@@ -340,15 +426,28 @@ function scheduleWorkCenterRefresh(delay = 300) {
 }
 
 async function fetchData() {
+    if (dataLoading) return;
+    dataLoading = true;
+    networkFailure = null;
+    renderNetworkStatus(true);
     try {
-        // Независимые стартовые запросы идут одновременно, а не цепочкой.
-        await Promise.all([loadSchedule(), loadStudents(), loadSettings()]);
+        clearWeekScheduleCache();
+        // Wait for every request to settle before allowing a retry, avoiding late stale replies.
+        const results = await Promise.allSettled([loadSchedule(), loadStudents(), loadSettings()]);
+        const failure = results.find(result => result.status === 'rejected');
+        if (failure) throw failure.reason;
         renderCalendar();
         scheduleWorkCenterRefresh();
         showOnboardingIfNeeded();
+        initialDataReady = true;
+        networkFailure = null;
+        networkPanel.classList.add('hidden');
+        networkPanel.querySelector('pre').hidden = true;
     } catch (error) {
         console.error('Ошибка загрузки:', error);
-    }
+        if (!networkFailure) reportNetworkFailure(error.networkCode || 'invalid_response', '/initial_load');
+        renderNetworkStatus();
+    } finally { dataLoading = false; }
 }
 
 async function refreshScheduleOnly({ refreshHelper = true } = {}) {
@@ -2233,6 +2332,7 @@ document.getElementById('personal-bot-disconnect').onclick = () => runPersonalBo
 });
 
 document.getElementById('btn-app-settings').onclick = () => {
+    document.getElementById('settings-build-version').textContent = `TEMLI ${window.TEMLI_I18N?.VERSION || '—'}`;
     fillAppSettingsForm();
     loadPersonalBot();
     document.getElementById('app-settings-overlay').classList.remove('hidden');

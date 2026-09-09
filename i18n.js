@@ -1,5 +1,5 @@
 (() => {
-    const VERSION = '31.2.2-rc1';
+    const VERSION = '31.3.1-rc1';
     const LANGUAGES = {
         ru: { label: 'Русский', locale: 'ru-RU', currency: 'RUB' },
         en: { label: 'English', locale: 'en-US', currency: 'USD' },
@@ -150,8 +150,15 @@
         loading[code] = new Promise((resolve, reject) => {
             const script = document.createElement('script');
             script.src = `locales/${code}.js?v=${VERSION}`;
-            script.onload = resolve;
-            script.onerror = () => reject(new Error(`Locale ${code} could not be loaded`));
+            const timer = setTimeout(() => finish(new Error(`Locale ${code} timed out`)), 15000);
+            function finish(error) {
+                clearTimeout(timer);
+                script.onload = script.onerror = null;
+                if (error) { script.remove(); delete loading[code]; reject(error); }
+                else resolve();
+            }
+            script.onload = () => finish(dictionaries[code] ? null : new Error(`Locale ${code} is invalid`));
+            script.onerror = () => finish(new Error(`Locale ${code} could not be loaded`));
             document.head.appendChild(script);
         });
         return loading[code];

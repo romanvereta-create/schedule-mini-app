@@ -323,6 +323,7 @@ async function loadSettings() {
             window.TEMLI_I18N?.setCurrency(state.settings.currency || 'RUB');
             state.onboardingNeeded = data.onboarding_needed === true;
             updateVisibleHoursFromSettingsAndLessons();
+            autoFitWeekPending = true;
         }
         return true;
     } catch (error) {
@@ -2084,6 +2085,7 @@ document.getElementById('btn-onboarding-create').onclick = async () => {
         const settingsResult = await settingsResponse.json();
         if (settingsResult.status !== 'ok') throw new Error(settingsResult.message || 'Не удалось сохранить рабочие часы');
         state.settings = settingsResult.settings || { ...state.settings, work_start: workStart, work_end: workEnd };
+        autoFitWeekPending = true;
 
         const lessonResponse = await apiFetch('/add_lesson', {
             method: 'POST',
@@ -2281,7 +2283,8 @@ document.getElementById('btn-save-app-settings').onclick = async () => {
         state.settings = result.settings || { ...state.settings, ...settings };
         await window.TEMLI_I18N?.setLanguage(state.settings.language || 'ru');
         window.TEMLI_I18N?.setCurrency(state.settings.currency || 'RUB');
-            updateVisibleHoursFromSettingsAndLessons();
+        updateVisibleHoursFromSettingsAndLessons();
+        autoFitWeekPending = true;
         renderCalendar();
         scheduleWorkCenterRefresh();
         document.getElementById('app-settings-overlay').classList.add('hidden');

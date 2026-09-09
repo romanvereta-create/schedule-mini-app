@@ -214,7 +214,7 @@ body {
 .time-slot:hover { background: #f1f3f4; }
 
 /* Events Layer */
-.events-layer { position: absolute; top: 0; left: 52px; right: 0; bottom: 0; pointer-events: none; }
+.events-layer { position: absolute; top: 0; left: 52px; right: 0; bottom: 0; z-index: 2; pointer-events: none; }
 .event-card {
     position: absolute; pointer-events: auto; color: #ffffff; border-radius: 5px;
     padding: 3px 2px; font-size: 12px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.25);

@@ -111,9 +111,10 @@
 
         try {
             appScriptsStarted = true;
-            await loadScript('i18n.js?v=31.3.1-rc1');
-            await loadScript('app.js?v=31.3.1-rc1');
-            await loadScript('personal_notifications.js?v=31.3.1-rc1');
+            await loadScript('i18n.js?v=31.4.0-rc1');
+            await loadScript('app.js?v=31.4.0-rc1');
+            await loadScript('ux.js?v=31.4.0-rc1');
+            await loadScript('personal_notifications.js?v=31.4.0-rc1');
             hideStatus();
         } catch (error) {
             console.error('Не удалось загрузить TEMLI:', error);

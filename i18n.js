@@ -1,5 +1,5 @@
 (() => {
-    const VERSION = '31.3.1-rc1';
+    const VERSION = '31.4.0-rc1';
     const LANGUAGES = {
         ru: { label: 'Русский', locale: 'ru-RU', currency: 'RUB' },
         en: { label: 'English', locale: 'en-US', currency: 'USD' },
@@ -13,6 +13,14 @@
     };
     const dictionaries = { ru: {} };
     const supplementalDictionaries = { en: {
+        'Занятия и оплаты': 'Lessons and payments',
+        'Оплачено / проведено': 'Paid / completed',
+        'Распределить общую сумму': 'Allocate payment',
+        'Отменено': 'Cancelled',
+        'В календаре': 'Show in calendar',
+        'Следующее занятие': 'Next lesson',
+        'Сначала старые долги, затем будущие занятия. Учитываются индивидуальные и групповые занятия по их стоимости.': 'Oldest unpaid lessons first, then future lessons. Both individual and group lessons are included at their own prices.',
+        'Пока нет четырёх неоплаченных занятий с указанной ценой. Можно внести другую сумму — начиная со старых долгов.': 'Fewer than four unpaid lessons have a price. You can enter another amount, starting with the oldest debt.',
         'Что добавить?': 'What would you like to add?',
         'Занятие с учеником': 'Individual lesson',
         'Групповое занятие': 'Group lesson',

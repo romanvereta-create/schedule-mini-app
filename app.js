@@ -29,6 +29,17 @@ const weekScheduleCache = new Map();
 const weekScheduleInflight = new Map();
 let weekCacheGeneration = 0;
 let adjacentWeekPrefetchTimer = null;
+let calendarView = 'week';
+try { calendarView = localStorage.getItem('temli-calendar-view') === 'day' ? 'day' : 'week'; } catch (_) {}
+let calendarDay = new Date();
+function visibleCalendarDates() {
+    if (calendarView === 'day') return [new Date(calendarDay)];
+    return Array.from({ length: 7 }, (_, i) => {
+        const date = new Date(state.currentMonday);
+        date.setDate(date.getDate() + i);
+        return date;
+    });
+}
 
 const state = {
     currentMonday: getMonday(new Date()),
@@ -408,7 +419,7 @@ async function loadSettings() {
             window.TEMLI_I18N?.setCurrency(state.settings.currency || 'RUB');
             state.onboardingNeeded = data.onboarding_needed === true;
             updateVisibleHoursFromSettingsAndLessons();
-            autoFitWeekPending = true;
+            if (!initialDataReady) autoFitWeekPending = true;
         }
         if (data.status !== 'ok') throw new Error('Settings unavailable');
         return true;
@@ -671,6 +682,9 @@ function renderCalendar() {
     const grid = document.getElementById('week-grid');
     const layer = document.getElementById('events-layer');
     if (!labels || !grid || !layer) return;
+    const scrollTop = document.getElementById('calendar-container').scrollTop;
+    document.body.classList.toggle('calendar-day-view', calendarView === 'day');
+    document.documentElement.style.setProperty('--calendar-columns', calendarView === 'day' ? '1' : '7');
 
     labels.innerHTML = '';
     grid.innerHTML = '';
@@ -684,12 +698,10 @@ function renderCalendar() {
     const header = document.getElementById('days-header');
     header.innerHTML = '';
 
-    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
-        const dayDate = new Date(state.currentMonday);
-        dayDate.setDate(dayDate.getDate() + dayIndex);
+    for (const dayDate of visibleCalendarDates()) {
         const cell = document.createElement('div');
         cell.className = `day-header-cell ${dateKey(dayDate) === todayKey ? 'today' : ''} ${isDayOffDate(dayDate) ? 'day-off' : ''}`;
-        cell.innerHTML = `<div>${['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'][dayIndex]}</div><div class="day-num">${dayDate.getDate()}</div>`;
+        cell.innerHTML = `<div>${escapeHtml(dayDate.toLocaleDateString(uiLocale(), { weekday: calendarView === 'day' ? 'long' : 'short' }))}</div><div class="day-num">${dayDate.getDate()}</div>`;
         header.appendChild(cell);
     }
 
@@ -704,10 +716,8 @@ function renderCalendar() {
     dayEndLabel.textContent = '00:00';
     labels.appendChild(dayEndLabel);
 
-    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+    for (const dayDate of visibleCalendarDates()) {
         const column = document.createElement('div');
-        const dayDate = new Date(state.currentMonday);
-        dayDate.setDate(dayDate.getDate() + dayIndex);
         const key = dateKey(dayDate);
         column.className = `day-column ${dateKey(dayDate) === todayKey ? 'today' : ''} ${isDayOffDate(dayDate) ? 'day-off' : ''}`;
 
@@ -729,16 +739,18 @@ function renderCalendar() {
 
     renderEvents();
     updateCurrentTimeLine();
+    document.getElementById('calendar-container').scrollTop = scrollTop;
+    window.dispatchEvent(new Event('temli-calendar-rendered'));
     requestAnimationFrame(syncCalendarHeaderScrollbar);
 }
 
 function renderEvents() {
     const layer = document.getElementById('events-layer');
-    const colWidth = layer.clientWidth / 7;
+    const dates = visibleCalendarDates();
+    const colWidth = layer.clientWidth / dates.length;
 
-    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
-        const dayDate = new Date(state.currentMonday);
-        dayDate.setDate(dayDate.getDate() + dayIndex);
+    for (let dayIndex = 0; dayIndex < dates.length; dayIndex++) {
+        const dayDate = dates[dayIndex];
         const key = dateKey(dayDate);
         const lessons = state.schedule[key] || [];
 
@@ -784,6 +796,19 @@ function renderEvents() {
             else if (cardHeight < 54) card.classList.add('event-card-medium');
             else card.classList.add('event-card-tall');
             card.appendChild(title);
+            const endMinutes = hour * 60 + minute + duration;
+            const endTime = `${String(Math.floor(endMinutes / 60) % 24).padStart(2, '0')}:${String(endMinutes % 60).padStart(2, '0')}`;
+            const eventMeta = document.createElement('div');
+            eventMeta.className = 'event-day-meta';
+            const eventStatus = lesson.cancelled ? uiText('Отменено') : isGroup ? uiText('Группа') : paymentStatusLabel(lesson);
+            eventMeta.textContent = `${lesson.time}–${endTime}${isPersonal ? '' : ' · ' + eventStatus}`;
+            card.appendChild(eventMeta);
+            card.tabIndex = 0;
+            card.setAttribute('role', 'button');
+            card.setAttribute('aria-label', `${title.textContent}, ${eventMeta.textContent}`);
+            card.addEventListener('keydown', event => {
+                if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); card.click(); }
+            });
             if (isGroup && groupMembers.length) {
                 const meta = document.createElement('div');
                 meta.className = 'event-group-meta';
@@ -825,9 +850,9 @@ function updateCurrentTimeLine() {
     const now = new Date();
     let todayColumn = -1;
 
-    for (let i = 0; i < 7; i++) {
-        const date = new Date(state.currentMonday);
-        date.setDate(date.getDate() + i);
+    const dates = visibleCalendarDates();
+    for (let i = 0; i < dates.length; i++) {
+        const date = dates[i];
         if (dateKey(date) === dateKey(now)) todayColumn = i;
     }
 
@@ -836,7 +861,7 @@ function updateCurrentTimeLine() {
         return;
     }
 
-    const columnWidth = document.getElementById('events-layer').clientWidth / 7;
+    const columnWidth = document.getElementById('events-layer').clientWidth / dates.length;
     const minutes = now.getHours() * 60 + Math.floor(now.getMinutes() / 5) * 5 - START_HOUR * 60;
     line.style.top = `${minutes * hourHeight / 60}px`;
     line.style.left = `${todayColumn * columnWidth}px`;
@@ -999,6 +1024,7 @@ async function executeMove(actionType) {
     const response = await apiFetch('/move_lesson', { method: 'POST', body: JSON.stringify(payload) });
     const result = await response.json();
     if (result.status !== 'ok') return alert(result.message || 'Ошибка переноса');
+    window.dispatchEvent(new CustomEvent('temli-calendar-changed', { detail: { token: result.undo_token, action: actionType } }));
     cancelMove();
     refreshScheduleOnly();
 }
@@ -1131,15 +1157,15 @@ function resetAddForm(type = 'student') {
     document.getElementById('student-select').value = '';
     document.getElementById('manual-student-name').value = '';
     document.getElementById('manual-student-name').classList.add('hidden');
-    document.getElementById('lesson-repeat').value = 'year';
+    document.getElementById('lesson-repeat').value = type === 'personal' ? 'no' : 'year';
     document.getElementById('lesson-price').value = '';
     const dateValue = document.getElementById('lesson-date')?.value || dateKey(new Date());
     const repeatUntil = document.getElementById('repeat-until');
     repeatUntil.min = dateValue;
     repeatUntil.max = dateKey(new Date(`${dateValue}T12:00:00`).getTime() + 370 * 24 * 60 * 60 * 1000);
     repeatUntil.value = schoolYearEndFor(dateValue);
-    document.getElementById('repeat-until-wrap').classList.remove('hidden');
-    document.getElementById('reminder-enabled').checked = state.settings.default_reminders_enabled !== false;
+    document.getElementById('repeat-until-wrap').classList.toggle('hidden', type === 'personal');
+    document.getElementById('reminder-enabled').checked = state.settings.default_reminders_enabled === true;
     document.getElementById('reminder-minutes').value = '60';
     updateReminderControls();
     updateLessonTypeUI();
@@ -1321,6 +1347,7 @@ async function saveLesson(options = {}) {
         const response = await apiFetch(endpoint, { method: 'POST', body: JSON.stringify(payload) });
         const result = await response.json();
         if (result.status !== 'ok') return alert(result.message || 'Ошибка сохранения');
+        window.dispatchEvent(new CustomEvent('temli-saved', { detail: { overlay: 'modal-overlay' } }));
         closeAllModals();
         await refreshScheduleAndStudents();
         if (Number(result.updated_prices || 0) > 1) {
@@ -1413,6 +1440,7 @@ document.getElementById('btn-save-lesson-report').onclick = async () => {
         const result = await response.json();
         if (result.status !== 'ok') return alert(result.message || 'Ошибка сохранения итога');
         state.selectedLesson.report = report;
+        window.dispatchEvent(new CustomEvent('temli-saved', { detail: { overlay: 'lesson-report-overlay' } }));
         document.getElementById('lesson-report-overlay').classList.add('hidden');
         await refreshScheduleOnly();
     } catch (error) {
@@ -1744,6 +1772,7 @@ document.getElementById('btn-delete-once').onclick = async () => {
     const response = await apiFetch('/delete_lesson', { method: 'POST', body: JSON.stringify({ date: l.date, id: l.id, delete_all: false }) });
     const result = await response.json();
     if (result.status !== 'ok') return alert(result.message || 'Ошибка удаления');
+    window.dispatchEvent(new CustomEvent('temli-calendar-changed', { detail: { token: result.undo_token, action: 'delete' } }));
     closeAllModals();
     refreshScheduleOnly();
 };
@@ -1752,6 +1781,7 @@ document.getElementById('btn-delete-all').onclick = async () => {
     const response = await apiFetch('/delete_lesson', { method: 'POST', body: JSON.stringify({ date: l.date, id: l.id, delete_all: true }) });
     const result = await response.json();
     if (result.status !== 'ok') return alert(result.message || 'Ошибка удаления');
+    window.dispatchEvent(new CustomEvent('temli-calendar-changed', { detail: { token: result.undo_token, action: 'delete' } }));
     closeAllModals();
     refreshScheduleOnly();
 };
@@ -1836,6 +1866,7 @@ function animateBackFromWeekDrag() {
 }
 
 async function shiftWeek(days, { fromSwipe = false } = {}) {
+    if (calendarView === 'day') return shiftCalendarDay(Math.sign(days));
     if (weekTransitioning || !days) return;
     weekTransitioning = true;
 
@@ -1879,6 +1910,7 @@ async function shiftWeek(days, { fromSwipe = false } = {}) {
         }
 
         state.currentMonday = targetMonday;
+        calendarDay = new Date(targetMonday);
         state.schedule = data.schedule;
         // Во время анимации сохраняем геометрию старой недели; автоподбор запускаем после слайда.
         autoFitWeekPending = false;
@@ -1915,8 +1947,7 @@ async function shiftWeek(days, { fromSwipe = false } = {}) {
             headerSnapshot?.remove();
             clearWeekDragStyles();
             weekTransitioning = false;
-            autoFitWeekPending = true;
-            scheduleCalendarAutoFit();
+            // Preserve time and zoom when paging through the calendar.
             scheduleAdjacentWeekPrefetch(targetMonday);
         }, 270);
         scheduleWorkCenterRefresh();
@@ -1961,6 +1992,7 @@ function renderDatePicker() {
         if (date >= state.currentMonday && date < new Date(state.currentMonday.getFullYear(), state.currentMonday.getMonth(), state.currentMonday.getDate() + 7)) button.classList.add('selected');
         button.textContent = date.getDate();
         button.onclick = () => {
+            calendarDay = new Date(date);
             state.currentMonday = getMonday(date);
             autoFitWeekPending = true;
             document.getElementById('date-picker-overlay').classList.add('hidden');
@@ -1976,13 +2008,14 @@ document.getElementById('date-picker-next').onclick = () => { state.datePickerMo
 document.getElementById('date-picker-today').onclick = () => {
     const today = new Date();
     state.currentMonday = getMonday(today);
+    calendarDay = new Date(today);
     autoFitWeekPending = true;
     document.getElementById('date-picker-overlay').classList.add('hidden');
     refreshScheduleOnly();
 };
 document.getElementById('date-picker-close').onclick = () => document.getElementById('date-picker-overlay').classList.add('hidden');
 
-document.getElementById('btn-today').onclick = () => { state.currentMonday = getMonday(new Date()); autoFitWeekPending = true; refreshScheduleOnly(); };
+document.getElementById('btn-today').onclick = () => { calendarDay = new Date(); state.currentMonday = getMonday(calendarDay); autoFitWeekPending = true; refreshScheduleOnly(); };
 document.getElementById('btn-prev-week').onclick = () => shiftWeek(-7);
 document.getElementById('btn-next-week').onclick = () => shiftWeek(7);
 document.getElementById('btn-zoom-in').onclick = () => applyHourHeightSmooth(Math.min(MAX_HOUR_HEIGHT, hourHeight + ZOOM_STEP));
@@ -2129,14 +2162,7 @@ function showOnboardingStep(step) {
 
 function showOnboardingIfNeeded() {
     if (!state.onboardingNeeded) return;
-    document.getElementById('onboarding-work-start').value = state.settings.work_start || '06:00';
-    document.getElementById('onboarding-work-end').value = state.settings.work_end || '00:00';
-    const suggested = onboardingSuggestedLesson();
-    document.getElementById('onboarding-lesson-date').value = dateKey(suggested);
-    document.getElementById('onboarding-lesson-date').min = dateKey(new Date());
-    document.getElementById('onboarding-lesson-time').value = `${String(suggested.getHours()).padStart(2, '0')}:${String(suggested.getMinutes()).padStart(2, '0')}`;
-    showOnboardingStep('settings');
-    document.getElementById('onboarding-overlay').classList.remove('hidden');
+    window.dispatchEvent(new Event('temli-onboarding-needed'));
 }
 
 async function markOnboardingCompleted() {
@@ -2388,6 +2414,7 @@ document.getElementById('btn-save-app-settings').onclick = async () => {
         const result = await response.json();
         if (result.status !== 'ok') return alert(result.message || 'Ошибка сохранения настроек');
         state.settings = result.settings || { ...state.settings, ...settings };
+        window.dispatchEvent(new CustomEvent('temli-saved', { detail: { overlay: 'app-settings-overlay' } }));
         await window.TEMLI_I18N?.setLanguage(state.settings.language || 'ru');
         window.TEMLI_I18N?.setCurrency(state.settings.currency || 'RUB');
         updateVisibleHoursFromSettingsAndLessons();
@@ -2817,6 +2844,7 @@ document.getElementById('btn-save-student-card').onclick = async () => {
     const result = await response.json();
     if (result.status !== 'ok') return alert(result.message || 'Ошибка сохранения ученика');
     state.students[studentId] = result.student;
+    window.dispatchEvent(new CustomEvent('temli-saved', { detail: { overlay: 'student-card-overlay' } }));
     document.getElementById('student-card-overlay').classList.add('hidden');
     fillStudentsDropdown();
     renderCalendar();
@@ -2969,30 +2997,31 @@ function renderTopLesson() {
     const notificationPreview = document.getElementById('top-notification-preview');
     if (!summary || !details) return;
 
-    const nowMs = Date.now();
-    let showNextBesideCurrent = false;
-    if (current && next) {
-        const end = new Date(current.ends_at || `${current.date}T${current.end_time || current.time}:00`);
-        showNextBesideCurrent = !Number.isNaN(end.getTime()) && (end.getTime() - nowMs) <= 10 * 60 * 1000;
-    }
-
+    const topButton = document.getElementById('top-next-lesson');
+    const active = current || next;
+    topButton.dataset.lessonStatus = current ? 'current' : next ? 'next' : 'empty';
+    // The compact pill shows one person; the expanded panel keeps both lessons.
     if (current) {
-        const currentText = `<span class="top-live-node" aria-hidden="true"></span><span class="top-summary-text">${userContentOr(current.student, 'Ученик')} ${userContent(current.time || '')}</span>`;
-        summary.innerHTML = showNextBesideCurrent && next
-            ? `${currentText}${threadIcon('chevron-right', 'top-summary-chevron')}<span class="top-summary-text">${userContentOr(next.student, 'Ученик')} ${userContent(next.time || '')}</span>`
-            : currentText;
+        summary.innerHTML = `<span class="top-live-node" aria-hidden="true"></span><span class="top-summary-text">${userContentOr(current.student, 'Ученик')}</span><span class="top-summary-time">${userContent(current.time || '')}</span>`;
     } else if (next) {
-        summary.innerHTML = `<span>Далее</span>${threadIcon('chevron-right', 'top-summary-chevron')}<span class="top-summary-text">${userContentOr(next.student, 'Ученик')} ${userContent(next.time || '')}</span>`;
+        summary.innerHTML = `<span class="top-upcoming-node" aria-hidden="true">»</span><span class="top-summary-text">${userContentOr(next.student, 'Ученик')}</span><span class="top-summary-time">${userContent(next.time || '')}</span>`;
     } else {
-        summary.textContent = 'Ближайших занятий нет';
+        summary.textContent = uiText('Ближайших занятий нет');
     }
+    const accessibleSummary = active
+        ? `${uiText(current ? 'Сейчас' : 'Следующее занятие')}: ${active.student || uiText('Ученик')} ${active.time || ''}`
+        : uiText('Ближайших занятий нет');
+    topButton.setAttribute('aria-label', accessibleSummary);
+    topButton.title = accessibleSummary;
+    topButton.setAttribute('aria-expanded', String(!details.classList.contains('hidden')));
     notificationPreview.classList.toggle('hidden', !(current || next));
 
     const items = [];
     if (current) items.push({ label: 'Сейчас', item: current });
-    if (next && (!current || showNextBesideCurrent)) items.push({ label: 'Далее', item: next });
+    if (next) items.push({ label: 'Следующее занятие', item: next });
     details.innerHTML = items.map(({label, item}, i) => {
         const buttons = [
+            `<button type="button" class="next-link-btn" data-top-calendar="${i}">${threadIcon('calendar')}В календаре</button>`,
             item.board_link ? `<button type="button" class="next-link-btn" data-top-link="${i}-board">${threadIcon('board')}Доска</button>` : '',
             `<button type="button" class="next-link-btn future-notification-btn" data-top-teacher-delay="${i}">${threadIcon('delay-teacher')}Я задержусь</button>`,
             `<button type="button" class="next-link-btn future-notification-btn" data-top-student-delay="${i}">${threadIcon('delay-student')}Ученик задерживается</button>`
@@ -3000,6 +3029,7 @@ function renderTopLesson() {
         return `<div class="top-next-detail-row"><div><small>${label}</small><strong>${userContentOr(item.student, 'Ученик')} · ${userContent(item.time || '')}</strong></div>${buttons ? `<div class="next-lesson-actions">${buttons}</div>` : ''}</div>`;
     }).join('') || '<div class="hub-empty">Ближайших занятий нет.</div>';
     items.forEach(({item}, i) => {
+        details.querySelector(`[data-top-calendar="${i}"]`)?.addEventListener('click', () => revealCalendarLesson(item));
         details.querySelector(`[data-top-link="${i}-board"]`)?.addEventListener('click', e => { e.stopPropagation(); openExternalLink(item.board_link); });
         details.querySelector(`[data-top-teacher-delay="${i}"]`)?.addEventListener('click', () => openPersonalNotification(item, true));
         details.querySelector(`[data-top-student-delay="${i}"]`)?.addEventListener('click', () => openPersonalNotification(item, false));
@@ -3315,7 +3345,7 @@ document.getElementById('btn-student-payment').onclick = async () => {
     amountInput.closest('.form-group').classList.add('hidden');
     applyButton.classList.add('hidden');
     options.textContent = 'Рассчитываем варианты…';
-    explanation.textContent = 'Варианты оплачивают ближайшие будущие занятия с указанной ценой. Прошлые долги не включены.';
+    explanation.textContent = uiText('Сначала старые долги, затем будущие занятия. Учитываются индивидуальные и групповые занятия по их стоимости.');
     try {
         const response = await apiFetch('/get_student_payment_options', { method: 'POST', body: JSON.stringify({ student_id: studentId }) });
         const result = await response.json();
@@ -3340,7 +3370,7 @@ document.getElementById('btn-student-payment').onclick = async () => {
             block.append(button, details);
             options.appendChild(block);
         });
-        if (!(result.options || []).length) explanation.textContent = 'Пока нет четырёх будущих неоплаченных занятий с указанной ценой. Можно внести другую сумму.';
+        if (!(result.options || []).length) explanation.textContent = uiText('Пока нет четырёх неоплаченных занятий с указанной ценой. Можно внести другую сумму — начиная со старых долгов.');
     } catch (error) {
         if (requestId !== paymentOptionsRequest) return;
         options.innerHTML = '';
@@ -3355,7 +3385,7 @@ document.getElementById('btn-student-payment').onclick = async () => {
         amountInput.value = '';
         amountInput.closest('.form-group').classList.remove('hidden');
         applyButton.classList.remove('hidden');
-        explanation.textContent = 'Сумма распределится начиная с самых старых неоплаченных занятий, включая долги.';
+        explanation.textContent = uiText('Сначала старые долги, затем будущие занятия. Учитываются индивидуальные и групповые занятия по их стоимости.');
         amountInput.focus();
     };
     options.appendChild(custom);
@@ -3416,5 +3446,6 @@ document.getElementById('lesson-repeat').addEventListener('change', e => {
 });
 
 document.getElementById('top-next-lesson').onclick = () => {
-    document.getElementById('top-next-lesson-details').classList.toggle('hidden');
+    const hidden = document.getElementById('top-next-lesson-details').classList.toggle('hidden');
+    document.getElementById('top-next-lesson').setAttribute('aria-expanded', String(!hidden));
 };

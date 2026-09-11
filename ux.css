@@ -1,0 +1,89 @@
+
+/* Daily workflow: density through grouping, with readable text and touch targets. */
+/* Three separate surfaces: calendar navigation, lesson information, navigation. */
+.header-top .nav-arrows { grid-template-columns:36px minmax(0,1fr) 36px; gap:6px; padding:0; background:transparent; border-radius:0; }
+.header-top .nav-arrows > .icon-btn { width:36px; height:40px; border-radius:50%; background:#f0f2f5; color:#4c5563; display:grid; place-items:center; }
+.header-top .nav-arrows > .icon-btn:hover { background:#e5e9ee; }
+.header-top .nav-arrows > .icon-btn:active { background:#dce4ef; }
+.header-center-stack { min-width:0; }
+.header-top #top-notification-preview { display:none; } /* The same actions are in the lesson popover. */
+.header-top .top-next-lesson { width:100%; max-width:340px; min-height:40px; padding:6px 8px; gap:4px; border-radius:12px; background:#f0f2f5; font-size:15px; line-height:20px; }
+#top-next-lesson-summary { flex:0 1 auto; gap:5px; }
+.top-summary-time { flex:0 0 auto; }
+.top-upcoming-node { flex:0 0 auto; font-size:19px; font-weight:600; line-height:1; color:#5a6473; }
+.top-live-node { width:7px; height:7px; flex:0 0 7px; background:#198447; box-shadow:0 0 0 3px #19844718; margin:0 2px; }
+.top-next-lesson[data-lesson-status="current"] { background:#eef5f0; }
+.top-next-lesson-details { position:fixed; top:60px; left:50%; max-height:calc(100dvh - 88px); overflow-y:auto; }
+@media (max-width:420px) {
+    .header-top { gap:4px; }
+    .header-top .nav-arrows { grid-template-columns:30px minmax(0,1fr) 30px; gap:4px; }
+    .header-top .nav-arrows > .icon-btn { width:30px; height:38px; }
+    .header-top .top-next-lesson { min-height:38px; padding:5px; font-size:14px; gap:3px; }
+    #top-next-lesson-summary { gap:3px; }
+    .top-summary-time { display:none; } /* Full time remains in the expanded lesson and accessible name. */
+}
+@media (max-width:350px) {
+    .header-top .header-btn { width:auto; min-width:48px; padding:5px 3px; color:#202124; font-size:10px; }
+    .header-top .header-btn::after { content:none; }
+    .top-next-chevron { display:none; }
+}
+.days-row, .days-grid { grid-template-columns: repeat(var(--calendar-columns, 7), minmax(0, 1fr)); }
+.calendar-view-toolbar { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:0 10px 7px; }
+.calendar-period-label { background:none; border:0; color:#4c5563; font-size:12px; text-align:left; min-height:36px; cursor:pointer; }
+.calendar-view-switch { display:flex; background:#f0f2f5; border-radius:10px; padding:3px; flex-shrink:0; }
+.calendar-view-switch button { border:0; background:transparent; padding:7px 12px; border-radius:8px; min-height:36px; color:#555d69; font-size:13px; cursor:pointer; }
+.calendar-view-switch button[aria-pressed="true"] { background:white; color:#185abc; box-shadow:0 1px 4px #0002; font-weight:600; }
+.event-day-meta { display:none; }
+.calendar-day-view .event-card { padding:5px 9px; }
+.calendar-day-view .event-card .event-title { font-size:15px; line-height:1.2; overflow-wrap:anywhere; -webkit-line-clamp:2; padding-right:18px; }
+.calendar-day-view .event-day-meta { display:block; font-size:11px; line-height:1.25; margin-top:3px; }
+.calendar-day-view .event-card-compact .event-day-meta { display:none; }
+.calendar-day-view .event-card-compact .event-title { -webkit-line-clamp:1; font-size:12px; }
+.calendar-day-view .event-card-medium .event-title { -webkit-line-clamp:1; }
+.calendar-day-view .day-header-cell { display:flex; justify-content:center; gap:10px; align-items:center; }
+.calendar-day-view .day-header-cell .day-num { margin:0; }
+.ux-section { margin:8px 0; border:1px solid #e3e7ed; border-radius:12px; background:#fff; min-width:0; }
+.ux-section > summary { padding:12px; font-size:14px; font-weight:600; cursor:pointer; min-height:44px; }
+.ux-section > :not(summary) { margin:8px 12px 12px; }
+.ux-section .form-group label { font-size:13px; }
+.ux-section .field-hint { line-height:1.4; }
+#action-more[open] { display:block; }
+#action-more > button { width:calc(100% - 24px); }
+#action-menu-overlay .modal-content { max-width:440px; }
+#action-menu-overlay .modal-actions-column { gap:7px; }
+#action-menu-overlay .action-menu-btn { min-height:42px; padding:9px 10px; font-size:13px; line-height:1.3; }
+#action-menu-overlay .action-section-label { margin:6px 0 0; }
+#action-context { color:#596372; font-size:13px; line-height:1.4; margin:6px 0 14px; }
+#action-menu-title { font-size:19px; line-height:1.25; overflow-wrap:anywhere; }
+#ux-feedback { position:fixed; bottom:max(18px,env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); z-index:4800; max-width:calc(100vw - 32px); padding:11px 16px; border-radius:12px; color:white; background:#243044; box-shadow:0 4px 18px #0002; font-size:14px; pointer-events:none; }
+#ux-feedback[hidden], #calendar-first-step[hidden], .ux-draft-notice[hidden] { display:none; }
+#ux-undo { position:fixed; bottom:max(18px,env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); z-index:4800; display:flex; align-items:center; gap:18px; max-width:calc(100vw - 24px); background:#243044; color:white; border-radius:12px; padding:6px 14px; box-shadow:0 4px 18px #0002; font-size:14px; }
+#ux-undo[hidden] { display:none; }
+#ux-undo button { color:#bad7ff; font-size:14px; min-height:44px; }
+#calendar-first-step { margin:0 10px 8px; padding:10px 12px; border-radius:12px; background:#f2f6fd; display:flex; gap:10px; align-items:center; }
+#calendar-first-step p { font-size:13px; line-height:1.4; flex:1; }
+#calendar-first-step button { width:auto; min-height:42px; font-size:13px; padding:8px 12px; }
+.ux-draft-notice { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 10px; margin-bottom:10px; background:#f2f6fd; border-radius:9px; font-size:12px; color:#37567f; }
+.ux-text-button { border:0; background:none; padding:8px; min-height:36px; color:#185abc; cursor:pointer; font-size:12px; }
+.ux-conflict-notice { padding:10px; margin:10px 0; background:#fff6df; color:#71470b; border-radius:9px; font-size:13px; line-height:1.4; }
+.ux-conflict-notice[hidden] { display:none; }
+.student-bot-invite-link-row { display:flex; flex-wrap:wrap; gap:8px; }
+.student-bot-invite-link-row button { flex:1; min-height:42px; }
+.student-bot-invite-link-row .ux-invite-url { display:none; }
+.student-bot-invite-link-row .ux-invite-url.ux-show-url { display:block; flex-basis:100%; width:100%; }
+#move-hint { flex-wrap:wrap; border-radius:14px; max-width:calc(100vw - 24px); width:440px; padding:12px; }
+#move-hint > span { flex:1; font-size:12px; }
+#move-suggestions { display:flex; flex-wrap:wrap; gap:6px; flex-basis:100%; }
+#move-suggestions > span { flex-basis:100%; font-size:12px; line-height:1.4; }
+.move-suggestion { min-height:40px; border:1px solid #ffffff60; color:white; background:#ffffff15; border-radius:8px; padding:7px 9px; font-size:12px; cursor:pointer; }
+:where(button,summary,[role="button"],input,select,textarea):focus-visible { outline:2px solid #1a73e8; outline-offset:2px; }
+@media (max-width:420px) {
+    #student-card-overlay input, #student-card-overlay textarea, #student-card-overlay select,
+    #modal-overlay input, #modal-overlay textarea, #modal-overlay select { font-size:16px; }
+    #calendar-first-step { align-items:stretch; flex-direction:column; }
+    #calendar-first-step button { align-self:flex-start; }
+    .calendar-period-label { font-size:11px; }
+}
+@media (prefers-reduced-motion:reduce) {
+    *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; transition-duration:.01ms !important; }
+}

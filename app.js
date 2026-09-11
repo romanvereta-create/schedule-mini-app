@@ -245,6 +245,7 @@ networkPanel.querySelector('[data-network-copy]').onclick = async () => {
 };
 window.addEventListener('temli-language-change', () => {
     renderNetworkStatus(dataLoading, false);
+    renderTopLesson();
 });
 
 async function apiFetch(path, options = {}) {
@@ -3021,15 +3022,13 @@ function renderTopLesson() {
     if (next) items.push({ label: 'Следующее занятие', item: next });
     details.innerHTML = items.map(({label, item}, i) => {
         const buttons = [
-            `<button type="button" class="next-link-btn" data-top-calendar="${i}">${threadIcon('calendar')}В календаре</button>`,
-            item.board_link ? `<button type="button" class="next-link-btn" data-top-link="${i}-board">${threadIcon('board')}Доска</button>` : '',
+            item.board_link ? `<button type="button" class="next-link-btn top-board-btn" data-top-link="${i}-board">${threadIcon('board')}Доска</button>` : '',
             `<button type="button" class="next-link-btn future-notification-btn" data-top-teacher-delay="${i}">${threadIcon('delay-teacher')}Я задержусь</button>`,
             `<button type="button" class="next-link-btn future-notification-btn" data-top-student-delay="${i}">${threadIcon('delay-student')}Ученик задерживается</button>`
         ].filter(Boolean).join('');
-        return `<div class="top-next-detail-row"><div><small>${label}</small><strong>${userContentOr(item.student, 'Ученик')} · ${userContent(item.time || '')}</strong></div>${buttons ? `<div class="next-lesson-actions">${buttons}</div>` : ''}</div>`;
+        return `<div class="top-next-detail-row"><div class="top-next-detail-copy"><small>${label}</small><strong>${userContentOr(item.student, 'Ученик')}</strong><span>${userContent(item.time || '')}</span></div>${buttons ? `<div class="next-lesson-actions">${buttons}</div>` : ''}</div>`;
     }).join('') || '<div class="hub-empty">Ближайших занятий нет.</div>';
     items.forEach(({item}, i) => {
-        details.querySelector(`[data-top-calendar="${i}"]`)?.addEventListener('click', () => revealCalendarLesson(item));
         details.querySelector(`[data-top-link="${i}-board"]`)?.addEventListener('click', e => { e.stopPropagation(); openExternalLink(item.board_link); });
         details.querySelector(`[data-top-teacher-delay="${i}"]`)?.addEventListener('click', () => openPersonalNotification(item, true));
         details.querySelector(`[data-top-student-delay="${i}"]`)?.addEventListener('click', () => openPersonalNotification(item, false));

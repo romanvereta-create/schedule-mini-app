@@ -1,5 +1,5 @@
 (() => {
-    const VERSION = '31.4.0-rc1';
+    const VERSION = '31.5.0-rc1';
     const LANGUAGES = {
         ru: { label: 'Русский', locale: 'ru-RU', currency: 'RUB' },
         en: { label: 'English', locale: 'en-US', currency: 'USD' },
@@ -51,6 +51,25 @@
         ,'Заметки видны только владельцу расписания и не показываются прямо на календарной карточке.': 'Notes are visible only to the schedule owner and are not shown directly on the calendar card.'
         ,'Личный бот и уведомления': 'Personal bot and notifications'
         ,'Сообщения ученикам и родителям отправляются через личного бота преподавателя. Подключите его в настройках, а получателей подтвердите в карточке ученика.': 'Messages to students and parents are sent through the teacher’s personal bot. Connect it in settings and confirm recipients in the student profile.'
+        ,'Контакты и привязка к боту': 'Contacts and bot connection'
+        ,'Добавить контакт.': 'Add a contact.'
+        ,'Добавить контакт': 'Add a contact'
+        ,'Нажмите кнопку с двумя человечками в верхней строке, выберите ученика и откройте его карточку. В блоке «Контакт ученика» нажмите «Добавить контакт», выберите Telegram и укажите': 'Tap the two-person button in the top bar, select a student, and open the student profile. Under “Student contact”, tap “Add contact”, choose Telegram, and enter'
+        ,'или цифровой Telegram ID. Для родителя используйте соседний блок «Контакт родителя». Затем нажмите «Сохранить».': 'or a numeric Telegram ID. Use the adjacent “Parent contact” section for a parent. Then tap “Save”.'
+        ,'Подключить личного бота.': 'Connect your personal bot.'
+        ,'Сначала откройте «Настройки» → «Мой бот» и убедитесь, что бот подключён.': 'First open “Settings” → “My bot” and make sure the bot is connected.'
+        ,'Создать приглашение.': 'Create an invitation.'
+        ,'Вернитесь в карточку ученика, раскройте «Пригласить в моего бота» и нажмите «Ссылка ученику» либо «Ссылка родителю».': 'Return to the student profile, expand “Invite to my bot”, and tap “Student invitation” or “Parent invitation”.'
+        ,'Завершить привязку.': 'Complete the connection.'
+        ,'Скопируйте ссылку и отправьте её нужному человеку. Он должен открыть её и нажать': 'Copy the link and send it to the intended person. They must open it and tap'
+        ,'в Telegram.': 'in Telegram.'
+        ,'Подтвердить получателя.': 'Confirm the recipient.'
+        ,'В карточке ученика нажмите «Обновить привязки» и подтвердите появившийся аккаунт. Только подтверждённая привязка получает уведомления.': 'In the student profile, tap “Refresh connections” and confirm the account that appears. Only a confirmed connection receives notifications.'
+        ,'Контакт и привязка — разные вещи: контакт нужен для быстрого перехода к переписке, а подтверждённая привязка позволяет личному боту отправлять уведомления.': 'A contact and a bot connection are different: a contact opens the chat quickly, while a confirmed connection lets the personal bot send notifications.'
+        ,'Строка над календарём собрана по одной логике:': 'The row above the calendar contains:'
+        ,'выбор даты, стрелки назад/вперёд и режимы «День» / «Неделя». В режиме дня стрелки листают дни, в режиме недели — недели.': 'date picker, previous/next buttons, and Day / Week modes. In Day mode the arrows move by day; in Week mode they move by week.'
+        ,', выбор даты, стрелки назад/вперёд и режимы «День» / «Неделя». В режиме дня стрелки листают дни, в режиме недели — недели.': ', date picker, previous/next buttons, and Day / Week modes. In Day mode the arrows move by day; in Week mode they move by week.'
+        ,'сначала закрывает самые старые неоплаченные занятия, включая участие в группах, и только затем будущие.': 'covers the oldest unpaid lessons first, including group participation, and only then future lessons.'
     } };
     const dictionaryEntries = { ru: [] };
     const loading = {};

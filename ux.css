@@ -1,11 +1,11 @@
 
-/* Daily workflow: density through grouping, with readable text and touch targets. */
-/* Three separate surfaces: calendar navigation, lesson information, navigation. */
-.header-top .nav-arrows { grid-template-columns:36px minmax(0,1fr) 36px; gap:6px; padding:0; background:transparent; border-radius:0; }
-.header-top .nav-arrows > .icon-btn { width:36px; height:40px; border-radius:50%; background:#f0f2f5; color:#4c5563; display:grid; place-items:center; }
-.header-top .nav-arrows > .icon-btn:hover { background:#e5e9ee; }
-.header-top .nav-arrows > .icon-btn:active { background:#dce4ef; }
-.header-center-stack { min-width:0; }
+/* Daily workflow: lesson context above, calendar controls together below. */
+.header-top { grid-template-columns:minmax(54px,1fr) minmax(0,340px) minmax(54px,1fr); }
+.header-context-actions, .header-actions { display:flex; align-items:center; }
+.header-context-actions { justify-self:start; }
+.header-actions { justify-self:end; }
+.header-top .nav-arrows { display:flex; justify-self:center; width:100%; min-width:0; padding:0; background:transparent; border-radius:0; }
+.header-center-stack { width:100%; min-width:0; }
 .header-top #top-notification-preview { display:none; } /* The same actions are in the lesson popover. */
 .header-top .top-next-lesson { width:100%; max-width:340px; min-height:40px; padding:6px 8px; gap:4px; border-radius:12px; background:#f0f2f5; font-size:15px; line-height:20px; }
 #top-next-lesson-summary { flex:0 1 auto; gap:5px; }
@@ -13,23 +13,37 @@
 .top-upcoming-node { flex:0 0 auto; font-size:19px; font-weight:600; line-height:1; color:#5a6473; }
 .top-live-node { width:7px; height:7px; flex:0 0 7px; background:#198447; box-shadow:0 0 0 3px #19844718; margin:0 2px; }
 .top-next-lesson[data-lesson-status="current"] { background:#eef5f0; }
-.top-next-lesson-details { position:fixed; top:60px; left:50%; max-height:calc(100dvh - 88px); overflow-y:auto; }
+.top-next-lesson-details { position:fixed; top:60px; left:50%; transform:translateX(-50%); width:min(calc(100vw - 20px),380px); max-height:calc(100dvh - 88px); margin:0; padding:12px 14px; overflow-y:auto; border-radius:16px; }
+.top-next-detail-row { padding:10px 2px 12px; text-align:center; }
+.top-next-detail-row:first-child { padding-top:2px; }
+.top-next-detail-row:last-child { padding-bottom:2px; }
+.top-next-detail-copy { display:flex; flex-direction:column; align-items:center; gap:3px; }
+.top-next-detail-copy small { padding:3px 8px; border-radius:999px; background:#f0f2f5; font-size:11px; line-height:1.25; }
+.top-next-detail-copy strong { max-width:100%; margin-top:2px; font-size:16px; line-height:1.25; overflow-wrap:anywhere; }
+.top-next-detail-copy span { color:#5f6772; font-size:13px; }
+.top-next-detail-row .next-lesson-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; width:100%; margin-top:10px; }
+.top-next-detail-row .next-link-btn { min-height:40px; padding:7px 8px; font-size:12px; line-height:1.25; white-space:normal; }
+.top-next-detail-row .top-board-btn { grid-column:1 / -1; }
+.top-next-lesson-details > .hub-empty { padding:8px; text-align:center; }
 @media (max-width:420px) {
     .header-top { gap:4px; }
-    .header-top .nav-arrows { grid-template-columns:30px minmax(0,1fr) 30px; gap:4px; }
-    .header-top .nav-arrows > .icon-btn { width:30px; height:38px; }
+    .header-context-actions .icon-btn { width:27px; min-width:27px; padding-left:4px; padding-right:4px; }
     .header-top .top-next-lesson { min-height:38px; padding:5px; font-size:14px; gap:3px; }
     #top-next-lesson-summary { gap:3px; }
     .top-summary-time { display:none; } /* Full time remains in the expanded lesson and accessible name. */
 }
 @media (max-width:350px) {
-    .header-top .header-btn { width:auto; min-width:48px; padding:5px 3px; color:#202124; font-size:10px; }
-    .header-top .header-btn::after { content:none; }
     .top-next-chevron { display:none; }
 }
 .days-row, .days-grid { grid-template-columns: repeat(var(--calendar-columns, 7), minmax(0, 1fr)); }
-.calendar-view-toolbar { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:0 10px 7px; }
-.calendar-period-label { background:none; border:0; color:#4c5563; font-size:12px; text-align:left; min-height:36px; cursor:pointer; }
+.calendar-view-toolbar { display:flex; align-items:center; gap:6px; padding:0 8px 7px; }
+.calendar-primary-actions, .calendar-step-navigation { display:flex; align-items:center; gap:4px; flex-shrink:0; }
+.calendar-view-toolbar #btn-today { width:auto; min-width:0; min-height:36px; padding:6px 10px; border:1px solid #d9dde3; border-radius:10px; background:#fff; color:#353c47; font-size:12px; font-weight:600; white-space:nowrap; }
+.calendar-view-toolbar #btn-date-picker,
+.calendar-step-navigation .icon-btn { width:36px; height:36px; min-width:36px; padding:0; border:1px solid #d9dde3; border-radius:10px; background:#fff; color:#4c5563; display:grid; place-items:center; }
+.calendar-view-toolbar #btn-date-picker:hover,
+.calendar-step-navigation .icon-btn:hover { background:#f4f6f8; }
+.calendar-step-navigation { gap:2px; }
 .calendar-view-switch { display:flex; background:#f0f2f5; border-radius:10px; padding:3px; flex-shrink:0; }
 .calendar-view-switch button { border:0; background:transparent; padding:7px 12px; border-radius:8px; min-height:36px; color:#555d69; font-size:13px; cursor:pointer; }
 .calendar-view-switch button[aria-pressed="true"] { background:white; color:#185abc; box-shadow:0 1px 4px #0002; font-weight:600; }
@@ -82,7 +96,12 @@
     #modal-overlay input, #modal-overlay textarea, #modal-overlay select { font-size:16px; }
     #calendar-first-step { align-items:stretch; flex-direction:column; }
     #calendar-first-step button { align-self:flex-start; }
-    .calendar-period-label { font-size:11px; }
+    .calendar-view-toolbar { gap:4px; padding-left:4px; padding-right:4px; }
+    .calendar-view-toolbar #btn-today { padding-left:7px; padding-right:7px; }
+    .calendar-view-toolbar #btn-date-picker,
+    .calendar-step-navigation .icon-btn { width:34px; min-width:34px; }
+    .calendar-view-switch { margin-left:auto; }
+    .calendar-view-switch button { padding-left:8px; padding-right:8px; }
 }
 @media (prefers-reduced-motion:reduce) {
     *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; transition-duration:.01ms !important; }

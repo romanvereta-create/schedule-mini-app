@@ -127,11 +127,11 @@ function uxEndTime(time, duration) {
 
     const toolbar = document.createElement('div');
     toolbar.className = 'calendar-view-toolbar';
-    toolbar.setAttribute('data-i18n-ignore', '');
-    const dateLabel = document.createElement('button');
-    dateLabel.type = 'button';
-    dateLabel.className = 'calendar-period-label';
-    dateLabel.onclick = openDatePicker;
+    const primaryCalendarActions = document.createElement('div');
+    primaryCalendarActions.className = 'calendar-primary-actions';
+    const stepNavigation = document.createElement('div');
+    stepNavigation.className = 'calendar-step-navigation';
+    stepNavigation.setAttribute('role', 'group');
     const modes = document.createElement('div');
     modes.className = 'calendar-view-switch';
     modes.setAttribute('role', 'group');
@@ -139,7 +139,18 @@ function uxEndTime(time, duration) {
     const week = uxButton('Неделя', 'Week', () => setCalendarView('week'), '');
     day.id = 'btn-view-day'; week.id = 'btn-view-week';
     modes.append(day, week);
-    toolbar.append(dateLabel, modes);
+    const todayButton = byId('btn-today');
+    const datePickerButton = byId('btn-date-picker');
+    const previousButton = byId('btn-prev-week');
+    const nextButton = byId('btn-next-week');
+    const headerTop = document.querySelector('.header-top');
+    const headerContextActions = document.createElement('div');
+    headerContextActions.className = 'header-context-actions';
+    headerContextActions.append(byId('btn-students'), byId('btn-work-center'));
+    headerTop.prepend(headerContextActions);
+    primaryCalendarActions.append(todayButton, datePickerButton);
+    stepNavigation.append(previousButton, nextButton);
+    toolbar.append(primaryCalendarActions, stepNavigation, modes);
     document.querySelector('.week-days-container').before(toolbar);
 
     const intro = document.createElement('div');
@@ -191,10 +202,8 @@ function uxEndTime(time, duration) {
     function updateCalendarChrome() {
         day.setAttribute('aria-pressed', String(calendarView === 'day'));
         week.setAttribute('aria-pressed', String(calendarView === 'week'));
-        dateLabel.textContent = calendarView === 'day'
-            ? calendarDay.toLocaleDateString(uiLocale(), {day:'numeric',month:'long',year:'numeric'})
-            : formatWeekRange(state.currentMonday);
         modes.setAttribute('aria-label', uxText('Вид календаря', 'Calendar view'));
+        stepNavigation.setAttribute('aria-label', calendarView === 'day' ? uxText('Навигация по дням','Day navigation') : uxText('Навигация по неделям','Week navigation'));
         byId('btn-prev-week').setAttribute('aria-label', calendarView === 'day' ? uxText('Предыдущий день','Previous day') : uxText('Предыдущая неделя','Previous week'));
         byId('btn-next-week').setAttribute('aria-label', calendarView === 'day' ? uxText('Следующий день','Next day') : uxText('Следующая неделя','Next week'));
         ['btn-prev-week','btn-next-week'].forEach(id => byId(id).title = byId(id).getAttribute('aria-label'));

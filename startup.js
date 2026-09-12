@@ -111,10 +111,10 @@
 
         try {
             appScriptsStarted = true;
-            await loadScript('i18n.js?v=31.5.0-rc1');
-            await loadScript('app.js?v=31.5.0-rc1');
-            await loadScript('ux.js?v=31.5.0-rc1');
-            await loadScript('personal_notifications.js?v=31.5.0-rc1');
+            await loadScript('i18n.js?v=31.5.0-rc2');
+            await loadScript('app.js?v=31.5.0-rc2');
+            await loadScript('ux.js?v=31.5.0-rc2');
+            await loadScript('personal_notifications.js?v=31.5.0-rc2');
             hideStatus();
         } catch (error) {
             console.error('Не удалось загрузить TEMLI:', error);
@@ -131,3 +131,4 @@
     retry.addEventListener('click', start);
     start();
 })();
+

@@ -148,9 +148,12 @@ function uxEndTime(time, duration) {
     headerContextActions.className = 'header-context-actions';
     headerContextActions.append(byId('btn-students'), byId('btn-work-center'));
     headerTop.prepend(headerContextActions);
+    // Keep the date actions in one uninterrupted sequence: previous, Today,
+    // date picker, next. This makes the paging target clear and prevents the
+    // view switch from leaving a misleading empty gap on narrow screens.
     primaryCalendarActions.append(todayButton, datePickerButton);
-    stepNavigation.append(previousButton, nextButton);
-    toolbar.append(primaryCalendarActions, stepNavigation, modes);
+    stepNavigation.append(previousButton, primaryCalendarActions, nextButton);
+    toolbar.append(modes, stepNavigation);
     document.querySelector('.week-days-container').before(toolbar);
 
     const intro = document.createElement('div');
@@ -557,3 +560,5 @@ function uxEndTime(time, duration) {
     window.addEventListener('temli-language-change',localizeUx);
     localizeUx();
 })();
+
+

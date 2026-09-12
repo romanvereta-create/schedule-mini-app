@@ -1,5 +1,5 @@
 (() => {
-    const VERSION = '31.5.0-rc1';
+    const VERSION = '31.5.0-rc2';
     const LANGUAGES = {
         ru: { label: 'Русский', locale: 'ru-RU', currency: 'RUB' },
         en: { label: 'English', locale: 'en-US', currency: 'USD' },
@@ -258,3 +258,4 @@
         formatNumber
     };
 })();
+

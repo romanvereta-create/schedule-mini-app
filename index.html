@@ -310,6 +310,28 @@
                         <input type="text" id="manual-student-name" class="hidden" placeholder="Имя ученика">
                     </div>
 
+                    <section id="lesson-student-setup" class="lesson-student-setup" data-i18n-ignore>
+                        <div class="lesson-student-setup-head">
+                            <strong>Контакты</strong>
+                            <small>Сохранятся в карточке ученика</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Контакт ученика</label>
+                            <div id="lesson-student-contacts" class="contacts-list"></div>
+                            <button type="button" class="secondary-btn add-contact-btn" data-target="lesson-student-contacts">＋ Добавить контакт</button>
+                        </div>
+                        <div class="form-group">
+                            <label>Контакт родителя</label>
+                            <div id="lesson-parent-contacts" class="contacts-list"></div>
+                            <button type="button" class="secondary-btn add-contact-btn" data-target="lesson-parent-contacts">＋ Добавить контакт</button>
+                        </div>
+                        <div id="lesson-bot-invite-options" class="lesson-bot-invite-options" hidden>
+                            <strong>Приглашение в моего бота</strong>
+                            <label class="checkbox-label"><input type="checkbox" id="lesson-invite-student"><span>Создать ссылку ученику</span></label>
+                            <label class="checkbox-label"><input type="checkbox" id="lesson-invite-parent"><span>Создать ссылку родителю</span></label>
+                            <small id="lesson-bot-invite-hint" class="field-hint"></small>
+                        </div>
+                    </section>
                     <!-- Отображение ученика при РЕДАКТИРОВАНИИ -->
                     <div class="form-group hidden" id="student-fixed-group">
                         <label>Ученик</label>
@@ -375,6 +397,22 @@
         </div>
     </div>
 
+    <div id="lesson-invite-result-overlay" class="hidden" data-i18n-ignore>
+        <div class="modal-content compact-modal" role="dialog" aria-modal="true" aria-labelledby="lesson-invite-result-title">
+            <header class="modal-header">
+                <h2 id="lesson-invite-result-title">Занятие сохранено</h2>
+                <button id="btn-close-lesson-invite-result" class="close-modal" type="button" aria-label="Закрыть"><svg class="thread-icon" aria-hidden="true"><use href="#ti-close"></use></svg></button>
+            </header>
+            <div class="modal-body">
+                <p id="lesson-invite-result-help" class="modal-desc"></p>
+                <div id="lesson-invite-result-links" class="lesson-invite-result-links"></div>
+                <p id="lesson-invite-result-status" class="student-bot-invites-status" role="status"></p>
+            </div>
+            <div class="modal-actions">
+                <button id="btn-done-lesson-invite-result" class="primary-btn" type="button">Готово</button>
+            </div>
+        </div>
+    </div>
     <!-- МИКРООТЧЁТ ПО ЗАНЯТИЮ -->
     <div id="lesson-report-overlay" class="hidden">
         <div class="modal-content compact-modal">
@@ -1006,4 +1044,6 @@
     <script src="startup.js?v=31.5.0-rc2"></script>
 </body>
 </html>
+
+
 

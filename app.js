@@ -610,6 +610,7 @@ function updateLessonTypeUI() {
     document.getElementById('personal-event-group').classList.toggle('hidden', !isPersonal);
     document.getElementById('student-select-group').classList.toggle('hidden', isGroup || isPersonal || state.editingExisting);
     document.getElementById('student-fixed-group').classList.toggle('hidden', isGroup || isPersonal || !state.editingExisting);
+    document.getElementById('lesson-student-setup')?.classList.toggle('hidden', isGroup || isPersonal || state.editingExisting);
     document.getElementById('student-lesson-price-group')?.classList.toggle('hidden', isGroup || isPersonal);
     document.querySelector('.reminder-group')?.classList.toggle('hidden', isPersonal);
     if (!state.editingExisting) {
@@ -1045,6 +1046,14 @@ const CONTACT_TYPES = {
     phone: { label: 'Телефон', placeholder: 'Телефон' },
     max: { label: 'MAX', placeholder: 'MAX (ник)' }
 };
+function contactTypeLabel(type) {
+    if (type === 'phone') return uiLocale().startsWith('en') ? 'Phone' : 'Телефон';
+    return CONTACT_TYPES[type]?.label || type;
+}
+function contactTypePlaceholder(type) {
+    if (!uiLocale().startsWith('en')) return CONTACT_TYPES[type]?.placeholder || '';
+    return {tg:'@username or ID', wa:'WhatsApp number', phone:'Phone', max:'MAX username'}[type] || '';
+}
 
 function contactIconSvg(type) {
     if (type === 'tg') return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#229ED9"/><path fill="#fff" d="M5.7 11.7 17.9 7c.56-.2 1.05.14.87.99l-2.08 9.8c-.16.7-.57.87-1.16.54l-3.17-2.34-1.53 1.47c-.17.17-.31.31-.64.31l.23-3.23 5.88-5.31c.26-.23-.06-.36-.4-.13l-7.26 4.57-3.13-.98c-.68-.21-.69-.68.14-1z"/></svg>';
@@ -1066,11 +1075,11 @@ function createContactRow(type = 'tg', value = '', removable = true) {
     icon.innerHTML = contactIconSvg(normalizedType);
     const select = document.createElement('select');
     select.className = 'contact-type-select';
-    select.setAttribute('aria-label', 'Мессенджер');
+    select.setAttribute('aria-label', uiLocale().startsWith('en') ? 'Messenger' : 'Мессенджер');
     Object.entries(CONTACT_TYPES).forEach(([key, meta]) => {
         const option = document.createElement('option');
         option.value = key;
-        option.textContent = meta.label;
+        option.textContent = contactTypeLabel(key);
         option.selected = key === normalizedType;
         select.appendChild(option);
     });
@@ -1079,22 +1088,22 @@ function createContactRow(type = 'tg', value = '', removable = true) {
     input.type = 'text';
     input.className = 'contact-input';
     input.dataset.field = normalizedType;
-    input.placeholder = CONTACT_TYPES[normalizedType].placeholder;
+    input.placeholder = contactTypePlaceholder(normalizedType);
     input.value = value || '';
 
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'contact-remove-btn';
-    remove.title = 'Удалить контакт';
+    remove.title = uiLocale().startsWith('en') ? 'Remove contact' : 'Удалить контакт';
     remove.innerHTML = threadIcon('close');
-    remove.setAttribute('aria-label', 'Удалить контакт');
+    remove.setAttribute('aria-label', remove.title);
     remove.style.visibility = removable ? 'visible' : 'hidden';
 
     select.addEventListener('change', () => {
         const nextType = select.value;
         row.dataset.type = nextType;
         input.dataset.field = nextType;
-        input.placeholder = CONTACT_TYPES[nextType].placeholder;
+        input.placeholder = contactTypePlaceholder(nextType);
         icon.innerHTML = contactIconSvg(nextType);
     });
     remove.addEventListener('click', () => row.remove());
@@ -1141,6 +1150,137 @@ function getContacts(containerId) {
     return contacts;
 }
 
+let lessonInviteAvailabilityRequest = 0;
+
+function renderLessonStudentSetupLabels() {
+    const setup = document.getElementById('lesson-student-setup');
+    if (!setup) return;
+    setup.querySelector('.lesson-student-setup-head strong').textContent = botText('Контакты', 'Contacts');
+    setup.querySelector('.lesson-student-setup-head small').textContent = botText('Сохранятся в карточке ученика', 'Saved to the student profile');
+    const labels = setup.querySelectorAll('.form-group > label');
+    if (labels[0]) labels[0].textContent = botText('Контакт ученика', 'Student contact');
+    if (labels[1]) labels[1].textContent = botText('Контакт родителя', 'Parent contact');
+    setup.querySelectorAll('.add-contact-btn').forEach(button => { button.textContent = botText('＋ Добавить контакт', '＋ Add contact'); });
+    document.querySelector('#lesson-bot-invite-options > strong').textContent = botText('Приглашение в моего бота', 'Invite to my bot');
+    document.querySelector('#lesson-invite-student + span').textContent = botText('Создать ссылку ученику', 'Create student link');
+    document.querySelector('#lesson-invite-parent + span').textContent = botText('Создать ссылку родителю', 'Create parent link');
+    const contactLabels = {
+        tg: {label:'Telegram', placeholder:botText('@username или ID', '@username or ID')},
+        wa: {label:'WhatsApp', placeholder:botText('WhatsApp номер', 'WhatsApp number')},
+        phone: {label:botText('Телефон', 'Phone'), placeholder:botText('Телефон', 'Phone')},
+        max: {label:'MAX', placeholder:botText('MAX (ник)', 'MAX username')}
+    };
+    setup.querySelectorAll('.contact-row').forEach(row => {
+        const select = row.querySelector('.contact-type-select');
+        const input = row.querySelector('.contact-input');
+        const remove = row.querySelector('.contact-remove-btn');
+        select.setAttribute('aria-label', botText('Мессенджер', 'Messenger'));
+        Array.from(select.options).forEach(option => { option.textContent = contactLabels[option.value]?.label || option.textContent; });
+        input.placeholder = contactLabels[select.value]?.placeholder || '';
+        remove.title = botText('Удалить контакт', 'Remove contact');
+        remove.setAttribute('aria-label', remove.title);
+    });
+}
+
+function syncLessonStudentSetup(studentId) {
+    const info = studentId && studentId !== 'manual' ? getStudentInfo(studentId) : {};
+    renderContacts('lesson-student-contacts', info.student_contacts || {});
+    renderContacts('lesson-parent-contacts', info.contacts || {});
+}
+
+async function loadLessonInviteAvailability() {
+    const requestId = ++lessonInviteAvailabilityRequest;
+    const options = document.getElementById('lesson-bot-invite-options');
+    const hint = document.getElementById('lesson-bot-invite-hint');
+    options.hidden = true;
+    renderLessonStudentSetupLabels();
+    try {
+        const response = await apiFetch('/personal_bot');
+        const result = await response.json();
+        if (requestId !== lessonInviteAvailabilityRequest || !response.ok || result.status !== 'ok') return;
+        personalBotCurrent = result.bot || null;
+        if (!personalBotCurrent) return;
+        hint.textContent = botText(
+            `Через @${personalBotCurrent.username}. Ссылка появится после сохранения занятия.`,
+            `Via @${personalBotCurrent.username}. The link will appear after the lesson is saved.`
+        );
+        options.hidden = false;
+    } catch (_) {
+        options.hidden = true;
+    }
+}
+
+function selectedLessonInviteRoles() {
+    if (document.getElementById('lesson-bot-invite-options').hidden) return [];
+    return ['student', 'parent'].filter(role => document.getElementById(`lesson-invite-${role}`).checked);
+}
+
+function showLessonInviteResults(studentName, links, failedRoles) {
+    const overlay = document.getElementById('lesson-invite-result-overlay');
+    const list = document.getElementById('lesson-invite-result-links');
+    const status = document.getElementById('lesson-invite-result-status');
+    document.getElementById('lesson-invite-result-title').textContent = botText('Занятие сохранено', 'Lesson saved');
+    document.getElementById('lesson-invite-result-help').textContent = botText(
+        `Приглашения для ${studentName || 'ученика'} готовы. Ссылки одноразовые и действуют 48 часов.`,
+        `Invitations for ${studentName || 'the student'} are ready. Links are single-use and expire in 48 hours.`
+    );
+    document.getElementById('btn-done-lesson-invite-result').textContent = botText('Готово', 'Done');
+    document.getElementById('btn-close-lesson-invite-result').setAttribute('aria-label', botText('Закрыть', 'Close'));
+    list.replaceChildren();
+    for (const item of links) {
+        const row = document.createElement('div');
+        row.className = 'lesson-created-invite-row';
+        const label = document.createElement('strong');
+        label.textContent = item.role === 'parent' ? botText('Ссылка родителю', 'Parent link') : botText('Ссылка ученику', 'Student link');
+        const linkRow = document.createElement('div');
+        linkRow.className = 'lesson-created-invite-link';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.readOnly = true;
+        input.value = item.url;
+        input.setAttribute('aria-label', label.textContent);
+        const copy = document.createElement('button');
+        copy.type = 'button';
+        copy.className = 'secondary-btn';
+        copy.textContent = botText('Копировать', 'Copy');
+        copy.onclick = async () => {
+            try {
+                await copyTextToClipboard(item.url);
+                status.textContent = botText('Ссылка скопирована.', 'Link copied.');
+            } catch (_) {
+                input.focus();
+                input.select();
+                status.textContent = botText('Скопируйте выделенную ссылку вручную.', 'Copy the selected link manually.');
+            }
+        };
+        linkRow.append(input, copy);
+        row.append(label, linkRow);
+        list.append(row);
+    }
+    status.textContent = failedRoles.length
+        ? botText('Занятие сохранено, но часть ссылок создать не удалось. Их можно создать в карточке ученика.', 'The lesson was saved, but some links could not be created. Create them from the student profile.')
+        : '';
+    overlay.classList.remove('hidden');
+}
+
+async function createLessonInvitations(studentId, studentName, roles) {
+    const settled = await Promise.allSettled(roles.map(async role => ({role, ...(await inviteApi({action:'create', student_id:studentId, role}))})));
+    const links = settled.filter(item => item.status === 'fulfilled').map(item => item.value);
+    const failedRoles = roles.filter((_, index) => settled[index].status === 'rejected');
+    showLessonInviteResults(studentName, links, failedRoles);
+}
+
+document.getElementById('btn-close-lesson-invite-result').onclick = () => document.getElementById('lesson-invite-result-overlay').classList.add('hidden');
+document.getElementById('btn-done-lesson-invite-result').onclick = () => document.getElementById('lesson-invite-result-overlay').classList.add('hidden');
+function renderLessonInviteResultLabels() {
+    document.getElementById('lesson-invite-result-title').textContent = botText('Занятие сохранено', 'Lesson saved');
+    document.getElementById('btn-done-lesson-invite-result').textContent = botText('Готово', 'Done');
+    document.getElementById('btn-close-lesson-invite-result').setAttribute('aria-label', botText('Закрыть', 'Close'));
+}
+window.addEventListener('temli-language-change', () => {
+    renderLessonStudentSetupLabels();
+    renderLessonInviteResultLabels();
+});
 function updateReminderControls() {
     const enabled = true;
     const input = document.getElementById('reminder-minutes');
@@ -1158,6 +1298,11 @@ function resetAddForm(type = 'student') {
     document.getElementById('student-select').value = '';
     document.getElementById('manual-student-name').value = '';
     document.getElementById('manual-student-name').classList.add('hidden');
+    renderContacts('lesson-student-contacts', {});
+    renderContacts('lesson-parent-contacts', {});
+    document.getElementById('lesson-invite-student').checked = false;
+    document.getElementById('lesson-invite-parent').checked = false;
+    document.getElementById('lesson-bot-invite-options').hidden = true;
     document.getElementById('lesson-repeat').value = type === 'personal' ? 'no' : 'year';
     document.getElementById('lesson-price').value = '';
     const dateValue = document.getElementById('lesson-date')?.value || dateKey(new Date());
@@ -1214,6 +1359,7 @@ function openAddModal(date, time, type = 'student') {
     resetAddForm(type);
     document.getElementById('lesson-time').value = time;
     document.getElementById('lesson-duration').value = '60';
+    loadLessonInviteAvailability();
     document.getElementById('modal-overlay').classList.remove('hidden');
 }
 
@@ -1324,6 +1470,8 @@ async function saveLesson(options = {}) {
         return;
     }
 
+    const isNewIndividual = !state.editingExisting && !isPersonal && lessonType === 'student';
+    const inviteRoles = isNewIndividual ? selectedLessonInviteRoles() : [];
     const payload = {
         date, time, duration, entry_type: isPersonal ? 'personal' : 'lesson', lesson_type: lessonType,
         title: isPersonal ? eventTitle : '', notes: isPersonal ? eventNotes : '',
@@ -1333,7 +1481,11 @@ async function saveLesson(options = {}) {
         reminder_enabled: document.getElementById('reminder-enabled').checked,
         reminder_minutes: reminderMinutes,
         repeat,
-        repeat_until: repeatUntil
+        repeat_until: repeatUntil,
+        ...(isNewIndividual ? {
+            student_contacts: getContacts('lesson-student-contacts'),
+            contacts: getContacts('lesson-parent-contacts')
+        } : {})
     };
     if (state.editingExisting) {
         payload.price_scope = document.querySelector('input[name="lesson-price-scope"]:checked')?.value || 'single';
@@ -1351,6 +1503,9 @@ async function saveLesson(options = {}) {
         window.dispatchEvent(new CustomEvent('temli-saved', { detail: { overlay: 'modal-overlay' } }));
         closeAllModals();
         await refreshScheduleAndStudents();
+        if (inviteRoles.length && result.student_id) {
+            await createLessonInvitations(result.student_id, student, inviteRoles);
+        }
         if (Number(result.updated_prices || 0) > 1) {
             alert(uiMessage`Цена изменена в ${result.updated_prices} будущих занятиях.`);
         }
@@ -1362,7 +1517,7 @@ async function saveLesson(options = {}) {
 }
 
 function closeAllModals() {
-    ['modal-overlay', 'add-type-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'help-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay', 'subscription-pay-overlay', 'lesson-report-overlay', 'students-overlay', 'student-payment-overlay'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+    ['modal-overlay', 'add-type-overlay', 'move-modal-overlay', 'action-menu-overlay', 'delete-modal-overlay', 'date-picker-overlay', 'app-settings-overlay', 'receipt-settings-overlay', 'help-overlay', 'student-card-overlay', 'work-center-overlay', 'paid-confirm-overlay', 'subscription-pay-overlay', 'lesson-report-overlay', 'students-overlay', 'student-payment-overlay', 'lesson-invite-result-overlay'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
 }
 
 // Палитра цветов в меню действий
@@ -1412,6 +1567,7 @@ document.getElementById('student-select').addEventListener('change', event => {
     const input = document.getElementById('manual-student-name');
     const manual = event.target.value === 'manual';
     input.classList.toggle('hidden', !manual);
+    syncLessonStudentSetup(event.target.value);
     if (manual) input.focus();
 });
 
@@ -3448,3 +3604,7 @@ document.getElementById('top-next-lesson').onclick = () => {
     const hidden = document.getElementById('top-next-lesson-details').classList.toggle('hidden');
     document.getElementById('top-next-lesson').setAttribute('aria-expanded', String(!hidden));
 };
+
+
+
+

@@ -334,6 +334,10 @@ function uxEndTime(time, duration) {
                 .map(field => ({id:field.id,value:field.value,checked:field.checked}));
             const draft = {fields};
             if (id === 'modal-overlay' && byId('lesson-type-select').value === 'group') draft.members = collectGroupMembers();
+            if (id === 'modal-overlay' && byId('lesson-type-select').value === 'student') {
+                draft.lessonContacts = getContacts('lesson-parent-contacts');
+                draft.lessonStudentContacts = getContacts('lesson-student-contacts');
+            }
             if (id === 'student-card-overlay') {
                 draft.contacts = getContacts('student-card-parent-contacts');
                 draft.studentContacts = getContacts('student-card-student-contacts');
@@ -370,6 +374,10 @@ function uxEndTime(time, duration) {
                         updateLessonTypeUI(); updateReminderControls();
                         byId('manual-student-name').classList.toggle('hidden',byId('student-select').value !== 'manual');
                         byId('repeat-until-wrap').classList.toggle('hidden',byId('lesson-repeat').value !== 'year');
+                        if (draft.lessonContacts) {
+                            renderContacts('lesson-parent-contacts',draft.lessonContacts);
+                            renderContacts('lesson-student-contacts',draft.lessonStudentContacts);
+                        }
                     }
                     if (draft.contacts) {
                         renderContacts('student-card-parent-contacts',draft.contacts);
@@ -560,5 +568,8 @@ function uxEndTime(time, duration) {
     window.addEventListener('temli-language-change',localizeUx);
     localizeUx();
 })();
+
+
+
 
 

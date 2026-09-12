@@ -1019,6 +1019,35 @@ body {
 
 .field-hint { display:block; margin-top:4px; font-size:11px; color:#6b7280; line-height:1.25; }
 
+/* Contacts and invitations while creating an individual lesson. */
+.lesson-student-setup {
+    margin: 2px 0 12px;
+    padding: 12px;
+    border: 1px solid #dce5f2;
+    border-radius: 14px;
+    background: #f8fbff;
+}
+.lesson-student-setup.hidden { display: none; }
+.lesson-student-setup-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.lesson-student-setup-head strong { color: #202124; font-size: 14px; }
+.lesson-student-setup-head small { color: #667085; font-size: 11px; text-align: right; }
+.lesson-student-setup .form-group { margin-bottom: 10px; }
+.lesson-student-setup .form-group:last-of-type { margin-bottom: 0; }
+.lesson-student-setup .add-contact-btn { min-height: 34px; padding: 6px 9px; font-size: 12px; }
+.lesson-bot-invite-options { display: grid; gap: 8px; margin-top: 12px; padding-top: 11px; border-top: 1px solid #dce5f2; }
+.lesson-bot-invite-options[hidden] { display: none; }
+.lesson-bot-invite-options > strong { font-size: 13px; color: #24415f; }
+.lesson-bot-invite-options .checkbox-label { min-height: 38px; padding: 7px 9px; border-radius: 9px; background: #fff; }
+.lesson-invite-result-links { display: grid; gap: 9px; }
+.lesson-created-invite-row { padding: 10px; border: 1px solid #cfe0f7; border-radius: 11px; background: #f7faff; }
+.lesson-created-invite-row strong { display: block; margin-bottom: 7px; font-size: 13px; color: #344054; }
+.lesson-created-invite-link { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; align-items: center; }
+.lesson-created-invite-link input { width: 100%; min-width: 0; height: 38px; padding: 7px 9px; border: 1px solid #d7e0ec; border-radius: 8px; background: #fff; font-size: 12px; text-overflow: ellipsis; }
+.lesson-created-invite-link button { min-height: 38px; padding: 7px 10px; }
+@media (max-width: 360px) {
+    .lesson-student-setup { padding: 10px; }
+    .lesson-student-setup-head { align-items: flex-start; flex-direction: column; gap: 2px; }
+}
 /* Personal bot invitations: compact mobile card. */
 .student-bot-invites-card {
     margin: 12px 0 16px;
@@ -1276,12 +1305,12 @@ body {
 
 
 /* v30.7 accumulated changes */
-#students-overlay, #student-payment-overlay, #lesson-report-overlay {
+#students-overlay, #student-payment-overlay, #lesson-report-overlay, #lesson-invite-result-overlay {
     position: fixed; left: 0; right: 0; z-index: 1200;
     background: rgba(0,0,0,.45);
     display: flex; align-items: center; justify-content: center;
 }
-#students-overlay.hidden, #student-payment-overlay.hidden, #lesson-report-overlay.hidden { display: none; }
+#students-overlay.hidden, #student-payment-overlay.hidden, #lesson-report-overlay.hidden, #lesson-invite-result-overlay.hidden { display: none; }
 
 .top-next-lesson {
     display: flex; align-items: center; justify-content: center; gap: 6px;
@@ -1665,3 +1694,5 @@ body > div[id$="-overlay"] {
     .top-next-lesson { font-size: 14px; }
     .group-member-summary { max-width: 135px; }
 }
+
+

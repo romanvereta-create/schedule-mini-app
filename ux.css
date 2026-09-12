@@ -85,11 +85,13 @@
 .student-bot-invite-link-row button { flex:1; min-height:42px; }
 .student-bot-invite-link-row .ux-invite-url { display:none; }
 .student-bot-invite-link-row .ux-invite-url.ux-show-url { display:block; flex-basis:100%; width:100%; }
-#move-hint { flex-wrap:wrap; border-radius:14px; max-width:calc(100vw - 24px); width:440px; padding:12px; }
-#move-hint > span { flex:1; font-size:12px; }
-#move-suggestions { display:flex; flex-wrap:wrap; gap:6px; flex-basis:100%; }
-#move-suggestions > span { flex-basis:100%; font-size:12px; line-height:1.4; }
-.move-suggestion { min-height:40px; border:1px solid #ffffff60; color:white; background:#ffffff15; border-radius:8px; padding:7px 9px; font-size:12px; cursor:pointer; }
+#move-hint > span { display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
+.calendar-move-mode .time-slot { position:relative; background:#eaf7ef; cursor:pointer; }
+.calendar-move-mode .time-slot::after { content:""; position:absolute; inset:3px; border:1px dashed #48a868; border-radius:5px; pointer-events:none; }
+.calendar-move-mode .time-slot.move-slot-day-off { background:#fff6dc; }
+.calendar-move-mode .time-slot.move-slot-day-off::after { border-color:#d49a24; }
+.calendar-move-mode .time-slot.move-slot-unavailable { background:#f1f2f4; cursor:not-allowed; opacity:.55; }
+.calendar-move-mode .time-slot.move-slot-unavailable::after { border-color:#b4b8bf; }
 :where(button,summary,[role="button"],input,select,textarea):focus-visible { outline:2px solid #1a73e8; outline-offset:2px; }
 @media (max-width:420px) {
     #student-card-overlay input, #student-card-overlay textarea, #student-card-overlay select,

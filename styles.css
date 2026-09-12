@@ -396,14 +396,15 @@ body {
 
 /* Move Hint Bar */
 .move-hint-bar {
-    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #202124; color: white;
-    padding: 12px 20px; border-radius: 25px; font-size: 13px; z-index: 2000; box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-    display: flex; align-items: center; gap: 10px;
+    position: static; width: fit-content; max-width: calc(100% - 16px); min-height: 34px;
+    margin: 0 auto 6px; padding: 4px 6px 4px 10px; border: 1px solid #c8dbf4;
+    border-radius: 10px; background: #eef5ff; color: #24415f; font-size: 12px;
+    box-shadow: none; display: flex; align-items: center; justify-content: center; gap: 8px;
 }
 .move-hint-bar.hidden { display: none; }
 .cancel-move-btn {
-    background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: white;
-    border-radius: 12px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+    min-height: 26px; background: #fff; border: 1px solid #b8cce5; color: #315b89;
+    border-radius: 8px; padding: 3px 8px; font-size: 12px; cursor: pointer;
 }
 
 .quick-payment-options, .modal-actions-column { display: grid; gap: 10px; min-width: 0; }
@@ -1604,7 +1605,7 @@ body {
 .hub-row > span:first-child .thread-icon { color: #5f6368; }
 .row-chevron { width: 14px; height: 14px; flex-basis: 14px; color: #80868b; }
 .move-hint-bar > span { display: inline-flex; align-items: center; }
-.move-hint-bar .thread-icon { color: #fff; }
+.move-hint-bar .thread-icon { color: #315b89; }
 .color-picker-open .thread-icon { width: 16px; height: 16px; margin: 0; color: #5f6368; }
 .contact-remove-btn .thread-icon { width: 15px; height: 15px; margin: 0; }
 .onboarding-done-mark .thread-icon { width: 28px; height: 28px; margin: 0; stroke-width: 1.8; }

@@ -104,9 +104,9 @@
         </div>
     </main>
 
-    <!-- Подсказка режима переноса -->
+    <!-- Компактная строка режима переноса; ux.js переносит её над календарной сеткой. -->
     <div id="move-hint" class="move-hint-bar hidden">
-        <span><svg class="thread-icon" aria-hidden="true"><use href="#ti-pin"></use></svg>Кликните целевой слот для переноса/добавления</span>
+        <span><svg class="thread-icon" aria-hidden="true"><use href="#ti-pin"></use></svg><span id="move-hint-text">Выберите новое время</span></span>
         <button id="btn-cancel-move" class="cancel-move-btn">Отмена</button>
     </div>
 

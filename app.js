@@ -726,10 +726,43 @@ function renderCalendar() {
         for (let hour = START_HOUR; hour <= END_HOUR; hour++) {
             const slot = document.createElement('div');
             slot.className = 'time-slot';
+            const time = `${String(hour).padStart(2, '0')}:00`;
+            let moveTargetAvailable = true;
+            let moveTargetDayOff = false;
+            if (state.isMoving && state.selectedLesson) {
+                const candidateStart = hour * 60;
+                const candidateEnd = candidateStart + Math.max(5, Number(state.selectedLesson.duration || 60));
+                const conflicts = (state.schedule[key] || []).some(lesson => {
+                    if (lesson.cancelled || (key === state.selectedLesson.date && lesson.id === state.selectedLesson.id)) return false;
+                    const [lessonHour, lessonMinute] = String(lesson.time || '00:00').split(':').map(Number);
+                    const lessonStart = lessonHour * 60 + lessonMinute;
+                    const lessonEnd = lessonStart + Math.max(5, Number(lesson.duration || 60));
+                    return candidateStart < lessonEnd && candidateEnd > lessonStart;
+                });
+                moveTargetAvailable = !conflicts;
+                moveTargetDayOff = isDayOffDate(dayDate);
+                slot.classList.add(moveTargetAvailable ? 'move-slot-available' : 'move-slot-unavailable');
+                if (moveTargetAvailable && moveTargetDayOff) slot.classList.add('move-slot-day-off');
+                slot.setAttribute('aria-disabled', String(!moveTargetAvailable));
+                slot.title = !moveTargetAvailable
+                    ? uiText('Время занято или недоступно')
+                    : moveTargetDayOff ? uiText('Выходной: потребуется подтверждение') : uiText('Перенести сюда');
+            }
             slot.addEventListener('click', () => {
-                const time = `${String(hour).padStart(2, '0')}:00`;
-                if (state.isMoving) confirmMoveTarget(key, time);
-                else openAddTypeChooser(key, time);
+                if (state.isMoving) {
+                    if (!moveTargetAvailable) return;
+                    if (moveTargetDayOff) {
+                        document.getElementById('day-off-warning-title').textContent = 'Перенос в выходной';
+                        document.getElementById('day-off-warning-desc').textContent = 'Кажется, календарь рассчитывал отдохнуть 😄 Всё равно перенести занятие на выходной?';
+                        document.getElementById('btn-day-off-confirm').textContent = 'Всё равно перенести';
+                        document.getElementById('btn-day-off-cancel').textContent = 'Не сегодня';
+                        openDayOffWarning(() => confirmMoveTarget(key, time));
+                    } else {
+                        confirmMoveTarget(key, time);
+                    }
+                    return;
+                }
+                openAddTypeChooser(key, time);
             });
             column.appendChild(slot);
         }
@@ -1000,6 +1033,7 @@ function closeActionMenu() {
 function startMove(date, lesson) {
     state.selectedLesson = { date, ...lesson };
     state.isMoving = true;
+    document.body.classList.add('calendar-move-mode');
     document.getElementById('move-hint').classList.remove('hidden');
     renderCalendar();
 }
@@ -1033,6 +1067,7 @@ async function executeMove(actionType) {
 
 function cancelMove() {
     state.isMoving = false;
+    document.body.classList.remove('calendar-move-mode');
     state.selectedLesson = null;
     state.pendingMove = null;
     document.getElementById('move-hint').classList.add('hidden');
@@ -1466,6 +1501,8 @@ async function saveLesson(options = {}) {
         document.getElementById('day-off-warning-desc').textContent = isPersonal
             ? 'Это ваш выходной день. Всё равно добавить личное дело?'
             : 'Вообще-то у вас выходной. Не советую 😄 Отдых тоже входит в расписание. Всё равно поставить занятие?';
+        document.getElementById('btn-day-off-confirm').textContent = 'Всё равно поставить';
+        document.getElementById('btn-day-off-cancel').textContent = 'Не сегодня';
         openDayOffWarning(() => saveLesson({ skipDayOffWarning: true }));
         return;
     }

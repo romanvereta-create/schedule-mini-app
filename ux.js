@@ -146,8 +146,9 @@ function uxEndTime(time, duration) {
     const headerTop = document.querySelector('.header-top');
     const headerContextActions = document.createElement('div');
     headerContextActions.className = 'header-context-actions';
-    headerContextActions.append(byId('btn-students'), byId('btn-work-center'));
+    headerContextActions.append(byId('btn-students'));
     headerTop.prepend(headerContextActions);
+    byId('btn-app-settings').before(byId('btn-work-center'));
     // Keep the date actions in one uninterrupted sequence: previous, Today,
     // date picker, next. This makes the paging target clear and prevents the
     // view switch from leaving a misleading empty gap on narrow screens.
@@ -155,6 +156,7 @@ function uxEndTime(time, duration) {
     stepNavigation.append(previousButton, primaryCalendarActions, nextButton);
     toolbar.append(modes, stepNavigation);
     document.querySelector('.week-days-container').before(toolbar);
+    toolbar.after(byId('move-hint'));
 
     const intro = document.createElement('div');
     intro.id = 'calendar-first-step';
@@ -419,54 +421,6 @@ function uxEndTime(time, duration) {
         updateReminderControls();
     });
 
-    const moveSuggestions = document.createElement('div');
-    moveSuggestions.id = 'move-suggestions';
-    moveSuggestions.setAttribute('data-i18n-ignore','');
-    byId('move-hint').prepend(moveSuggestions);
-    let moveRequest = 0;
-    const originalStartMove = startMove;
-    startMove = function(date, lesson) {
-        originalStartMove(date,lesson);
-        loadMoveSuggestions();
-    };
-    async function loadMoveSuggestions() {
-        const requestId = ++moveRequest;
-        const lesson = state.selectedLesson;
-        const weekKey = dateKey(state.currentMonday);
-        moveSuggestions.replaceChildren();
-        const label = document.createElement('span');
-        label.textContent = uxText('Ищем свободное время…', 'Finding available times…');
-        moveSuggestions.append(label);
-        try {
-            const response = await apiFetch('/get_work_center',{method:'POST',body:JSON.stringify({week_start:weekKey})});
-            const result = await response.json();
-            if (!state.isMoving || state.selectedLesson?.id !== lesson?.id || requestId !== moveRequest) return;
-            if (!response.ok || result.status !== 'ok') throw new Error();
-            const duration = Number(lesson.duration || 60);
-            const now = new Date();
-            const windows = (result.windows || []).map(item => {
-                const start = workingTimeMinutes(item.from,-1);
-                let available = start;
-                if (item.date === dateKey(now)) available = Math.max(start,Math.ceil((now.getHours()*60+now.getMinutes())/15)*15);
-                return {...item,start:available,end:workingTimeMinutes(item.to,-1,true)};
-            }).filter(item => item.date >= dateKey(now) && !isDayOffDate(item.date) && item.end-item.start >= duration);
-            label.textContent = windows.length ? uxText('Свободно на этой неделе:', 'Available this week:') : uxText('Подходящих окон на этой неделе нет. Выберите время в календаре.', 'No suitable times this week. Choose a time in the calendar.');
-            for (const item of windows.slice(0,3)) {
-                const time = `${String(Math.floor(item.start/60)).padStart(2,'0')}:${String(item.start%60).padStart(2,'0')}`;
-                const button = uxButton('', '', () => {
-                    if (state.isMoving) confirmMoveTarget(item.date,time);
-                },'move-suggestion');
-                delete button.dataset.uxRu; delete button.dataset.uxEn;
-                button.textContent = `${shortDateRu(item.date)} · ${time}`;
-                moveSuggestions.append(button);
-            }
-        } catch (_) {
-            if (requestId === moveRequest) {
-                label.textContent = uxText('Не удалось загрузить окна.', 'Could not load available times.');
-                moveSuggestions.append(uxButton('Повторить','Retry',loadMoveSuggestions,'move-suggestion'));
-            }
-        }
-    }
     const originalExecuteMove = executeMove;
     executeMove = async function(action) {
         const buttons = [...document.querySelectorAll('#move-modal-overlay button')];
@@ -559,8 +513,7 @@ function uxEndTime(time, duration) {
         document.querySelectorAll('[data-ux-ru]').forEach(node => node.textContent = uxText(node.dataset.uxRu,node.dataset.uxEn));
         feedback.hidden = true;
         feedback.textContent = '';
-        if (state.isMoving) loadMoveSuggestions();
-        else moveSuggestions.replaceChildren();
+        byId('move-hint-text').textContent = uxText('Выберите новое время', 'Choose a new time');
         updateActionContext();
         renderCalendar();
         updateCalendarChrome();

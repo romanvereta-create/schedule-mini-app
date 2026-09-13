@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TEMLI — расписание</title>
-    <link rel="stylesheet" href="styles.css?v=31.5.0-rc3">
-    <link rel="stylesheet" href="ux.css?v=31.5.0-rc3">
+    <link rel="stylesheet" href="styles.css?v=31.5.0-rc4">
+    <link rel="stylesheet" href="ux.css?v=31.5.0-rc4">
 </head>
 <body>
     <div id="startup-status" role="status" aria-live="polite">
@@ -731,7 +731,7 @@
     <div id="app-settings-overlay" class="hidden">
         <div class="modal-content compact-modal">
             <header class="modal-header">
-                <div><h2>Настройки TEMLI</h2><small id="settings-build-version" data-i18n-ignore>TEMLI 31.5.0-rc3</small></div>
+                <div><h2>Настройки TEMLI</h2><small id="settings-build-version" data-i18n-ignore>TEMLI 31.5.0-rc4</small></div>
                 <button id="btn-close-app-settings" class="close-modal" type="button" aria-label="Закрыть"><svg class="thread-icon" aria-hidden="true"><use href="#ti-close"></use></svg></button>
             </header>
             <div class="modal-body compact-stack">
@@ -761,6 +761,13 @@
                         <label id="parent-end-template-label" for="parent-end-template">Родителю после занятия</label>
                         <textarea id="parent-end-template" rows="3" maxlength="1000"></textarea>
                         <small id="parent-end-template-hint" class="field-hint">Переменные: {start}, {end}.</small>
+                        <label id="teacher-delay-template-label" for="teacher-delay-template">Я задержусь — ученику</label>
+                        <textarea id="teacher-delay-template" rows="3" maxlength="1000"></textarea>
+                        <label id="student-delay-template-label" for="student-delay-template">Ученик задерживается — ученику</label>
+                        <textarea id="student-delay-template" rows="3" maxlength="1000"></textarea>
+                        <label id="parent-delay-template-label" for="parent-delay-template">Ученик задерживается — родителю</label>
+                        <textarea id="parent-delay-template" rows="3" maxlength="1000"></textarea>
+                        <small id="delay-template-hint" class="field-hint">{time} — время начала с учётом задержки.</small>
                         <button id="btn-reset-notification-templates" class="secondary-btn" type="button">Вернуть стандартные тексты</button>
                         <small id="notification-templates-status" class="field-hint" role="status"></small>
                     </details>
@@ -1059,7 +1066,7 @@
         </div>
     </div>
 
-    <script src="startup.js?v=31.5.0-rc3"></script>
+    <script src="startup.js?v=31.5.0-rc4"></script>
 </body>
 </html>
 

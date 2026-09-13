@@ -57,10 +57,12 @@ function openPersonalNotification(lesson, teacherDelay) {
         const time = new Date(lesson.date + 'T' + lesson.time);
         if (teacherDelay) time.setMinutes(time.getMinutes() + choice);
         const hhmm = String(time.getHours()).padStart(2,'0') + ':' + String(time.getMinutes()).padStart(2,'0');
-        const preview = teacherDelay
+        const defaultPreview = teacherDelay
             ? botText('Немного задержусь. Начнём занятие в ', 'I’m running a little late. We’ll start at ') + hhmm + '.'
             : role === 'student' ? botText('Занятие уже началось. Сможешь подключиться?', 'The lesson has started. Can you join?')
             : botText('Занятие уже началось, но ребёнок пока не подключился. Подскажите, сможет присоединиться?', 'The lesson has started, but your child hasn’t joined yet. Will they be able to join?');
+        const templateKey = teacherDelay ? 'teacher_delay_template' : role === 'student' ? 'student_delay_template' : 'parent_delay_template';
+        const preview = String(state.settings[templateKey] || defaultPreview).replaceAll('{time}', hhmm);
         button.textContent = teacherDelay ? '+' + choice + ' → ' + hhmm : role === 'student' ? botText('Написать ученику', 'Message student') : botText('Написать родителю', 'Message parent');
         button.onclick = async () => {
             if (busy || !select.value) return;

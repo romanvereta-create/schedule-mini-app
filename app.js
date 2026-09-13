@@ -2323,6 +2323,9 @@ function fillAppSettingsForm() {
     document.getElementById('parent-binding-template').value = state.settings.parent_binding_template || '';
     document.getElementById('student-reminder-template').value = state.settings.student_reminder_template || '';
     document.getElementById('parent-end-template').value = state.settings.parent_lesson_end_template || '';
+    document.getElementById('teacher-delay-template').value = state.settings.teacher_delay_template || '';
+    document.getElementById('student-delay-template').value = state.settings.student_delay_template || '';
+    document.getElementById('parent-delay-template').value = state.settings.parent_delay_template || '';
     document.getElementById('notification-templates-status').textContent = '';
 }
 
@@ -2504,6 +2507,10 @@ function renderPersonalBotLabels() {
     text('personal-bot-disconnect', 'Отключить', 'Disconnect');
     text('personal-bot-help', 'Создайте отдельного бота через /newbot в @BotFather и вставьте его токен. Приглашения ученика и родителя доступны в карточке ученика. Бот не должен работать в другом сервисе.',
         'Create a dedicated bot using /newbot in @BotFather and paste its token. Student and parent invitations are available in the student profile. The bot must not be running in another service.');
+    text('teacher-delay-template-label', 'Я задержусь — ученику', 'My delay — to student');
+    text('student-delay-template-label', 'Ученик задерживается — ученику', 'Student delay — to student');
+    text('parent-delay-template-label', 'Ученик задерживается — родителю', 'Student delay — to parent');
+    text('delay-template-hint', '{time} — время начала с учётом задержки.', '{time} — start time including the delay.');
     text('notification-templates-title', 'Тексты сообщений', 'Message texts');
     text('notification-templates-help', 'Редкая настройка. Пустое поле использует стандартный текст.', 'Rare setting. Leave a field empty to use the default text.');
     text('student-binding-template-label', 'После подключения ученика', 'After a student connects');
@@ -2574,7 +2581,7 @@ document.getElementById('personal-bot-disconnect').onclick = () => runPersonalBo
 });
 
 document.getElementById('btn-reset-notification-templates').onclick = () => {
-    for (const id of ['student-binding-template','parent-binding-template','student-reminder-template','parent-end-template'])
+    for (const id of ['student-binding-template','parent-binding-template','student-reminder-template','parent-end-template','teacher-delay-template','student-delay-template','parent-delay-template'])
         document.getElementById(id).value = '';
     document.getElementById('notification-templates-status').textContent = botText('Стандартные тексты будут восстановлены после сохранения.', 'Default texts will be restored after saving.');
 };
@@ -2635,7 +2642,10 @@ document.getElementById('btn-save-app-settings').onclick = async () => {
             student_binding_template: document.getElementById('student-binding-template').value.trim(),
             parent_binding_template: document.getElementById('parent-binding-template').value.trim(),
             student_reminder_template: document.getElementById('student-reminder-template').value.trim(),
-            parent_lesson_end_template: document.getElementById('parent-end-template').value.trim()
+            parent_lesson_end_template: document.getElementById('parent-end-template').value.trim(),
+            teacher_delay_template: document.getElementById('teacher-delay-template').value.trim(),
+            student_delay_template: document.getElementById('student-delay-template').value.trim(),
+            parent_delay_template: document.getElementById('parent-delay-template').value.trim()
         };
         const response = await apiFetch('/update_settings', { method: 'POST', body: JSON.stringify(settings) });
         const result = await response.json();

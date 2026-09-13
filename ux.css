@@ -109,3 +109,21 @@
 }
 
 
+
+/* Rare, one-time message customization stays collapsed inside My bot. */
+#notification-templates-panel { margin-top:10px; padding:8px 10px; border:1px solid #dfe3e8; border-radius:10px; background:#f8f9fa; }
+#notification-templates-panel > summary { cursor:pointer; font-size:13px; font-weight:600; color:#4b5563; }
+#notification-templates-panel[open] { display:grid; gap:7px; }
+#notification-templates-panel[open] > summary { margin-bottom:3px; }
+#notification-templates-panel textarea { min-height:66px; resize:vertical; font-size:13px; line-height:1.35; }
+#notification-templates-panel label { margin-top:3px; font-size:12px; font-weight:600; }
+#notification-templates-panel .field-hint { margin:0; font-size:11px; line-height:1.35; }
+#btn-reset-notification-templates { margin-top:4px; min-height:36px; font-size:12px; }
+
+/* Pending student/parent connections are visible without adding a permanent panel. */
+#btn-students { position:relative; }
+.student-binding-alert { position:absolute; top:1px; right:1px; width:8px; height:8px; border-radius:50%; background:#e53935; border:2px solid var(--tg-theme-bg-color, #fff); box-sizing:content-box; }
+.student-binding-alert.hidden { display:none; }
+.student-list-main { min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:3px; }
+.student-binding-pending { display:inline-flex; align-items:center; gap:4px; padding:2px 6px; border-radius:999px; background:#fff4d6; color:#805900; font-size:11px; line-height:1.25; }
+.student-binding-pending .thread-icon { width:12px; height:12px; flex-basis:12px; margin:0; }

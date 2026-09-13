@@ -450,6 +450,7 @@ async function fetchData() {
         if (failure) throw failure.reason;
         renderCalendar();
         scheduleWorkCenterRefresh();
+        refreshPendingBindingBadge();
         showOnboardingIfNeeded();
         initialDataReady = true;
         networkFailure = null;
@@ -2318,6 +2319,11 @@ function fillAppSettingsForm() {
     });
     document.getElementById('default-send-receipts').checked = state.settings.default_send_receipts !== false;
     document.getElementById('default-send-receipt-copy').checked = state.settings.default_send_receipt_copy !== false;
+    document.getElementById('student-binding-template').value = state.settings.student_binding_template || '';
+    document.getElementById('parent-binding-template').value = state.settings.parent_binding_template || '';
+    document.getElementById('student-reminder-template').value = state.settings.student_reminder_template || '';
+    document.getElementById('parent-end-template').value = state.settings.parent_lesson_end_template || '';
+    document.getElementById('notification-templates-status').textContent = '';
 }
 
 function fillReceiptSettingsForm() {
@@ -2498,12 +2504,28 @@ function renderPersonalBotLabels() {
     text('personal-bot-disconnect', 'Отключить', 'Disconnect');
     text('personal-bot-help', 'Создайте отдельного бота через /newbot в @BotFather и вставьте его токен. Приглашения ученика и родителя доступны в карточке ученика. Бот не должен работать в другом сервисе.',
         'Create a dedicated bot using /newbot in @BotFather and paste its token. Student and parent invitations are available in the student profile. The bot must not be running in another service.');
+    text('notification-templates-title', 'Тексты сообщений', 'Message texts');
+    text('notification-templates-help', 'Редкая настройка. Пустое поле использует стандартный текст.', 'Rare setting. Leave a field empty to use the default text.');
+    text('student-binding-template-label', 'После подключения ученика', 'After a student connects');
+    text('parent-binding-template-label', 'После подключения родителя', 'After a parent connects');
+    text('student-reminder-template-label', 'Напоминание ученику', 'Student reminder');
+    text('parent-end-template-label', 'Родителю после занятия', 'Parent after the lesson');
+    text('student-binding-template-hint', 'Можно использовать {name}.', 'Available variable: {name}.');
+    text('parent-binding-template-hint', 'Можно использовать {name}.', 'Available variable: {name}.');
+    text('student-reminder-template-hint', 'Переменные: {time}, {link}.', 'Variables: {time}, {link}.');
+    text('parent-end-template-hint', 'Переменные: {start}, {end}.', 'Variables: {start}, {end}.');
+    text('btn-reset-notification-templates', 'Вернуть стандартные тексты', 'Restore default texts');
+    document.getElementById('student-binding-template').placeholder = botText('Привет! Мы на связи 😊 Скоро я всё подтвержу, и сюда будут приходить мои напоминания о занятиях.', 'Hi! We’re connected 😊 I’ll confirm everything soon, and my lesson reminders will arrive here.');
+    document.getElementById('parent-binding-template').placeholder = botText('Здравствуйте! Спасибо, что подключились 😊 Скоро я всё подтвержу, и сюда будут приходить мои сообщения о занятиях.', 'Hello! Thank you for connecting 😊 I’ll confirm everything soon, and my lesson updates will arrive here.');
+    document.getElementById('student-reminder-template').placeholder = botText('Напоминание: занятие в {time}.', 'Reminder: lesson at {time}.');
+    document.getElementById('parent-end-template').placeholder = botText('Приветствую! Сегодня было проведено занятие с {start} до {end}.', 'Hello! Today’s lesson was held from {start} to {end}.');
 }
 window.addEventListener('temli-language-change', () => {
     updateAddTypeContext();
     renderPersonalBotLabels();
     if (personalBotView) renderPersonalBot(personalBotView);
     renderInviteLabels();
+    renderPendingBindingBadge();
 });
 async function loadPersonalBot() {
     if (personalBotBusy) return;
@@ -2551,8 +2573,15 @@ document.getElementById('personal-bot-disconnect').onclick = () => runPersonalBo
     renderPersonalBot(await personalBotAction({action: 'disconnect', bot_id: personalBotCurrent.bot_id}));
 });
 
+document.getElementById('btn-reset-notification-templates').onclick = () => {
+    for (const id of ['student-binding-template','parent-binding-template','student-reminder-template','parent-end-template'])
+        document.getElementById(id).value = '';
+    document.getElementById('notification-templates-status').textContent = botText('Стандартные тексты будут восстановлены после сохранения.', 'Default texts will be restored after saving.');
+};
+
 document.getElementById('btn-app-settings').onclick = () => {
     document.getElementById('settings-build-version').textContent = `TEMLI ${window.TEMLI_I18N?.VERSION || '—'}`;
+    document.getElementById('notification-templates-panel').open = false;
     fillAppSettingsForm();
     loadPersonalBot();
     document.getElementById('app-settings-overlay').classList.remove('hidden');
@@ -2602,7 +2631,11 @@ document.getElementById('btn-save-app-settings').onclick = async () => {
             work_end: workEnd,
             days_off: Array.from(document.querySelectorAll('#days-off-options input:checked'), input => Number(input.value)),
             default_send_receipts: document.getElementById('default-send-receipts').checked,
-            default_send_receipt_copy: document.getElementById('default-send-receipt-copy').checked
+            default_send_receipt_copy: document.getElementById('default-send-receipt-copy').checked,
+            student_binding_template: document.getElementById('student-binding-template').value.trim(),
+            parent_binding_template: document.getElementById('parent-binding-template').value.trim(),
+            student_reminder_template: document.getElementById('student-reminder-template').value.trim(),
+            parent_lesson_end_template: document.getElementById('parent-end-template').value.trim()
         };
         const response = await apiFetch('/update_settings', { method: 'POST', body: JSON.stringify(settings) });
         const result = await response.json();
@@ -2860,6 +2893,37 @@ async function changeStudentLessonPayment(studentId, item, action, row) {
 let inviteView = null;
 let inviteRequest = 0;
 let inviteBusy = false;
+let pendingBindingRoles = new Map();
+function pendingBindingLabel(roles = []) {
+    const student = roles.includes('student');
+    const parent = roles.includes('parent');
+    if (student && parent) return botText('Подтвердить ученика и родителя', 'Confirm student and parent');
+    return parent ? botText('Подтвердить родителя', 'Confirm parent') : botText('Подтвердить ученика', 'Confirm student');
+}
+function renderPendingBindingBadge() {
+    const badge = document.getElementById('student-binding-alert');
+    const count = [...pendingBindingRoles.values()].reduce((sum, roles) => sum + roles.length, 0);
+    badge.classList.toggle('hidden', count === 0);
+    const title = count ? botText('Есть новые привязки', 'New connections are waiting') : botText('Ученики', 'Students');
+    document.getElementById('btn-students').title = title;
+    document.getElementById('btn-students').setAttribute('aria-label', title);
+    if (!document.getElementById('students-overlay').classList.contains('hidden'))
+        renderStudentsList(document.getElementById('students-search').value);
+}
+async function refreshPendingBindingBadge() {
+    try {
+        const result = await inviteApi({action:'pending_summary'});
+        pendingBindingRoles = new Map((result.pending || []).map(item => [String(item.student_id), item.roles || []]));
+        if (result.contacts_updated) {
+            const openStudentId = document.getElementById('student-card-overlay').classList.contains('hidden') ? '' : inviteStudentId();
+            await loadStudents();
+            if (openStudentId && state.students[openStudentId]) applyBoundTelegramContacts(openStudentId, state.students[openStudentId]);
+        }
+        renderPendingBindingBadge();
+    } catch (_) {
+        // A badge is advisory; normal calendar work must not fail with the personal bot.
+    }
+}
 function inviteStudentId() {
     return document.getElementById('student-card-overlay').dataset.studentId;
 }
@@ -2926,6 +2990,19 @@ async function inviteApi(payload) {
     if (!response.ok || result.status !== 'ok') throw new Error(result.code || '');
     return result;
 }
+function applyBoundTelegramContacts(studentId, student) {
+    if (!student || typeof student !== 'object') return;
+    state.students[studentId] = student;
+    if (inviteStudentId() !== String(studentId)) return;
+    for (const [containerId, field] of [
+        ['student-card-student-contacts','student_contacts'],
+        ['student-card-parent-contacts','contacts']
+    ]) {
+        const current = getContacts(containerId);
+        const telegram = String(student[field]?.tg || '').trim();
+        if (!current.tg && telegram) renderContacts(containerId, {...current, tg:telegram});
+    }
+}
 async function loadStudentBotBindings(studentId = inviteStudentId()) {
     const sequence = ++inviteRequest;
     inviteView = null;
@@ -2937,7 +3014,9 @@ async function loadStudentBotBindings(studentId = inviteStudentId()) {
         const result = await inviteApi({action:'list', student_id:studentId});
         if (sequence !== inviteRequest || studentId !== inviteStudentId()) return;
         inviteView = {...result, studentId};
+        applyBoundTelegramContacts(studentId, result.student);
         renderInviteBindings();
+        await refreshPendingBindingBadge();
     } catch (error) {
         if (sequence === inviteRequest && studentId === inviteStudentId())
             document.getElementById('student-bot-invites-status').textContent = botMessage(error.message);
@@ -3010,7 +3089,15 @@ function openStudentCard(studentId) {
     document.getElementById('student-card-overlay').classList.remove('hidden');
     loadStudentLessonStats(studentId);
     loadStudentPayments(studentId);
-    document.getElementById('student-bot-invites').open = false;
+    const studentBotInvites = document.getElementById('student-bot-invites');
+    const hasPendingBinding = pendingBindingRoles.has(String(studentId));
+    studentBotInvites.open = hasPendingBinding;
+    studentBotInvites.closest('.ux-section')?.toggleAttribute('open', hasPendingBinding);
+    if (hasPendingBinding) requestAnimationFrame(() => {
+        if (inviteStudentId() !== String(studentId)) return;
+        studentBotInvites.open = true;
+        studentBotInvites.closest('.ux-section')?.setAttribute('open', '');
+    });
     document.getElementById('student-bot-invite-result').hidden = true;
     delete document.getElementById('student-bot-invite-result').dataset.role;
     document.getElementById('student-bot-invite-url').value = '';
@@ -3229,7 +3316,7 @@ function renderTopLesson() {
 }
 document.getElementById('btn-top-teacher-delay').onclick = () => openPersonalNotification(state.workCenter?.current_lesson || state.workCenter?.next_lesson, true);
 document.getElementById('btn-top-student-delay').onclick = () => openPersonalNotification(state.workCenter?.current_lesson || state.workCenter?.next_lesson, false);
-setInterval(() => { if (!document.hidden) refreshWorkCenterBadge(); }, 60000);
+setInterval(() => { if (!document.hidden) { refreshWorkCenterBadge(); refreshPendingBindingBadge(); } }, 60000);
 
 function renderWorkCenter() {
     const data = state.workCenter || { debts: [], windows: [], birthdays: [], summary: {} };
@@ -3457,7 +3544,10 @@ function renderStudentsList(filter = '') {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'student-list-row';
-        btn.innerHTML = `<strong>${userContent(info.name || id)}</strong>${threadIcon('chevron-right', 'row-chevron')}`;
+        const pendingRoles = pendingBindingRoles.get(String(id)) || [];
+        const pending = pendingRoles.length
+            ? `<small class="student-binding-pending">${threadIcon('message')}${escapeHtml(pendingBindingLabel(pendingRoles))}</small>` : '';
+        btn.innerHTML = `<span class="student-list-main"><strong>${userContent(info.name || id)}</strong>${pending}</span>${threadIcon('chevron-right', 'row-chevron')}`;
         btn.onclick = () => {
             document.getElementById('students-overlay').classList.add('hidden');
             openStudentCard(id);
@@ -3471,6 +3561,7 @@ document.getElementById('btn-students').onclick = () => {
     document.getElementById('students-search').value = '';
     renderStudentsList('');
     document.getElementById('students-overlay').classList.remove('hidden');
+    refreshPendingBindingBadge();
 };
 document.getElementById('students-search').addEventListener('input', e => renderStudentsList(e.target.value));
 document.getElementById('students-show-archived').onchange = () => renderStudentsList(document.getElementById('students-search').value);

@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TEMLI — расписание</title>
-    <link rel="stylesheet" href="styles.css?v=31.5.0-rc2">
-    <link rel="stylesheet" href="ux.css?v=31.5.0-rc2">
+    <link rel="stylesheet" href="styles.css?v=31.5.0-rc3">
+    <link rel="stylesheet" href="ux.css?v=31.5.0-rc3">
 </head>
 <body>
     <div id="startup-status" role="status" aria-live="polite">
@@ -77,7 +77,7 @@
             </div>
             <div class="header-actions">
                 <button id="btn-fullscreen" class="icon-btn hidden" type="button" title="На весь экран" aria-label="На весь экран"><svg class="thread-icon" aria-hidden="true"><use href="#ti-fullscreen"></use></svg></button>
-                <button id="btn-students" class="icon-btn" title="Ученики" aria-label="Ученики"><svg class="thread-icon" aria-hidden="true"><use href="#ti-students"></use></svg></button>
+                <button id="btn-students" class="icon-btn" title="Ученики" aria-label="Ученики"><svg class="thread-icon" aria-hidden="true"><use href="#ti-students"></use></svg><span id="student-binding-alert" class="student-binding-alert hidden" aria-hidden="true"></span></button>
                 <button id="btn-work-center" class="icon-btn work-center-btn" title="Помощник" aria-label="Помощник"><svg class="thread-icon" aria-hidden="true"><use href="#ti-assistant"></use></svg><span id="work-center-debt-alert" class="work-center-debt-alert hidden" aria-hidden="true">!</span></button>
                 <button id="btn-app-settings" class="icon-btn settings-icon-btn" title="Настройки" aria-label="Настройки"><svg class="thread-icon" aria-hidden="true"><use href="#ti-settings"></use></svg></button>
             </div>
@@ -731,7 +731,7 @@
     <div id="app-settings-overlay" class="hidden">
         <div class="modal-content compact-modal">
             <header class="modal-header">
-                <div><h2>Настройки TEMLI</h2><small id="settings-build-version" data-i18n-ignore>TEMLI 31.5.0-rc2</small></div>
+                <div><h2>Настройки TEMLI</h2><small id="settings-build-version" data-i18n-ignore>TEMLI 31.5.0-rc3</small></div>
                 <button id="btn-close-app-settings" class="close-modal" type="button" aria-label="Закрыть"><svg class="thread-icon" aria-hidden="true"><use href="#ti-close"></use></svg></button>
             </header>
             <div class="modal-body compact-stack">
@@ -746,6 +746,24 @@
                     <input id="personal-bot-token" type="password" autocomplete="new-password" spellcheck="false" maxlength="128">
                     <button id="personal-bot-check" class="secondary-btn" type="button">Проверить</button>
                     <button id="personal-bot-disconnect" class="secondary-btn" type="button" hidden>Отключить</button>
+                    <details id="notification-templates-panel" class="notification-templates-panel">
+                        <summary id="notification-templates-title">Тексты сообщений</summary>
+                        <p id="notification-templates-help" class="field-hint">Редкая настройка. Пустое поле использует стандартный текст.</p>
+                        <label id="student-binding-template-label" for="student-binding-template">После подключения ученика</label>
+                        <textarea id="student-binding-template" rows="3" maxlength="1000"></textarea>
+                        <small id="student-binding-template-hint" class="field-hint">Можно использовать {name}.</small>
+                        <label id="parent-binding-template-label" for="parent-binding-template">После подключения родителя</label>
+                        <textarea id="parent-binding-template" rows="3" maxlength="1000"></textarea>
+                        <small id="parent-binding-template-hint" class="field-hint">Можно использовать {name}.</small>
+                        <label id="student-reminder-template-label" for="student-reminder-template">Напоминание ученику</label>
+                        <textarea id="student-reminder-template" rows="3" maxlength="1000"></textarea>
+                        <small id="student-reminder-template-hint" class="field-hint">Переменные: {time}, {link}.</small>
+                        <label id="parent-end-template-label" for="parent-end-template">Родителю после занятия</label>
+                        <textarea id="parent-end-template" rows="3" maxlength="1000"></textarea>
+                        <small id="parent-end-template-hint" class="field-hint">Переменные: {start}, {end}.</small>
+                        <button id="btn-reset-notification-templates" class="secondary-btn" type="button">Вернуть стандартные тексты</button>
+                        <small id="notification-templates-status" class="field-hint" role="status"></small>
+                    </details>
                 </details>
                 <div class="settings-mini-title">Язык и валюта</div>
                 <div class="compact-grid-two settings-locale-grid">
@@ -1041,7 +1059,7 @@
         </div>
     </div>
 
-    <script src="startup.js?v=31.5.0-rc2"></script>
+    <script src="startup.js?v=31.5.0-rc3"></script>
 </body>
 </html>
 

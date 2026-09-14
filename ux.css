@@ -3,6 +3,12 @@
 .header-top { grid-template-columns:minmax(54px,1fr) minmax(0,340px) minmax(54px,1fr); }
 .header-context-actions, .header-actions { display:flex; align-items:center; }
 .header-context-actions { justify-self:start; }
+.support-body { display:flex; flex-direction:column; gap:12px; }
+#support-overlay { position:fixed; left:0; right:0; z-index:1200; background:#0007; display:flex; align-items:center; justify-content:center; }
+#support-overlay.hidden { display:none; }
+.support-contact { display:block; border:1px solid #d7e2f5; border-radius:10px; padding:12px; color:#185abc; background:#f2f6fd; text-decoration:none; font-size:14px; line-height:1.4; overflow-wrap:anywhere; }
+.support-contact[hidden] { display:none; }
+.support-version { color:#707782; font-size:12px; }
 .header-actions { justify-self:end; }
 .header-top .nav-arrows { display:flex; justify-self:center; width:100%; min-width:0; padding:0; background:transparent; border-radius:0; }
 .header-center-stack { width:100%; min-width:0; }

@@ -243,7 +243,7 @@ function uxEndTime(time, duration) {
 
     const actions = document.querySelector('#action-menu-overlay .modal-actions-column');
     const more = uxSection('Ещё', 'More', [
-        byId('btn-action-report'), byId('btn-action-delete'),
+        byId('btn-action-report'),
         byId('action-color-label'), byId('action-color-palette')
     ], byId('btn-action-close'));
     more.id = 'action-more';
@@ -534,6 +534,5 @@ function uxEndTime(time, duration) {
     window.addEventListener('temli-language-change',localizeUx);
     localizeUx();
 })();
-
 
 

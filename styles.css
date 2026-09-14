@@ -802,6 +802,10 @@ body {
 .receipt-settings-modal { max-width: 380px; }
 .help-modal { max-width: 520px; }
 .help-body { display: flex; flex-direction: column; gap: 10px; }
+.help-body > * { flex-shrink: 0; }
+.help-topics-title { margin: 3px 0 0; font-size: 13px; color: #5f6368; }
+.help-section summary:focus-visible { outline: 2px solid #1a73e8; outline-offset: -3px; }
+.help-section-body { overflow-wrap: anywhere; }
 .help-lead {
     margin: 0;
     padding: 11px 12px;
@@ -818,7 +822,7 @@ body {
     background: #fff;
 }
 .help-start h3 { margin: 0 0 10px; font-size: 15px; }
-.help-step-list { list-style: none; counter-reset: help-step; display: grid; gap: 10px; }
+.help-step-list { margin: 0; padding: 0; list-style: none; counter-reset: help-step; display: grid; gap: 10px; }
 .help-step-list li {
     counter-increment: help-step;
     display: grid;
@@ -1695,5 +1699,4 @@ body > div[id$="-overlay"] {
     .top-next-lesson { font-size: 14px; }
     .group-member-summary { max-width: 135px; }
 }
-
 

@@ -2671,16 +2671,24 @@ document.getElementById('btn-open-receipt-settings').onclick = () => {
     document.getElementById('app-settings-overlay').classList.add('hidden');
     document.getElementById('receipt-settings-overlay').classList.remove('hidden');
 };
-document.getElementById('btn-open-help').onclick = () => {
+function openHelp(fromSettings = true) {
     document.getElementById('app-settings-overlay').classList.add('hidden');
     const helpOverlay = document.getElementById('help-overlay');
+    helpOverlay.dataset.returnTo = fromSettings ? 'settings' : 'calendar';
     helpOverlay.classList.remove('hidden');
     const helpBody = helpOverlay.querySelector('.modal-body');
     if (helpBody) helpBody.scrollTop = 0;
-};
+    window.dispatchEvent(new CustomEvent('temli-help-open'));
+    document.getElementById('btn-back-help').focus({preventScroll: true});
+}
+document.getElementById('btn-open-help').onclick = () => openHelp(true);
 function closeHelp(openMain = true) {
-    document.getElementById('help-overlay').classList.add('hidden');
-    if (openMain) document.getElementById('app-settings-overlay').classList.remove('hidden');
+    const helpOverlay = document.getElementById('help-overlay');
+    helpOverlay.classList.add('hidden');
+    const toSettings = openMain && helpOverlay.dataset.returnTo !== 'calendar';
+    if (toSettings) document.getElementById('app-settings-overlay').classList.remove('hidden');
+    const target = toSettings ? 'btn-open-help' : document.getElementById('calendar-first-step')?.hidden === false ? 'btn-first-help' : 'btn-app-settings';
+    document.getElementById(target)?.focus({preventScroll: true});
 }
 document.getElementById('btn-back-help').onclick = () => closeHelp(true);
 document.getElementById('btn-help-back-bottom').onclick = () => closeHelp(true);
@@ -3742,7 +3750,6 @@ document.getElementById('top-next-lesson').onclick = () => {
     const hidden = document.getElementById('top-next-lesson-details').classList.toggle('hidden');
     document.getElementById('top-next-lesson').setAttribute('aria-expanded', String(!hidden));
 };
-
 
 
 

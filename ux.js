@@ -120,7 +120,10 @@ function uxEndTime(time, duration) {
                     uxMessage(uxText('Действие отменено','Action undone'));
                     await refreshScheduleOnly();
                 }
-            } catch (_) { undo.hidden = true; }
+            } catch (_) {
+                undo.hidden = true;
+                uxMessage(uxText('Не удалось подтвердить отмену. Обновите расписание и проверьте результат.', 'Could not confirm undo. Reload the schedule and check the result.'));
+            }
         };
         undoTimer = setTimeout(() => undo.hidden = true,20000);
     });
@@ -168,8 +171,15 @@ function uxEndTime(time, duration) {
         openAddModal(dateKey(date), `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`);
         byId('lesson-repeat').value = 'no';
         byId('repeat-until-wrap').classList.add('hidden');
+        if (!visibleStudentEntries().length) {
+            byId('student-select').value = 'manual';
+            byId('student-select').dispatchEvent(new Event('change', {bubbles: true}));
+        }
     }, 'primary-btn');
-    intro.append(introText, addFirst);
+    addFirst.id = 'btn-first-lesson';
+    const firstHelp = uxButton('Краткая справка', 'Quick help', () => openHelp(false), 'ux-text-button');
+    firstHelp.id = 'btn-first-help';
+    intro.append(introText, addFirst, firstHelp);
     toolbar.after(intro);
 
     function sizeCalendar() {
@@ -398,8 +408,11 @@ function uxEndTime(time, duration) {
         });
     }
     window.addEventListener('temli-saved', async event => {
-        uxMessage(uxText('Сохранено', 'Saved'));
-        if (event.detail.overlay === 'modal-overlay' && state.onboardingNeeded && byId('lesson-type-select').value !== 'personal') {
+        const firstLesson = event.detail.overlay === 'modal-overlay' && state.onboardingNeeded && byId('lesson-type-select').value !== 'personal';
+        uxMessage(firstLesson
+            ? uxText('Первое занятие готово. Нажмите его для оплаты, переноса и связи.', 'Your first lesson is ready. Tap it for payment, rescheduling and contacts.')
+            : uxText('Сохранено', 'Saved'));
+        if (firstLesson) {
             try { await markOnboardingCompleted(); } catch (_) { /* The lesson has already been saved. */ }
         }
         updateCalendarChrome();
@@ -521,8 +534,6 @@ function uxEndTime(time, duration) {
     window.addEventListener('temli-language-change',localizeUx);
     localizeUx();
 })();
-
-
 
 
 

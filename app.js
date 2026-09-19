@@ -2276,6 +2276,10 @@ function openMaxApp() {
     const openUri = uri => {
         const link = document.createElement('a');
         link.href = uri;
+        // Keep the Mini App in its current WebView. Without this, Android may
+        // try to load the custom URI in the schedule window and break its page.
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
         link.style.display = 'none';
         document.body.appendChild(link);
         link.click();
@@ -2284,13 +2288,18 @@ function openMaxApp() {
     let appBecameVisible = false;
     const onVisibilityChange = () => { appBecameVisible = document.visibilityState === 'hidden'; };
     document.addEventListener('visibilitychange', onVisibilityChange);
-    openUri('max://app_host');
-    // Some Android WebViews ignore a custom scheme once. Ask Android to resolve
-    // the same scheme after a short delay, without ever falling back to a website.
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    // Android needs the concrete MAX package; a bare max:// URI may be treated
+    // as an unknown web address by Telegram's WebView.
+    openUri(isAndroid
+        ? 'intent://app_host#Intent;scheme=max;package=ru.oneme.app;end'
+        : 'max://app_host');
+    // Keep a protocol fallback for Android builds that do not accept intents.
+    // Neither branch is allowed to navigate the schedule window or open max.ru.
     window.setTimeout(() => {
         document.removeEventListener('visibilitychange', onVisibilityChange);
-        if (!appBecameVisible && document.visibilityState !== 'hidden' && /Android/i.test(navigator.userAgent)) {
-            openUri('intent://app_host#Intent;scheme=max;end');
+        if (!appBecameVisible && document.visibilityState !== 'hidden' && isAndroid) {
+            openUri('max://app_host');
         }
     }, 650);
 }

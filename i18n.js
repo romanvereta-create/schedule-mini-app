@@ -1,5 +1,5 @@
 (() => {
-    const VERSION = '31.8.1';
+    const VERSION = '31.8.2';
     const LANGUAGES = {
         ru: { label: 'Русский', locale: 'ru-RU', currency: 'RUB' },
         en: { label: 'English', locale: 'en-US', currency: 'USD' },

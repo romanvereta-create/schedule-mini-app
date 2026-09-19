@@ -1189,15 +1189,21 @@ function getContacts(containerId) {
 let lessonInviteAvailabilityRequest = 0;
 
 function renderLessonStudentSetupLabels() {
+    for (const id of ['lesson-parent-name', 'student-parent-name']) {
+        const field = document.getElementById(id);
+        field.placeholder = botText('Имя родителя (необязательно)', 'Parent name (optional)');
+        field.setAttribute('aria-label', field.placeholder);
+    }
     const setup = document.getElementById('lesson-student-setup');
     if (!setup) return;
-    setup.querySelector('.lesson-student-setup-head strong').textContent = botText('Контакты', 'Contacts');
-    setup.querySelector('.lesson-student-setup-head small').textContent = botText('Сохранятся в карточке ученика', 'Saved to the student profile');
+    setup.querySelector('.lesson-student-setup-head strong').textContent = botText('Ученик и родитель', 'Student and parent');
+    document.querySelector('#lesson-manual-contacts > summary').textContent = botText('Контакты вручную', 'Enter contacts manually');
+    setup.querySelector('.lesson-student-setup-head small').textContent = botText('Необязательно: можно сохранить только имя, никому не отправляя сообщения', 'Optional: save just a name without messaging anyone');
     const labels = setup.querySelectorAll('.form-group > label');
     if (labels[0]) labels[0].textContent = botText('Контакт ученика', 'Student contact');
     if (labels[1]) labels[1].textContent = botText('Контакт родителя', 'Parent contact');
     setup.querySelectorAll('.add-contact-btn').forEach(button => { button.textContent = botText('＋ Добавить контакт', '＋ Add contact'); });
-    document.querySelector('#lesson-bot-invite-options > strong').textContent = botText('Приглашение в моего бота', 'Invite to my bot');
+    document.querySelector('#lesson-bot-invite-options > strong').textContent = botText('Приглашения — по желанию', 'Invitations — optional');
     document.querySelector('#lesson-invite-student + span').textContent = botText('Создать ссылку ученику', 'Create student link');
     document.querySelector('#lesson-invite-parent + span').textContent = botText('Создать ссылку родителю', 'Create parent link');
     const contactLabels = {
@@ -1220,6 +1226,8 @@ function renderLessonStudentSetupLabels() {
 
 function syncLessonStudentSetup(studentId) {
     const info = studentId && studentId !== 'manual' ? getStudentInfo(studentId) : {};
+    document.getElementById('lesson-parent-name').value = info.parent_name || '';
+    document.getElementById('lesson-manual-contacts').open = Object.values(info.contacts || {}).some(Boolean) || Object.values(info.student_contacts || {}).some(Boolean);
     renderContacts('lesson-student-contacts', info.student_contacts || {});
     renderContacts('lesson-parent-contacts', info.contacts || {});
 }
@@ -1231,14 +1239,13 @@ async function loadLessonInviteAvailability() {
     options.hidden = true;
     renderLessonStudentSetupLabels();
     try {
-        const response = await apiFetch('/personal_bot');
+        const response = await apiFetch('/personal_invites', {method:'POST', body:JSON.stringify({action:'availability'})});
         const result = await response.json();
         if (requestId !== lessonInviteAvailabilityRequest || !response.ok || result.status !== 'ok') return;
-        personalBotCurrent = result.bot || null;
-        if (!personalBotCurrent) return;
+        if (!result.bot_username) return;
         hint.textContent = botText(
-            `Через @${personalBotCurrent.username}. Ссылка появится после сохранения занятия.`,
-            `Via @${personalBotCurrent.username}. The link will appear after the lesson is saved.`
+            `Через @${result.bot_username}. После сохранения отправьте ссылки ученику и родителю. Личный бот не обязателен.`,
+            `Via @${result.bot_username}. Send the links after saving. A personal bot is optional.`
         );
         options.hidden = false;
     } catch (_) {
@@ -1290,7 +1297,17 @@ function showLessonInviteResults(studentName, links, failedRoles) {
             }
         };
         linkRow.append(input, copy);
+        const share = document.createElement('button');
+        share.type = 'button';
+        share.className = 'secondary-btn';
+        share.textContent = botText('Отправить', 'Send');
+        share.onclick = () => {
+            const url = 'https://t.me/share/url?url=' + encodeURIComponent(item.url);
+            if (typeof tg.openTelegramLink === 'function') tg.openTelegramLink(url);
+            else window.open(url, '_blank', 'noopener,noreferrer');
+        };
         row.append(label, linkRow);
+        row.append(share);
         list.append(row);
     }
     status.textContent = failedRoles.length
@@ -1333,6 +1350,8 @@ function resetAddForm(type = 'student') {
     renderGroupMembers([]);
     document.getElementById('student-select').value = '';
     document.getElementById('manual-student-name').value = '';
+    document.getElementById('lesson-parent-name').value = '';
+    document.getElementById('lesson-manual-contacts').open = false;
     document.getElementById('manual-student-name').classList.add('hidden');
     renderContacts('lesson-student-contacts', {});
     renderContacts('lesson-parent-contacts', {});
@@ -1397,6 +1416,7 @@ function openAddModal(date, time, type = 'student') {
     document.getElementById('lesson-duration').value = '60';
     loadLessonInviteAvailability();
     document.getElementById('modal-overlay').classList.remove('hidden');
+    document.querySelectorAll('#modal-overlay .modal-body, #modal-overlay .modal-content').forEach(el => { el.scrollTop = 0; });
 }
 
 function openEditModal(date, lesson) {
@@ -1522,6 +1542,7 @@ async function saveLesson(options = {}) {
         repeat_until: repeatUntil,
         ...(isNewIndividual ? {
             student_contacts: getContacts('lesson-student-contacts'),
+            parent_name: document.getElementById('lesson-parent-name').value.trim(),
             contacts: getContacts('lesson-parent-contacts')
         } : {})
     };
@@ -2475,7 +2496,8 @@ function botMessage(code) {
         expired_preview: ['Проверка истекла. Проверьте токен заново.', 'Verification expired. Check the token again.'],
         key_mismatch: ['Не удалось открыть сохранённое подключение. Обратитесь к администратору.', 'The saved connection cannot be read. Contact the administrator.'],
         changed: ['Подключение изменилось. Откройте настройки заново.', 'The connection changed. Reopen settings.']
-        ,bot_required: ['Сначала подключите личного бота в настройках.', 'Connect your personal bot in settings first.']
+        ,bot_required: ['Бот для приглашений пока недоступен.', 'The invitation bot is currently unavailable.']
+        ,bot_unavailable: ['TEMLI-бот ещё запускается. Попробуйте чуть позже.', 'The TEMLI bot is starting. Try again shortly.']
         ,student_missing: ['Карточка ученика не найдена.', 'Student profile not found.']
         ,binding_missing: ['Привязка изменилась. Обновите список.', 'The connection changed. Refresh the list.']
         ,public_url: ['Не настроен адрес приёма сообщений. Обратитесь к администратору TEMLI.', 'The message endpoint is not configured. Contact TEMLI support.']
@@ -2490,7 +2512,7 @@ function renderPersonalBot(result) {
     const connected = Boolean(personalBotCurrent);
     document.getElementById('personal-bot-status').textContent = !result.enabled ? botMessage('unavailable')
         : connected ? botText('Подключён: ', 'Connected: ') + personalBotCurrent.name + ' · @' + personalBotCurrent.username
-        : botText('Бот пока не подключён.', 'No bot connected yet.');
+        : botText('Личный бот не подключён. Приглашения работают через TEMLI.', 'No personal bot connected. Invitations work through TEMLI.');
     document.getElementById('personal-bot-help').hidden = connected;
     document.getElementById('personal-bot-label').hidden = connected;
     document.getElementById('personal-bot-token').hidden = connected;
@@ -2505,8 +2527,8 @@ function renderPersonalBotLabels() {
     text('personal-bot-label', 'Токен BotFather', 'BotFather token');
     text('personal-bot-check', 'Проверить и подключить', 'Verify and connect');
     text('personal-bot-disconnect', 'Отключить', 'Disconnect');
-    text('personal-bot-help', 'Создайте отдельного бота через /newbot в @BotFather и вставьте его токен. Приглашения ученика и родителя доступны в карточке ученика. Бот не должен работать в другом сервисе.',
-        'Create a dedicated bot using /newbot in @BotFather and paste its token. Student and parent invitations are available in the student profile. The bot must not be running in another service.');
+    text('personal-bot-help', 'Личный бот — по желанию: создайте его через /newbot в @BotFather и вставьте токен. Без него приглашения и сообщения работают через общий TEMLI-бот. Не подключайте бота другого сервиса.',
+        'A personal bot is optional: create one using /newbot in @BotFather and paste its token. Without one, invitations and messages use the shared TEMLI bot. Do not connect another service’s bot.');
     text('teacher-delay-template-label', 'Я задержусь — ученику', 'My delay — to student');
     text('student-delay-template-label', 'Ученик задерживается — ученику', 'Student delay — to student');
     text('parent-delay-template-label', 'Ученик задерживается — родителю', 'Student delay — to parent');
@@ -2947,7 +2969,7 @@ function inviteStudentId() {
 }
 function renderInviteLabels() {
     const labels = [
-        ['student-bot-invites-title', 'Пригласить в моего бота', 'Invite to my bot'],
+        ['student-bot-invites-title', 'Подключить ученика и родителя', 'Connect student and parent'],
         ['student-bot-invites-help', 'Одноразовая ссылка действует 48 часов. После запуска бота обновите привязки и подтвердите человека.',
             'The one-time link expires in 48 hours. After they start the bot, refresh connections and confirm their identity.'],
         ['student-bot-invite-student', 'Ссылка ученику', 'Student invitation'],
@@ -3103,6 +3125,7 @@ function openStudentCard(studentId) {
     document.getElementById('student-zoom-link').value = info.zoom_link || '';
     setStudentStatus(info.status || 'active');
     renderContacts('student-card-student-contacts', info.student_contacts || {});
+    document.getElementById('student-parent-name').value = info.parent_name || '';
     renderContacts('student-card-parent-contacts', info.contacts || {});
     document.getElementById('student-card-overlay').classList.remove('hidden');
     loadStudentLessonStats(studentId);
@@ -3137,6 +3160,7 @@ document.getElementById('btn-save-student-card').onclick = async () => {
         board_link: normalizeExternalUrl(document.getElementById('student-board-link').value),
         zoom_link: normalizeExternalUrl(document.getElementById('student-zoom-link').value),
         student_contacts: getContacts('student-card-student-contacts'),
+        parent_name: document.getElementById('student-parent-name').value.trim(),
         contacts: getContacts('student-card-parent-contacts')
     };
     const response = await apiFetch('/update_student_profile', { method: 'POST', body: JSON.stringify(payload) });
@@ -3750,6 +3774,3 @@ document.getElementById('top-next-lesson').onclick = () => {
     const hidden = document.getElementById('top-next-lesson-details').classList.toggle('hidden');
     document.getElementById('top-next-lesson').setAttribute('aria-expanded', String(!hidden));
 };
-
-
-

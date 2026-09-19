@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TEMLI — расписание</title>
-    <link rel="stylesheet" href="styles.css?v=31.5.1">
-    <link rel="stylesheet" href="ux.css?v=31.5.1">
+    <link rel="stylesheet" href="styles.css?v=31.6.0">
+    <link rel="stylesheet" href="ux.css?v=31.6.0">
 </head>
 <body>
     <div id="startup-status" role="status" aria-live="polite">
@@ -315,6 +315,15 @@
                             <strong>Контакты</strong>
                             <small>Сохранятся в карточке ученика</small>
                         </div>
+                        <input type="text" id="lesson-parent-name" maxlength="128" placeholder="Имя родителя (необязательно)" aria-label="Имя родителя (необязательно)">
+                        <div id="lesson-bot-invite-options" class="lesson-bot-invite-options" hidden>
+                            <strong>Приглашения — по желанию</strong>
+                            <label class="checkbox-label"><input type="checkbox" id="lesson-invite-student"><span>Создать ссылку ученику</span></label>
+                            <label class="checkbox-label"><input type="checkbox" id="lesson-invite-parent"><span>Создать ссылку родителю</span></label>
+                            <small id="lesson-bot-invite-hint" class="field-hint"></small>
+                        </div>
+                        <details id="lesson-manual-contacts">
+                        <summary>Контакты вручную</summary>
                         <div class="form-group">
                             <label>Контакт ученика</label>
                             <div id="lesson-student-contacts" class="contacts-list"></div>
@@ -325,12 +334,7 @@
                             <div id="lesson-parent-contacts" class="contacts-list"></div>
                             <button type="button" class="secondary-btn add-contact-btn" data-target="lesson-parent-contacts">＋ Добавить контакт</button>
                         </div>
-                        <div id="lesson-bot-invite-options" class="lesson-bot-invite-options" hidden>
-                            <strong>Приглашение в моего бота</strong>
-                            <label class="checkbox-label"><input type="checkbox" id="lesson-invite-student"><span>Создать ссылку ученику</span></label>
-                            <label class="checkbox-label"><input type="checkbox" id="lesson-invite-parent"><span>Создать ссылку родителю</span></label>
-                            <small id="lesson-bot-invite-hint" class="field-hint"></small>
-                        </div>
+                        </details>
                     </section>
                     <!-- Отображение ученика при РЕДАКТИРОВАНИИ -->
                     <div class="form-group hidden" id="student-fixed-group">
@@ -573,7 +577,8 @@
                 </div>
                 <div class="form-group">
                     <label>Контакт родителя</label>
-                    <div id="student-card-parent-contacts" class="contacts-list"></div>
+                            <input type="text" id="student-parent-name" maxlength="128" placeholder="Имя родителя (необязательно)" aria-label="Имя родителя (необязательно)" data-i18n-ignore>
+                            <div id="student-card-parent-contacts" class="contacts-list"></div>
                     <button type="button" class="secondary-btn add-contact-btn" data-target="student-card-parent-contacts">＋ Добавить контакт</button>
                 </div>
                 <div class="student-notification-options" data-i18n-ignore>
@@ -731,7 +736,7 @@
     <div id="app-settings-overlay" class="hidden">
         <div class="modal-content compact-modal">
             <header class="modal-header">
-                <div><h2>Настройки TEMLI</h2><small id="settings-build-version" data-i18n-ignore>TEMLI 31.5.1</small></div>
+                <div><h2>Настройки TEMLI</h2><small id="settings-build-version" data-i18n-ignore>TEMLI 31.6.0</small></div>
                 <button id="btn-close-app-settings" class="close-modal" type="button" aria-label="Закрыть"><svg class="thread-icon" aria-hidden="true"><use href="#ti-close"></use></svg></button>
             </header>
             <div class="modal-body compact-stack">
@@ -939,6 +944,6 @@
         </div>
     </div>
 
-    <script src="startup.js?v=31.5.1"></script>
+    <script src="startup.js?v=31.6.0"></script>
 </body>
 </html>

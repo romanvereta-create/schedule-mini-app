@@ -2269,41 +2269,6 @@ function normalizedWhatsAppNumber(value) {
     return /^[1-9]\d{7,14}$/.test(digits) ? digits : '';
 }
 
-function openMaxApp() {
-    // Do not use Telegram.WebApp.openLink here: it deliberately opens a browser.
-    // MAX has no documented deep link to a private chat by phone number, so the
-    // contact is copied first and the native app is opened for its search field.
-    const openUri = uri => {
-        const link = document.createElement('a');
-        link.href = uri;
-        // Keep the Mini App in its current WebView. Without this, Android may
-        // try to load the custom URI in the schedule window and break its page.
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-    };
-    let appBecameVisible = false;
-    const onVisibilityChange = () => { appBecameVisible = document.visibilityState === 'hidden'; };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    const isAndroid = /Android/i.test(navigator.userAgent);
-    // Android needs the concrete MAX package; a bare max:// URI may be treated
-    // as an unknown web address by Telegram's WebView.
-    openUri(isAndroid
-        ? 'intent://app_host#Intent;scheme=max;package=ru.oneme.app;end'
-        : 'max://app_host');
-    // Keep a protocol fallback for Android builds that do not accept intents.
-    // Neither branch is allowed to navigate the schedule window or open max.ru.
-    window.setTimeout(() => {
-        document.removeEventListener('visibilitychange', onVisibilityChange);
-        if (!appBecameVisible && document.visibilityState !== 'hidden' && isAndroid) {
-            openUri('max://app_host');
-        }
-    }, 650);
-}
-
 async function openContact(type, value) {
     switch(type) {
         case 'tg': {
@@ -2326,11 +2291,10 @@ async function openContact(type, value) {
             if (!contact) return alert(uiText('Контакт MAX не указан.', 'MAX contact is missing.'));
             try {
                 await copyTextToClipboard(contact);
-                if (typeof uxMessage === 'function') uxMessage(uiText('Контакт MAX скопирован. Вставьте его в поиск MAX.', 'MAX contact copied. Paste it into MAX search.'));
+                if (typeof uxMessage === 'function') uxMessage(uiText('Контакт MAX скопирован. Откройте MAX и вставьте его в поиск.', 'MAX contact copied. Open MAX and paste it into search.'));
             } catch (_) {
                 alert(uiText(`Не удалось скопировать автоматически. Контакт MAX: ${contact}`, `Could not copy automatically. MAX contact: ${contact}`));
             }
-            openMaxApp();
             break;
         }
         default:

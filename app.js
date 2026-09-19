@@ -2269,6 +2269,32 @@ function normalizedWhatsAppNumber(value) {
     return /^[1-9]\d{7,14}$/.test(digits) ? digits : '';
 }
 
+function openMaxApp() {
+    // Do not use Telegram.WebApp.openLink here: it deliberately opens a browser.
+    // MAX has no documented deep link to a private chat by phone number, so the
+    // contact is copied first and the native app is opened for its search field.
+    const openUri = uri => {
+        const link = document.createElement('a');
+        link.href = uri;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    };
+    let appBecameVisible = false;
+    const onVisibilityChange = () => { appBecameVisible = document.visibilityState === 'hidden'; };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    openUri('max://app_host');
+    // Some Android WebViews ignore a custom scheme once. Ask Android to resolve
+    // the same scheme after a short delay, without ever falling back to a website.
+    window.setTimeout(() => {
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+        if (!appBecameVisible && document.visibilityState !== 'hidden' && /Android/i.test(navigator.userAgent)) {
+            openUri('intent://app_host#Intent;scheme=max;end');
+        }
+    }, 650);
+}
+
 async function openContact(type, value) {
     switch(type) {
         case 'tg': {
@@ -2295,7 +2321,7 @@ async function openContact(type, value) {
             } catch (_) {
                 alert(uiText(`Не удалось скопировать автоматически. Контакт MAX: ${contact}`, `Could not copy automatically. MAX contact: ${contact}`));
             }
-            openExternalContactUrl('https://max.ru');
+            openMaxApp();
             break;
         }
         default:

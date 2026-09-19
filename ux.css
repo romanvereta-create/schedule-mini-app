@@ -93,12 +93,6 @@
 .student-bot-invite-link-row .ux-invite-url { display:none; }
 .student-bot-invite-link-row .ux-invite-url.ux-show-url { display:block; flex-basis:100%; width:100%; }
 #move-hint > span { display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
-.calendar-move-mode .time-slot { position:relative; background:#eaf7ef; cursor:pointer; }
-.calendar-move-mode .time-slot::after { content:""; position:absolute; inset:3px; border:1px dashed #48a868; border-radius:5px; pointer-events:none; }
-.calendar-move-mode .time-slot.move-slot-day-off { background:#fff6dc; }
-.calendar-move-mode .time-slot.move-slot-day-off::after { border-color:#d49a24; }
-.calendar-move-mode .time-slot.move-slot-unavailable { background:#f1f2f4; cursor:not-allowed; opacity:.55; }
-.calendar-move-mode .time-slot.move-slot-unavailable::after { border-color:#b4b8bf; }
 .calendar-dragging { cursor:grabbing; }
 .calendar-dragging .event-card { cursor:grabbing; }
 .lesson-drag-ghost {
@@ -114,15 +108,15 @@
 .lesson-drop-preview.is-unavailable { border-color:#c5352c; background:#fde8e6dd; color:#a0251f; }
 .lesson-drop-preview.is-day-off.is-available { border-color:#c88b16; background:#fff2cddd; color:#835907; }
 .lesson-drag-time-scale {
-    position:fixed; z-index:5300; width:52px; display:grid; grid-template-rows:repeat(12,minmax(0,1fr));
-    padding:4px; border:1px solid #9ab7dc; border-radius:10px; background:#fff;
+    position:fixed; z-index:5300; width:74px; display:grid; grid-template-rows:repeat(12,23px);
+    padding:4px; border:2px solid #8baed9; border-radius:12px; background:#fff;
     box-shadow:0 6px 22px #0003; pointer-events:none; box-sizing:border-box;
 }
 .lesson-drag-time-tick {
-    display:flex; align-items:center; justify-content:flex-end; padding-right:4px;
-    border-top:1px solid #d9e1eb; color:#657184; font-size:8px; line-height:1;
+    display:flex; align-items:center; justify-content:center; min-height:23px;
+    border-top:1px solid #d9e1eb; color:#536174; font-size:11px; line-height:1;
 }
-.lesson-drag-time-tick.active { margin:0 -1px; border-radius:5px; background:#1a73e8; color:#fff; font-size:10px; font-weight:800; }
+.lesson-drag-time-tick.active { margin:1px -1px; border-radius:6px; background:#1a73e8; color:#fff; font-size:13px; font-weight:800; }
 .event-card { -webkit-user-select:none; user-select:none; }
 :where(button,summary,[role="button"],input,select,textarea):focus-visible { outline:2px solid #1a73e8; outline-offset:2px; }
 @media (max-width:420px) {

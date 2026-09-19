@@ -60,7 +60,10 @@ const state = {
 };
 
 const MOVE_FINE_HOLD_MS = 700;
+const MOVE_TOUCH_HOLD_MS = 220;
 const MOVE_DRAG_THRESHOLD = 6;
+const MOVE_FINE_TICK_HEIGHT = 23;
+const MOVE_FINE_SCALE_WIDTH = 74;
 let lessonDragSession = null;
 let suppressLessonClickUntil = 0;
 
@@ -711,6 +714,18 @@ function dragTargetFromPoint(clientX, clientY, precise = false) {
         available:isMoveTargetAvailable(date, startMinutes), dayOff:isDayOffDate(dates[dayIndex]), rect};
 }
 
+function lockedPreciseTarget(session, clientY) {
+    const lock = session?.precisionLock;
+    if (!lock) return null;
+    if (!Number.isFinite(session.scaleTop)) return {...lock,
+        available:isMoveTargetAvailable(lock.date, lock.startMinutes)};
+    const scaleTop = Number.isFinite(session.scaleTop) ? session.scaleTop : clientY;
+    const index = Math.max(0, Math.min(11, Math.floor((clientY - scaleTop) / MOVE_FINE_TICK_HEIGHT)));
+    const startMinutes = lock.cellStart + index * 5;
+    return {...lock, startMinutes, time:moveTimeLabel(startMinutes),
+        available:isMoveTargetAvailable(lock.date, startMinutes)};
+}
+
 function clearLessonDragVisuals() {
     clearTimeout(lessonDragSession?.fineTimer);
     document.querySelector('.lesson-drag-ghost')?.remove();
@@ -738,11 +753,22 @@ function renderDragTimeScale(target) {
         tick.textContent = moveTimeLabel(minute);
         return tick;
     }));
-    const cellTop = target.rect.top + (target.cellStart - START_HOUR * 60) * hourHeight / 60;
-    const height = Math.max(144, hourHeight);
+    const height = MOVE_FINE_TICK_HEIGHT * 12 + 12;
+    if (!Number.isFinite(lessonDragSession.scaleTop)) {
+        const activeIndex = Math.max(0, Math.min(11, Math.round((target.startMinutes - target.cellStart) / 5)));
+        lessonDragSession.scaleTop = Math.max(6, Math.min(window.innerHeight - height - 6,
+            lessonDragSession.clientY - (activeIndex + .5) * MOVE_FINE_TICK_HEIGHT - 4));
+    }
+    if (!Number.isFinite(lessonDragSession.scaleLeft)) {
+        const leftSide = lessonDragSession.clientX - MOVE_FINE_SCALE_WIDTH - 18;
+        lessonDragSession.scaleLeft = leftSide >= 6
+            ? leftSide
+            : Math.min(window.innerWidth - MOVE_FINE_SCALE_WIDTH - 6, lessonDragSession.clientX + 18);
+    }
     scale.style.height = `${height}px`;
-    scale.style.left = `${Math.max(4, target.rect.left - 56)}px`;
-    scale.style.top = `${Math.max(4, Math.min(window.innerHeight - height - 4, cellTop - (height - hourHeight) / 2))}px`;
+    scale.style.width = `${MOVE_FINE_SCALE_WIDTH}px`;
+    scale.style.left = `${lessonDragSession.scaleLeft}px`;
+    scale.style.top = `${lessonDragSession.scaleTop}px`;
 }
 
 function renderLessonDropPreview(target) {
@@ -779,22 +805,28 @@ function updateLessonDrag(clientX, clientY) {
     const viewport = container.getBoundingClientRect();
     if (clientY < viewport.top + 34) container.scrollTop = Math.max(0, container.scrollTop - 12);
     else if (clientY > viewport.bottom - 34) container.scrollTop += 12;
-    const basic = dragTargetFromPoint(clientX, clientY, false);
+    const basic = session.precise && session.precisionLock
+        ? session.precisionLock
+        : dragTargetFromPoint(clientX, clientY, false);
     const cellKey = basic ? `${basic.date}:${basic.cellStart}` : '';
-    if (cellKey !== session.cellKey) {
+    if (!session.precise && cellKey !== session.cellKey) {
         clearTimeout(session.fineTimer);
         session.cellKey = cellKey;
         session.precise = false;
         document.body.classList.remove('calendar-drag-precise');
         if (basic) session.fineTimer = setTimeout(() => {
             if (lessonDragSession !== session || session.cellKey !== cellKey) return;
+            const preciseTarget = dragTargetFromPoint(session.clientX, session.clientY, true) || session.target;
             session.precise = true;
+            session.precisionLock = preciseTarget ? {...preciseTarget} : null;
+            session.scaleTop = null;
+            session.scaleLeft = null;
             document.body.classList.add('calendar-drag-precise');
             haptic('medium');
             updateLessonDrag(session.clientX, session.clientY);
         }, MOVE_FINE_HOLD_MS);
     }
-    const target = basic && session.precise ? dragTargetFromPoint(clientX, clientY, true) : basic;
+    const target = session.precise ? lockedPreciseTarget(session, clientY) : basic;
     session.target = target;
     renderLessonDropPreview(target);
     const ghost = document.querySelector('.lesson-drag-ghost');
@@ -818,7 +850,11 @@ function beginLessonDrag(session, clientX, clientY) {
     ghost.style.height = `${session.height}px`;
     document.body.appendChild(ghost);
     document.body.classList.add('calendar-dragging');
-    if (!state.isMoving) startMove(session.date, session.lesson);
+    if (!state.isMoving) {
+        state.selectedLesson = {date:session.date, ...session.lesson};
+        state.isMoving = true;
+        state.pendingMove = null;
+    }
     updateLessonDrag(clientX, clientY);
     haptic('light');
 }
@@ -832,8 +868,9 @@ function finishLessonDrag() {
     if (!session.active) return;
     if (!target?.available) {
         uxMessage(uiText('Сюда поставить нельзя: время занято или занятие выйдет за пределы дня.', 'Cannot place here: the time is busy or the lesson would cross midnight.'));
-        document.getElementById('move-hint-text').textContent = uiText('Выберите новое время');
-        renderCalendar();
+        state.isMoving = false;
+        state.selectedLesson = null;
+        state.pendingMove = null;
         return;
     }
     const commit = () => confirmMoveTarget(target.date, target.time);
@@ -854,10 +891,11 @@ function attachLessonDrag(card, date, lesson) {
         const session = {pointerId:event.pointerId, pointerType:event.pointerType, date, lesson,
             startX:event.clientX, startY:event.clientY, clientX:event.clientX, clientY:event.clientY,
             width:bounds.width, height:bounds.height, clone:card.cloneNode(true), active:false,
-            precise:false, cellKey:'', fineTimer:null, armTimer:null, target:null};
+            precise:false, precisionLock:null, scaleTop:null, scaleLeft:null,
+            cellKey:'', fineTimer:null, armTimer:null, target:null};
         lessonDragSession = session;
         if (event.pointerType === 'touch') {
-            session.armTimer = setTimeout(() => beginLessonDrag(session, session.clientX, session.clientY), 320);
+            session.armTimer = setTimeout(() => beginLessonDrag(session, session.clientX, session.clientY), MOVE_TOUCH_HOLD_MS);
         }
         const move = pointerEvent => {
             if (lessonDragSession !== session || pointerEvent.pointerId !== session.pointerId) return;
@@ -890,8 +928,9 @@ function attachLessonDrag(card, date, lesson) {
             if (session.active) {
                 clearLessonDragVisuals();
                 lessonDragSession = null;
-                document.getElementById('move-hint-text').textContent = uiText('Выберите новое время');
-                renderCalendar();
+                state.isMoving = false;
+                state.selectedLesson = null;
+                state.pendingMove = null;
             } else lessonDragSession = null;
         };
         const cleanup = () => {

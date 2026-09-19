@@ -59,13 +59,11 @@ const state = {
     pendingAddTime: ''
 };
 
-const MOVE_FINE_HOLD_MS = 700;
 const MOVE_DRAG_THRESHOLD = 5;
 const MOVE_LONG_PRESS_MS = 420;
-const MOVE_FINE_TICK_HEIGHT = 23;
-const MOVE_FINE_SCALE_WIDTH = 74;
 let lessonDragSession = null;
 let suppressLessonClickUntil = 0;
+let lessonScrollFrame = 0;
 
 function getMonday(date) {
     const d = new Date(date);
@@ -697,7 +695,7 @@ function isMoveTargetAvailable(date, startMinutes, lesson = state.selectedLesson
     });
 }
 
-function dragTargetFromPoint(clientX, clientY, precise = false) {
+function dragTargetFromPoint(clientX, clientY) {
     const grid = document.getElementById('week-grid');
     const dates = visibleCalendarDates();
     if (!grid || !dates.length) return null;
@@ -706,76 +704,22 @@ function dragTargetFromPoint(clientX, clientY, precise = false) {
     const dayIndex = Math.max(0, Math.min(dates.length - 1, Math.floor((clientX - rect.left) / (rect.width / dates.length))));
     const rawMinutes = START_HOUR * 60 + (clientY - rect.top) * 60 / hourHeight;
     const cellStart = Math.max(START_HOUR * 60, Math.min(END_HOUR * 60, Math.floor(rawMinutes / 60) * 60));
-    const startMinutes = precise
-        ? Math.max(cellStart, Math.min(cellStart + 55, Math.round(rawMinutes / 5) * 5))
-        : cellStart;
+    const startMinutes = cellStart;
     const date = dateKey(dates[dayIndex]);
     return {date, dayIndex, cellStart, startMinutes, time:moveTimeLabel(startMinutes),
         available:isMoveTargetAvailable(date, startMinutes), dayOff:isDayOffDate(dates[dayIndex]), rect};
 }
 
-function lockedPreciseTarget(session, clientY) {
-    const lock = session?.precisionLock;
-    if (!lock) return null;
-    if (!Number.isFinite(session.scaleTop)) return {...lock,
-        available:isMoveTargetAvailable(lock.date, lock.startMinutes)};
-    const scaleTop = Number.isFinite(session.scaleTop) ? session.scaleTop : clientY;
-    const index = Math.max(0, Math.min(11, Math.floor((clientY - scaleTop) / MOVE_FINE_TICK_HEIGHT)));
-    const startMinutes = lock.cellStart + index * 5;
-    return {...lock, startMinutes, time:moveTimeLabel(startMinutes),
-        available:isMoveTargetAvailable(lock.date, startMinutes)};
-}
-
 function clearLessonDragVisuals() {
-    clearTimeout(lessonDragSession?.fineTimer);
     document.querySelector('.lesson-drag-ghost')?.remove();
     document.querySelector('.lesson-drop-preview')?.remove();
-    document.querySelector('.lesson-drag-time-scale')?.remove();
-    document.body.classList.remove('calendar-dragging', 'calendar-drag-precise');
-}
-
-function renderDragTimeScale(target) {
-    let scale = document.querySelector('.lesson-drag-time-scale');
-    if (!lessonDragSession?.precise) {
-        scale?.remove();
-        return;
-    }
-    if (!scale) {
-        scale = document.createElement('div');
-        scale.className = 'lesson-drag-time-scale';
-        scale.setAttribute('aria-hidden', 'true');
-        document.body.appendChild(scale);
-    }
-    scale.replaceChildren(...Array.from({length:12}, (_, index) => {
-        const tick = document.createElement('span');
-        const minute = target.cellStart + index * 5;
-        tick.className = 'lesson-drag-time-tick' + (minute === target.startMinutes ? ' active' : '');
-        tick.textContent = moveTimeLabel(minute);
-        return tick;
-    }));
-    const height = MOVE_FINE_TICK_HEIGHT * 12 + 12;
-    if (!Number.isFinite(lessonDragSession.scaleTop)) {
-        const activeIndex = Math.max(0, Math.min(11, Math.round((target.startMinutes - target.cellStart) / 5)));
-        lessonDragSession.scaleTop = Math.max(6, Math.min(window.innerHeight - height - 6,
-            lessonDragSession.clientY - (activeIndex + .5) * MOVE_FINE_TICK_HEIGHT - 4));
-    }
-    if (!Number.isFinite(lessonDragSession.scaleLeft)) {
-        const leftSide = lessonDragSession.clientX - MOVE_FINE_SCALE_WIDTH - 18;
-        lessonDragSession.scaleLeft = leftSide >= 6
-            ? leftSide
-            : Math.min(window.innerWidth - MOVE_FINE_SCALE_WIDTH - 6, lessonDragSession.clientX + 18);
-    }
-    scale.style.height = `${height}px`;
-    scale.style.width = `${MOVE_FINE_SCALE_WIDTH}px`;
-    scale.style.left = `${lessonDragSession.scaleLeft}px`;
-    scale.style.top = `${lessonDragSession.scaleTop}px`;
+    document.body.classList.remove('calendar-dragging');
 }
 
 function renderLessonDropPreview(target) {
     let preview = document.querySelector('.lesson-drop-preview');
     if (!target) {
         preview?.remove();
-        document.querySelector('.lesson-drag-time-scale')?.remove();
         return;
     }
     const layer = document.getElementById('events-layer');
@@ -793,7 +737,6 @@ function renderLessonDropPreview(target) {
     preview.style.top = `${(target.startMinutes - START_HOUR * 60) * hourHeight / 60}px`;
     preview.style.height = `${Math.max(18, duration * hourHeight / 60 - 2)}px`;
     preview.textContent = target.time;
-    renderDragTimeScale(target);
 }
 
 function updateLessonDrag(clientX, clientY) {
@@ -805,28 +748,7 @@ function updateLessonDrag(clientX, clientY) {
     const viewport = container.getBoundingClientRect();
     if (clientY < viewport.top + 34) container.scrollTop = Math.max(0, container.scrollTop - 12);
     else if (clientY > viewport.bottom - 34) container.scrollTop += 12;
-    const basic = session.precise && session.precisionLock
-        ? session.precisionLock
-        : dragTargetFromPoint(clientX, clientY, false);
-    const cellKey = basic ? `${basic.date}:${basic.cellStart}` : '';
-    if (!session.precise && cellKey !== session.cellKey) {
-        clearTimeout(session.fineTimer);
-        session.cellKey = cellKey;
-        session.precise = false;
-        document.body.classList.remove('calendar-drag-precise');
-        if (basic) session.fineTimer = setTimeout(() => {
-            if (lessonDragSession !== session || session.cellKey !== cellKey) return;
-            const preciseTarget = dragTargetFromPoint(session.clientX, session.clientY, true) || session.target;
-            session.precise = true;
-            session.precisionLock = preciseTarget ? {...preciseTarget} : null;
-            session.scaleTop = null;
-            session.scaleLeft = null;
-            document.body.classList.add('calendar-drag-precise');
-            haptic('medium');
-            updateLessonDrag(session.clientX, session.clientY);
-        }, MOVE_FINE_HOLD_MS);
-    }
-    const target = session.precise ? lockedPreciseTarget(session, clientY) : basic;
+    const target = dragTargetFromPoint(clientX, clientY);
     session.target = target;
     renderLessonDropPreview(target);
     const ghost = document.querySelector('.lesson-drag-ghost');
@@ -836,9 +758,7 @@ function updateLessonDrag(clientX, clientY) {
         ghost.style.top = `${above >= 6 ? above : Math.min(window.innerHeight - ghost.offsetHeight - 6, clientY + 20)}px`;
     }
     const hint = document.getElementById('move-hint-text');
-    hint.textContent = !target ? uiText('Перетащите в календарь')
-        : session.precise ? `${uiText('Точное время')}: ${target.time}`
-        : `${target.time} · ${uiText('удерживайте 0,7 сек для точности')}`;
+    hint.textContent = !target ? uiText('Перетащите в календарь') : target.time;
 }
 
 function beginLessonDrag(session, clientX, clientY) {
@@ -884,17 +804,69 @@ function finishLessonDrag() {
     } else commit();
 }
 
+function resetLessonDragSession(resetMove = true) {
+    const session = lessonDragSession;
+    if (!session) return;
+    session.cleanup?.();
+    clearTimeout(session.watchdog);
+    clearLessonDragVisuals();
+    lessonDragSession = null;
+    if (resetMove && session.active) {
+        state.isMoving = false;
+        state.selectedLesson = null;
+        state.pendingMove = null;
+    }
+}
+
+function updateLessonCardScroll(session, clientY) {
+    const container = session.scrollContainer;
+    const now = performance.now();
+    const dt = Math.max(1, now - session.lastAt);
+    session.scrollVelocity = -(clientY - session.lastY) / dt;
+    session.lastY = clientY;
+    session.lastAt = now;
+    container.scrollTop = session.scrollStart - (clientY - session.startY);
+}
+
+function startLessonScrollMomentum(container, velocity) {
+    cancelAnimationFrame(lessonScrollFrame);
+    let speed = Math.max(-1.4, Math.min(1.4, Number(velocity) || 0));
+    let last = performance.now();
+    const step = now => {
+        const dt = Math.min(32, now - last);
+        last = now;
+        const before = container.scrollTop;
+        container.scrollTop += speed * dt;
+        if (container.scrollTop === before || Math.abs(speed) < .025) return;
+        speed *= Math.pow(.9, dt / 16);
+        lessonScrollFrame = requestAnimationFrame(step);
+    };
+    if (Math.abs(speed) >= .08) lessonScrollFrame = requestAnimationFrame(step);
+}
+
 function attachLessonDrag(card, date, lesson) {
     card.addEventListener('pointerdown', event => {
-        if (event.button !== 0 || lesson.cancelled || lessonDragSession) return;
+        if (event.button !== 0 || lesson.cancelled) return;
+        if (lessonDragSession) resetLessonDragSession(true);
+        const invisibleMoveState = state.isMoving
+            && document.getElementById('move-hint').classList.contains('hidden')
+            && document.getElementById('move-modal-overlay').classList.contains('hidden')
+            && document.getElementById('day-off-warning-overlay').classList.contains('hidden');
+        if (invisibleMoveState) {
+            state.isMoving = false;
+            state.selectedLesson = null;
+            state.pendingMove = null;
+        }
         if (state.isMoving && state.selectedLesson?.id !== lesson.id) return;
+        cancelAnimationFrame(lessonScrollFrame);
         const bounds = card.getBoundingClientRect();
+        const container = document.getElementById('calendar-container');
         const session = {pointerId:event.pointerId, pointerType:event.pointerType, date, lesson,
             startX:event.clientX, startY:event.clientY, clientX:event.clientX, clientY:event.clientY,
             startedAt:Date.now(),
             width:bounds.width, height:bounds.height, clone:card.cloneNode(true), active:false,
-            precise:false, precisionLock:null, scaleTop:null, scaleLeft:null,
-            intent:'', cellKey:'', fineTimer:null, target:null};
+            intent:'', target:null, scrollContainer:container, scrollStart:container.scrollTop,
+            lastY:event.clientY, lastAt:performance.now(), scrollVelocity:0, cleanup:null, watchdog:null};
         lessonDragSession = session;
         const move = pointerEvent => {
             if (lessonDragSession !== session || pointerEvent.pointerId !== session.pointerId) return;
@@ -906,10 +878,13 @@ function attachLessonDrag(card, date, lesson) {
             const absY = Math.abs(dy);
             const distance = Math.hypot(dx, dy);
             if (!session.active && session.pointerType === 'touch' && !session.intent) {
-                if (absY >= 10 && absY > absX * 1.7) {
+                const elapsed = Math.max(1, Date.now() - session.startedAt);
+                const fastVertical = absY >= 8 && absY > absX * 1.6 && elapsed <= 140 && absY / elapsed >= .08;
+                if (fastVertical) {
                     session.intent = 'scroll';
                     suppressLessonClickUntil = Date.now() + 700;
-                } else if (absX >= MOVE_DRAG_THRESHOLD || (distance >= 7 && absY <= absX * 1.7)) {
+                    haptic('light');
+                } else if (absX >= MOVE_DRAG_THRESHOLD || distance >= 7) {
                     session.intent = 'drag';
                     beginLessonDrag(session, pointerEvent.clientX, pointerEvent.clientY);
                 }
@@ -917,7 +892,11 @@ function attachLessonDrag(card, date, lesson) {
                 session.intent = 'drag';
                 beginLessonDrag(session, pointerEvent.clientX, pointerEvent.clientY);
             }
-            if (session.intent === 'scroll') return;
+            if (session.intent === 'scroll') {
+                pointerEvent.preventDefault();
+                updateLessonCardScroll(session, pointerEvent.clientY);
+                return;
+            }
             if (session.active) {
                 pointerEvent.preventDefault();
                 updateLessonDrag(pointerEvent.clientX, pointerEvent.clientY);
@@ -929,8 +908,13 @@ function attachLessonDrag(card, date, lesson) {
             if (session.active) {
                 pointerEvent.preventDefault();
                 finishLessonDrag();
+            } else if (session.intent === 'scroll') {
+                pointerEvent.preventDefault();
+                startLessonScrollMomentum(session.scrollContainer, session.scrollVelocity);
+                suppressLessonClickUntil = Date.now() + 700;
+                lessonDragSession = null;
             } else {
-                if (session.intent === 'scroll' || Date.now() - session.startedAt >= MOVE_LONG_PRESS_MS) suppressLessonClickUntil = Date.now() + 700;
+                if (Date.now() - session.startedAt >= MOVE_LONG_PRESS_MS) suppressLessonClickUntil = Date.now() + 700;
                 lessonDragSession = null;
             }
         };
@@ -949,10 +933,15 @@ function attachLessonDrag(card, date, lesson) {
             }
         };
         const cleanup = () => {
+            clearTimeout(session.watchdog);
             document.removeEventListener('pointermove', move, true);
             document.removeEventListener('pointerup', end, true);
             document.removeEventListener('pointercancel', cancel, true);
         };
+        session.cleanup = cleanup;
+        session.watchdog = setTimeout(() => {
+            if (lessonDragSession === session) resetLessonDragSession(true);
+        }, 12000);
         document.addEventListener('pointermove', move, {capture:true, passive:false});
         document.addEventListener('pointerup', end, {capture:true, passive:false});
         document.addEventListener('pointercancel', cancel, true);
@@ -1307,18 +1296,64 @@ function startMove(date, lesson) {
     renderCalendar();
 }
 
+function moveTimeToMinutes(value) {
+    const match = /^(\d{2}):(\d{2})$/.exec(String(value || ''));
+    if (!match) return null;
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+    return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 ? hour * 60 + minute : null;
+}
+
+function setPendingMoveTime(value) {
+    if (!state.pendingMove || !state.selectedLesson) return false;
+    const minutes = moveTimeToMinutes(value);
+    if (minutes === null) return false;
+    const normalized = moveTimeLabel(Math.round(minutes / 5) * 5);
+    const normalizedMinutes = moveTimeToMinutes(normalized);
+    state.pendingMove.newTime = normalized;
+    const input = document.getElementById('move-target-time');
+    input.value = normalized;
+    const personal = state.selectedLesson.entry_type === 'personal';
+    const name = personal ? state.selectedLesson.title : state.selectedLesson.student;
+    document.getElementById('move-modal-desc').textContent = `${name}: ${state.pendingMove.newDate}, ${normalized}`;
+    document.querySelectorAll('[data-move-minute]').forEach(button => {
+        button.classList.toggle('active', Number(button.dataset.moveMinute) === normalizedMinutes % 60);
+    });
+    const available = isMoveTargetAvailable(state.pendingMove.newDate, normalizedMinutes);
+    const status = document.getElementById('move-time-status');
+    status.textContent = available
+        ? uiText('Свободно — можно продолжать', 'Available — ready to continue')
+        : uiText('Это время занято или занятие выйдет за пределы дня', 'This time is busy or the lesson would cross midnight');
+    status.classList.toggle('is-invalid', !available);
+    for (const id of ['btn-action-copy', 'btn-action-move-once', 'btn-action-move-all']) {
+        document.getElementById(id).disabled = !available;
+    }
+    return available;
+}
+
+function shiftPendingMoveTime(delta) {
+    const current = moveTimeToMinutes(state.pendingMove?.newTime);
+    if (current === null) return;
+    setPendingMoveTime(moveTimeLabel(Math.max(0, Math.min(1435, current + delta))));
+}
+
 function confirmMoveTarget(newDate, newTime) {
     state.pendingMove = { newDate, newTime };
     const personal = state.selectedLesson.entry_type === 'personal';
     const name = personal ? state.selectedLesson.title : state.selectedLesson.student;
     document.getElementById('move-modal-title').textContent = personal ? 'Действие с личным делом' : 'Действие с занятием';
-    document.getElementById('move-modal-desc').textContent = `${name}: ${newDate}, ${newTime}`;
+    document.getElementById('move-time-picker-label').textContent = uiText('Время начала', 'Start time');
+    document.getElementById('btn-move-time-minus').setAttribute('aria-label', uiText('Уменьшить время на 5 минут', 'Move time back by 5 minutes'));
+    document.getElementById('btn-move-time-plus').setAttribute('aria-label', uiText('Увеличить время на 5 минут', 'Move time forward by 5 minutes'));
+    document.getElementById('move-target-time').setAttribute('aria-label', uiText('Новое время занятия', 'New lesson time'));
     setThreadButtonLabel(document.getElementById('btn-action-copy'), 'add', personal ? 'Добавить ещё одним личным делом' : 'Добавить ещё одним занятием');
+    setPendingMoveTime(newTime);
     document.getElementById('move-modal-overlay').classList.remove('hidden');
 }
 
 async function executeMove(actionType) {
     if (!state.selectedLesson || !state.pendingMove) return;
+    if (!setPendingMoveTime(state.pendingMove.newTime)) return;
     const payload = {
         old_date: state.selectedLesson.date,
         id: state.selectedLesson.id,
@@ -2290,6 +2325,16 @@ document.getElementById('btn-delete-all').onclick = async () => {
 document.getElementById('btn-delete-cancel').onclick = closeAllModals;
 
 // Перенос
+document.querySelectorAll('[data-move-minute]').forEach(button => {
+    button.onclick = () => {
+        const current = moveTimeToMinutes(state.pendingMove?.newTime);
+        if (current === null) return;
+        setPendingMoveTime(moveTimeLabel(Math.floor(current / 60) * 60 + Number(button.dataset.moveMinute)));
+    };
+});
+document.getElementById('btn-move-time-minus').onclick = () => shiftPendingMoveTime(-5);
+document.getElementById('btn-move-time-plus').onclick = () => shiftPendingMoveTime(5);
+document.getElementById('move-target-time').onchange = event => setPendingMoveTime(event.target.value);
 document.getElementById('btn-action-copy').onclick = () => executeMove('copy');
 document.getElementById('btn-action-move-once').onclick = () => executeMove('move_once');
 document.getElementById('btn-action-move-all').onclick = () => executeMove('move_all');

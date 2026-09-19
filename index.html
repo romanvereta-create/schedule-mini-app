@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TEMLI — расписание</title>
-    <link rel="stylesheet" href="styles.css?v=31.7.2">
-    <link rel="stylesheet" href="ux.css?v=31.7.2">
+    <link rel="stylesheet" href="styles.css?v=31.8.0">
+    <link rel="stylesheet" href="ux.css?v=31.8.0">
 </head>
 <body>
     <div id="startup-status" role="status" aria-live="polite">
@@ -165,6 +165,21 @@
         <div class="modal-content text-center">
             <h2 id="move-modal-title">Действие с занятием</h2>
             <p id="move-modal-desc" class="modal-desc"></p>
+            <div id="move-time-picker" class="move-time-picker">
+                <strong id="move-time-picker-label">Время начала</strong>
+                <div class="move-time-presets" aria-label="Быстрый выбор минут">
+                    <button type="button" data-move-minute="0">:00</button>
+                    <button type="button" data-move-minute="15">:15</button>
+                    <button type="button" data-move-minute="30">:30</button>
+                    <button type="button" data-move-minute="45">:45</button>
+                </div>
+                <div class="move-time-fine">
+                    <button id="btn-move-time-minus" type="button" aria-label="Уменьшить время на 5 минут">−5</button>
+                    <input id="move-target-time" type="time" step="300" aria-label="Новое время занятия">
+                    <button id="btn-move-time-plus" type="button" aria-label="Увеличить время на 5 минут">+5</button>
+                </div>
+                <small id="move-time-status" aria-live="polite"></small>
+            </div>
             <div class="modal-actions-column">
                 <button id="btn-action-copy" class="primary-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-add"></use></svg>Добавить ещё одним занятием</button>
                 <button id="btn-action-move-once" class="secondary-btn"><svg class="thread-icon" aria-hidden="true"><use href="#ti-move"></use></svg>Перенести (разово)</button>
@@ -736,7 +751,7 @@
     <div id="app-settings-overlay" class="hidden">
         <div class="modal-content compact-modal">
             <header class="modal-header">
-                <div><h2>Настройки TEMLI</h2><small id="settings-build-version" data-i18n-ignore>TEMLI 31.7.2</small></div>
+                <div><h2>Настройки TEMLI</h2><small id="settings-build-version" data-i18n-ignore>TEMLI 31.8.0</small></div>
                 <button id="btn-close-app-settings" class="close-modal" type="button" aria-label="Закрыть"><svg class="thread-icon" aria-hidden="true"><use href="#ti-close"></use></svg></button>
             </header>
             <div class="modal-body compact-stack">
@@ -944,6 +959,6 @@
         </div>
     </div>
 
-    <script src="startup.js?v=31.7.2"></script>
+    <script src="startup.js?v=31.8.0"></script>
 </body>
 </html>

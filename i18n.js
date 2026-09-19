@@ -1,5 +1,5 @@
 (() => {
-    const VERSION = '31.7.2';
+    const VERSION = '31.8.0';
     const LANGUAGES = {
         ru: { label: 'Русский', locale: 'ru-RU', currency: 'RUB' },
         en: { label: 'English', locale: 'en-US', currency: 'USD' },
@@ -41,6 +41,11 @@
         'Всё равно перенести': 'Move anyway',
         'Выходной: потребуется подтверждение': 'Day off: confirmation required',
         'Время занято или недоступно': 'This time is occupied or unavailable',
+        'Время начала': 'Start time',
+        'Быстрый выбор минут': 'Quick minute selection',
+        'Уменьшить время на 5 минут': 'Move time back by 5 minutes',
+        'Увеличить время на 5 минут': 'Move time forward by 5 minutes',
+        'Новое время занятия': 'New lesson time',
         'Перенести сюда': 'Move here',
         'Действие с личным делом': 'Personal event action',
         'Добавить ещё одним личным делом': 'Add another personal event',

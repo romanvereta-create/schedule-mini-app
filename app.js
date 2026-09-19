@@ -59,6 +59,11 @@ const state = {
     pendingAddTime: ''
 };
 
+const MOVE_FINE_HOLD_MS = 700;
+const MOVE_DRAG_THRESHOLD = 6;
+let lessonDragSession = null;
+let suppressLessonClickUntil = 0;
+
 function getMonday(date) {
     const d = new Date(date);
     const day = d.getDay();
@@ -672,6 +677,234 @@ function scheduleCalendarAutoFit() {
     requestAnimationFrame(() => requestAnimationFrame(autoFitCalendarToWeek));
 }
 
+function moveTimeLabel(minutes) {
+    const value = Math.max(0, Math.min(1439, Math.round(minutes)));
+    return `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
+}
+
+function isMoveTargetAvailable(date, startMinutes, lesson = state.selectedLesson) {
+    const duration = Math.max(5, Number(lesson?.duration || 60));
+    if (!lesson || startMinutes < 0 || startMinutes + duration > 24 * 60) return false;
+    return !(state.schedule[date] || []).some(item => {
+        if (item.cancelled || (date === lesson.date && item.id === lesson.id)) return false;
+        const [hour, minute] = String(item.time || '00:00').split(':').map(Number);
+        const itemStart = hour * 60 + minute;
+        const itemEnd = itemStart + Math.max(5, Number(item.duration || 60));
+        return startMinutes < itemEnd && startMinutes + duration > itemStart;
+    });
+}
+
+function dragTargetFromPoint(clientX, clientY, precise = false) {
+    const grid = document.getElementById('week-grid');
+    const dates = visibleCalendarDates();
+    if (!grid || !dates.length) return null;
+    const rect = grid.getBoundingClientRect();
+    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return null;
+    const dayIndex = Math.max(0, Math.min(dates.length - 1, Math.floor((clientX - rect.left) / (rect.width / dates.length))));
+    const rawMinutes = START_HOUR * 60 + (clientY - rect.top) * 60 / hourHeight;
+    const cellStart = Math.max(START_HOUR * 60, Math.min(END_HOUR * 60, Math.floor(rawMinutes / 60) * 60));
+    const startMinutes = precise
+        ? Math.max(cellStart, Math.min(cellStart + 55, Math.round(rawMinutes / 5) * 5))
+        : cellStart;
+    const date = dateKey(dates[dayIndex]);
+    return {date, dayIndex, cellStart, startMinutes, time:moveTimeLabel(startMinutes),
+        available:isMoveTargetAvailable(date, startMinutes), dayOff:isDayOffDate(dates[dayIndex]), rect};
+}
+
+function clearLessonDragVisuals() {
+    clearTimeout(lessonDragSession?.fineTimer);
+    document.querySelector('.lesson-drag-ghost')?.remove();
+    document.querySelector('.lesson-drop-preview')?.remove();
+    document.querySelector('.lesson-drag-time-scale')?.remove();
+    document.body.classList.remove('calendar-dragging', 'calendar-drag-precise');
+}
+
+function renderDragTimeScale(target) {
+    let scale = document.querySelector('.lesson-drag-time-scale');
+    if (!lessonDragSession?.precise) {
+        scale?.remove();
+        return;
+    }
+    if (!scale) {
+        scale = document.createElement('div');
+        scale.className = 'lesson-drag-time-scale';
+        scale.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(scale);
+    }
+    scale.replaceChildren(...Array.from({length:12}, (_, index) => {
+        const tick = document.createElement('span');
+        const minute = target.cellStart + index * 5;
+        tick.className = 'lesson-drag-time-tick' + (minute === target.startMinutes ? ' active' : '');
+        tick.textContent = moveTimeLabel(minute);
+        return tick;
+    }));
+    const cellTop = target.rect.top + (target.cellStart - START_HOUR * 60) * hourHeight / 60;
+    const height = Math.max(144, hourHeight);
+    scale.style.height = `${height}px`;
+    scale.style.left = `${Math.max(4, target.rect.left - 56)}px`;
+    scale.style.top = `${Math.max(4, Math.min(window.innerHeight - height - 4, cellTop - (height - hourHeight) / 2))}px`;
+}
+
+function renderLessonDropPreview(target) {
+    let preview = document.querySelector('.lesson-drop-preview');
+    if (!target) {
+        preview?.remove();
+        document.querySelector('.lesson-drag-time-scale')?.remove();
+        return;
+    }
+    const layer = document.getElementById('events-layer');
+    if (!preview) {
+        preview = document.createElement('div');
+        preview.className = 'lesson-drop-preview';
+        layer.appendChild(preview);
+    }
+    const dates = visibleCalendarDates();
+    const colWidth = layer.clientWidth / dates.length;
+    const duration = Math.max(5, Number(state.selectedLesson?.duration || 60));
+    preview.className = `lesson-drop-preview ${target.available ? 'is-available' : 'is-unavailable'} ${target.dayOff ? 'is-day-off' : ''}`;
+    preview.style.left = `${target.dayIndex * colWidth + 2}px`;
+    preview.style.width = `${Math.max(20, colWidth - 4)}px`;
+    preview.style.top = `${(target.startMinutes - START_HOUR * 60) * hourHeight / 60}px`;
+    preview.style.height = `${Math.max(18, duration * hourHeight / 60 - 2)}px`;
+    preview.textContent = target.time;
+    renderDragTimeScale(target);
+}
+
+function updateLessonDrag(clientX, clientY) {
+    const session = lessonDragSession;
+    if (!session?.active) return;
+    session.clientX = clientX;
+    session.clientY = clientY;
+    const container = document.getElementById('calendar-container');
+    const viewport = container.getBoundingClientRect();
+    if (clientY < viewport.top + 34) container.scrollTop = Math.max(0, container.scrollTop - 12);
+    else if (clientY > viewport.bottom - 34) container.scrollTop += 12;
+    const basic = dragTargetFromPoint(clientX, clientY, false);
+    const cellKey = basic ? `${basic.date}:${basic.cellStart}` : '';
+    if (cellKey !== session.cellKey) {
+        clearTimeout(session.fineTimer);
+        session.cellKey = cellKey;
+        session.precise = false;
+        document.body.classList.remove('calendar-drag-precise');
+        if (basic) session.fineTimer = setTimeout(() => {
+            if (lessonDragSession !== session || session.cellKey !== cellKey) return;
+            session.precise = true;
+            document.body.classList.add('calendar-drag-precise');
+            haptic('medium');
+            updateLessonDrag(session.clientX, session.clientY);
+        }, MOVE_FINE_HOLD_MS);
+    }
+    const target = basic && session.precise ? dragTargetFromPoint(clientX, clientY, true) : basic;
+    session.target = target;
+    renderLessonDropPreview(target);
+    const ghost = document.querySelector('.lesson-drag-ghost');
+    if (ghost) {
+        ghost.style.left = `${Math.min(window.innerWidth - ghost.offsetWidth - 6, clientX + 10)}px`;
+        ghost.style.top = `${Math.min(window.innerHeight - ghost.offsetHeight - 6, clientY + 10)}px`;
+    }
+    const hint = document.getElementById('move-hint-text');
+    hint.textContent = !target ? uiText('Перетащите в календарь')
+        : session.precise ? `${uiText('Точное время')}: ${target.time}`
+        : `${target.time} · ${uiText('удерживайте 0,7 сек для точности')}`;
+}
+
+function beginLessonDrag(session, clientX, clientY) {
+    if (session.active) return;
+    session.active = true;
+    suppressLessonClickUntil = Date.now() + 800;
+    const ghost = session.clone;
+    ghost.classList.add('lesson-drag-ghost');
+    ghost.style.width = `${session.width}px`;
+    ghost.style.height = `${session.height}px`;
+    document.body.appendChild(ghost);
+    document.body.classList.add('calendar-dragging');
+    if (!state.isMoving) startMove(session.date, session.lesson);
+    updateLessonDrag(clientX, clientY);
+    haptic('light');
+}
+
+function finishLessonDrag() {
+    const session = lessonDragSession;
+    if (!session) return;
+    const target = session.target;
+    clearLessonDragVisuals();
+    lessonDragSession = null;
+    if (!session.active) return;
+    if (!target?.available) {
+        uxMessage(uiText('Сюда поставить нельзя: время занято или занятие выйдет за пределы дня.', 'Cannot place here: the time is busy or the lesson would cross midnight.'));
+        document.getElementById('move-hint-text').textContent = uiText('Выберите новое время');
+        renderCalendar();
+        return;
+    }
+    const commit = () => confirmMoveTarget(target.date, target.time);
+    if (target.dayOff) {
+        document.getElementById('day-off-warning-title').textContent = uiText('Перенос в выходной');
+        document.getElementById('day-off-warning-desc').textContent = uiText('Кажется, календарь рассчитывал отдохнуть 😄 Всё равно перенести занятие на выходной?');
+        document.getElementById('btn-day-off-confirm').textContent = uiText('Всё равно перенести');
+        document.getElementById('btn-day-off-cancel').textContent = uiText('Не сегодня');
+        openDayOffWarning(commit);
+    } else commit();
+}
+
+function attachLessonDrag(card, date, lesson) {
+    card.addEventListener('pointerdown', event => {
+        if (event.button !== 0 || lesson.cancelled || lessonDragSession) return;
+        if (state.isMoving && state.selectedLesson?.id !== lesson.id) return;
+        const bounds = card.getBoundingClientRect();
+        const session = {pointerId:event.pointerId, pointerType:event.pointerType, date, lesson,
+            startX:event.clientX, startY:event.clientY, clientX:event.clientX, clientY:event.clientY,
+            width:bounds.width, height:bounds.height, clone:card.cloneNode(true), active:false,
+            precise:false, cellKey:'', fineTimer:null, armTimer:null, target:null};
+        lessonDragSession = session;
+        if (event.pointerType === 'touch') {
+            session.armTimer = setTimeout(() => beginLessonDrag(session, session.clientX, session.clientY), 320);
+        }
+        const move = pointerEvent => {
+            if (lessonDragSession !== session || pointerEvent.pointerId !== session.pointerId) return;
+            session.clientX = pointerEvent.clientX;
+            session.clientY = pointerEvent.clientY;
+            const distance = Math.hypot(pointerEvent.clientX - session.startX, pointerEvent.clientY - session.startY);
+            if (!session.active && session.pointerType !== 'touch' && distance >= MOVE_DRAG_THRESHOLD) beginLessonDrag(session, pointerEvent.clientX, pointerEvent.clientY);
+            if (session.active) {
+                pointerEvent.preventDefault();
+                updateLessonDrag(pointerEvent.clientX, pointerEvent.clientY);
+            } else if (session.pointerType === 'touch' && distance > MOVE_DRAG_THRESHOLD) {
+                clearTimeout(session.armTimer);
+                cleanup();
+                lessonDragSession = null;
+            }
+        };
+        const end = pointerEvent => {
+            if (lessonDragSession !== session || pointerEvent.pointerId !== session.pointerId) return;
+            clearTimeout(session.armTimer);
+            cleanup();
+            if (session.active) {
+                pointerEvent.preventDefault();
+                finishLessonDrag();
+            } else lessonDragSession = null;
+        };
+        const cancel = pointerEvent => {
+            if (lessonDragSession !== session || pointerEvent.pointerId !== session.pointerId) return;
+            clearTimeout(session.armTimer);
+            cleanup();
+            if (session.active) {
+                clearLessonDragVisuals();
+                lessonDragSession = null;
+                document.getElementById('move-hint-text').textContent = uiText('Выберите новое время');
+                renderCalendar();
+            } else lessonDragSession = null;
+        };
+        const cleanup = () => {
+            document.removeEventListener('pointermove', move, true);
+            document.removeEventListener('pointerup', end, true);
+            document.removeEventListener('pointercancel', cancel, true);
+        };
+        document.addEventListener('pointermove', move, {capture:true, passive:false});
+        document.addEventListener('pointerup', end, {capture:true, passive:false});
+        document.addEventListener('pointercancel', cancel, true);
+    });
+}
+
 function syncCalendarHeaderScrollbar() {
     const container = document.getElementById('calendar-container');
     if (!container) return;
@@ -732,15 +965,7 @@ function renderCalendar() {
             let moveTargetDayOff = false;
             if (state.isMoving && state.selectedLesson) {
                 const candidateStart = hour * 60;
-                const candidateEnd = candidateStart + Math.max(5, Number(state.selectedLesson.duration || 60));
-                const conflicts = (state.schedule[key] || []).some(lesson => {
-                    if (lesson.cancelled || (key === state.selectedLesson.date && lesson.id === state.selectedLesson.id)) return false;
-                    const [lessonHour, lessonMinute] = String(lesson.time || '00:00').split(':').map(Number);
-                    const lessonStart = lessonHour * 60 + lessonMinute;
-                    const lessonEnd = lessonStart + Math.max(5, Number(lesson.duration || 60));
-                    return candidateStart < lessonEnd && candidateEnd > lessonStart;
-                });
-                moveTargetAvailable = !conflicts;
+                moveTargetAvailable = isMoveTargetAvailable(key, candidateStart);
                 moveTargetDayOff = isDayOffDate(dayDate);
                 slot.classList.add(moveTargetAvailable ? 'move-slot-available' : 'move-slot-unavailable');
                 if (moveTargetAvailable && moveTargetDayOff) slot.classList.add('move-slot-day-off');
@@ -852,25 +1077,14 @@ function renderEvents() {
                 card.appendChild(meta);
             }
 
-            let longPressed = false;
-            let timer = null;
-            card.addEventListener('touchstart', () => {
-                longPressed = false;
-                timer = setTimeout(() => {
-                    longPressed = true;
-                    haptic('heavy');
-                    startMove(key, lesson);
-                }, 500);
-            }, { passive: true });
-            card.addEventListener('touchmove', () => clearTimeout(timer), { passive: true });
-            card.addEventListener('touchend', () => clearTimeout(timer));
+            attachLessonDrag(card, key, lesson);
             card.addEventListener('contextmenu', event => {
                 event.preventDefault();
                 openActionMenu(key, lesson);
             });
             card.addEventListener('click', event => {
                 event.stopPropagation();
-                if (longPressed || state.isMoving) return;
+                if (Date.now() < suppressLessonClickUntil || state.isMoving) return;
                 openActionMenu(key, lesson);
             });
             layer.appendChild(card);
@@ -1067,6 +1281,8 @@ async function executeMove(actionType) {
 }
 
 function cancelMove() {
+    clearLessonDragVisuals();
+    lessonDragSession = null;
     state.isMoving = false;
     document.body.classList.remove('calendar-move-mode');
     state.selectedLesson = null;
@@ -1080,7 +1296,7 @@ const CONTACT_TYPES = {
     tg: { label: 'Telegram', placeholder: '@username или ID' },
     wa: { label: 'WhatsApp', placeholder: 'WhatsApp номер' },
     phone: { label: 'Телефон', placeholder: 'Телефон' },
-    max: { label: 'MAX', placeholder: 'MAX (ник)' }
+    max: { label: 'MAX', placeholder: 'MAX (номер или ник)' }
 };
 function contactTypeLabel(type) {
     if (type === 'phone') return uiLocale().startsWith('en') ? 'Phone' : 'Телефон';
@@ -1088,7 +1304,7 @@ function contactTypeLabel(type) {
 }
 function contactTypePlaceholder(type) {
     if (!uiLocale().startsWith('en')) return CONTACT_TYPES[type]?.placeholder || '';
-    return {tg:'@username or ID', wa:'WhatsApp number', phone:'Phone', max:'MAX username'}[type] || '';
+    return {tg:'@username or ID', wa:'WhatsApp number', phone:'Phone', max:'MAX number or username'}[type] || '';
 }
 
 function contactIconSvg(type) {
@@ -1668,28 +1884,19 @@ document.getElementById('btn-save-lesson-report').onclick = async () => {
 
 function openStudentContactFor(studentId) {
     const info = getStudentInfo(studentId);
-    if (info.username) return tg.openTelegramLink(`https://t.me/${info.username}`);
-    const entries = Object.entries(info.student_contacts || {}).filter(([, value]) => value);
-    if (entries.length === 1) return openContact(entries[0][0], entries[0][1]);
-    if (entries.length > 1) {
-        const choice = prompt(uiText('Выберите контакт ученика:\n') + entries.map(([type, value], i) => `${i + 1}. ${type.toUpperCase()}: ${value}`).join('\n') + uiText('\n\nВведите номер:'));
-        const idx = parseInt(choice, 10) - 1;
-        if (idx >= 0 && idx < entries.length) return openContact(entries[idx][0], entries[idx][1]);
-    }
+    const contacts = info.student_contacts || {};
+    if (contacts.tg) return openContact('tg', contacts.tg);
+    if (info.username) return openContact('tg', info.username);
+    for (const type of ['wa', 'max', 'phone']) if (contacts[type]) return openContact(type, contacts[type]);
     if (studentId && !String(studentId).startsWith('manual')) return tg.openTelegramLink(`tg://user?id=${studentId}`);
-    alert('Контакт ученика не указан.');
+    alert(uiText('Контакт ученика не указан.', 'Student contact is missing.'));
 }
 
 function openParentContactFor(studentId) {
     const info = getStudentInfo(studentId);
-    const entries = Object.entries(info.contacts || {}).filter(([, value]) => value);
-    if (entries.length === 1) return openContact(entries[0][0], entries[0][1]);
-    if (entries.length > 1) {
-        const choice = prompt(uiText('Выберите контакт родителя:\n') + entries.map(([type, value], i) => `${i + 1}. ${type.toUpperCase()}: ${value}`).join('\n') + uiText('\n\nВведите номер:'));
-        const idx = parseInt(choice, 10) - 1;
-        if (idx >= 0 && idx < entries.length) return openContact(entries[idx][0], entries[idx][1]);
-    }
-    alert('Контакт родителя не указан.');
+    const contacts = info.contacts || {};
+    for (const type of ['tg', 'wa', 'max', 'phone']) if (contacts[type]) return openContact(type, contacts[type]);
+    alert(uiText('Контакт родителя не указан.', 'Parent contact is missing.'));
 }
 
 async function setFreeStateForSelected(studentId = '', makeFree = true) {
@@ -1960,7 +2167,20 @@ document.getElementById('btn-action-chat-parent').onclick = () => {
     closeActionMenu();
 };
 
-function openContact(type, value) {
+function openExternalContactUrl(url) {
+    try {
+        if (typeof tg.openLink === 'function') return tg.openLink(url);
+    } catch (_) { /* Browser fallback below. */ }
+    return window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+function normalizedWhatsAppNumber(value) {
+    let digits = String(value || '').replace(/[^0-9]/g, '');
+    if (/^8\d{10}$/.test(digits)) digits = '7' + digits.slice(1);
+    return /^[1-9]\d{7,14}$/.test(digits) ? digits : '';
+}
+
+async function openContact(type, value) {
     switch(type) {
         case 'tg': {
             const clean = String(value).trim().replace('@', '');
@@ -1968,15 +2188,27 @@ function openContact(type, value) {
             else tg.openTelegramLink(`https://t.me/${clean}`);
             break;
         }
-        case 'wa':
-            window.open(`https://wa.me/${value.replace(/[^0-9]/g, '')}`, '_blank');
+        case 'wa': {
+            const number = normalizedWhatsAppNumber(value);
+            if (!number) return alert(uiText('Укажите номер WhatsApp в международном формате.', 'Enter the WhatsApp number in international format.'));
+            openExternalContactUrl(`https://wa.me/${number}`);
             break;
+        }
         case 'phone':
-            window.open(`tel:${value}`, '_blank');
+            openExternalContactUrl(`tel:${String(value).replace(/[^0-9+]/g, '')}`);
             break;
-        case 'max':
-            alert(uiMessage`Max: ${value}`);
+        case 'max': {
+            const contact = String(value || '').trim();
+            if (!contact) return alert(uiText('Контакт MAX не указан.', 'MAX contact is missing.'));
+            try {
+                await copyTextToClipboard(contact);
+                if (typeof uxMessage === 'function') uxMessage(uiText('Контакт MAX скопирован. Вставьте его в поиск MAX.', 'MAX contact copied. Paste it into MAX search.'));
+            } catch (_) {
+                alert(uiText(`Не удалось скопировать автоматически. Контакт MAX: ${contact}`, `Could not copy automatically. MAX contact: ${contact}`));
+            }
+            openExternalContactUrl('https://max.ru');
             break;
+        }
         default:
             alert(uiMessage`Контакт: ${value}`);
     }

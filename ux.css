@@ -99,6 +99,31 @@
 .calendar-move-mode .time-slot.move-slot-day-off::after { border-color:#d49a24; }
 .calendar-move-mode .time-slot.move-slot-unavailable { background:#f1f2f4; cursor:not-allowed; opacity:.55; }
 .calendar-move-mode .time-slot.move-slot-unavailable::after { border-color:#b4b8bf; }
+.calendar-dragging { cursor:grabbing; }
+.calendar-dragging .event-card { cursor:grabbing; }
+.lesson-drag-ghost {
+    position:fixed !important; z-index:5200 !important; margin:0 !important; pointer-events:none !important;
+    opacity:.82; transform:scale(.96); transform-origin:top left; box-shadow:0 8px 24px #0005 !important;
+    overflow:hidden; cursor:grabbing;
+}
+.lesson-drop-preview {
+    position:absolute; z-index:1300; display:flex; align-items:flex-start; justify-content:center;
+    padding:3px; border:2px solid #258342; border-radius:6px; box-sizing:border-box;
+    background:#dff4e6cc; color:#155f2d; font-size:11px; font-weight:800; pointer-events:none;
+}
+.lesson-drop-preview.is-unavailable { border-color:#c5352c; background:#fde8e6dd; color:#a0251f; }
+.lesson-drop-preview.is-day-off.is-available { border-color:#c88b16; background:#fff2cddd; color:#835907; }
+.lesson-drag-time-scale {
+    position:fixed; z-index:5300; width:52px; display:grid; grid-template-rows:repeat(12,minmax(0,1fr));
+    padding:4px; border:1px solid #9ab7dc; border-radius:10px; background:#fff;
+    box-shadow:0 6px 22px #0003; pointer-events:none; box-sizing:border-box;
+}
+.lesson-drag-time-tick {
+    display:flex; align-items:center; justify-content:flex-end; padding-right:4px;
+    border-top:1px solid #d9e1eb; color:#657184; font-size:8px; line-height:1;
+}
+.lesson-drag-time-tick.active { margin:0 -1px; border-radius:5px; background:#1a73e8; color:#fff; font-size:10px; font-weight:800; }
+.event-card { -webkit-user-select:none; user-select:none; }
 :where(button,summary,[role="button"],input,select,textarea):focus-visible { outline:2px solid #1a73e8; outline-offset:2px; }
 @media (max-width:420px) {
     #student-card-overlay input, #student-card-overlay textarea, #student-card-overlay select,

@@ -97,7 +97,7 @@
 .calendar-dragging .event-card { cursor:grabbing; }
 .lesson-drag-ghost {
     position:fixed !important; z-index:5200 !important; margin:0 !important; pointer-events:none !important;
-    opacity:.82; transform:scale(.96); transform-origin:top left; box-shadow:0 8px 24px #0005 !important;
+    opacity:.88; transform:none; box-shadow:0 8px 24px #0005 !important;
     overflow:hidden; cursor:grabbing;
 }
 .lesson-drop-preview {
@@ -117,7 +117,8 @@
     border-top:1px solid #d9e1eb; color:#536174; font-size:11px; line-height:1;
 }
 .lesson-drag-time-tick.active { margin:1px -1px; border-radius:6px; background:#1a73e8; color:#fff; font-size:13px; font-weight:800; }
-.event-card { -webkit-user-select:none; user-select:none; }
+.calendar-container, .time-labels, .days-grid, .time-slot { touch-action:pan-y; }
+.event-card { -webkit-user-select:none; user-select:none; touch-action:pan-y; }
 :where(button,summary,[role="button"],input,select,textarea):focus-visible { outline:2px solid #1a73e8; outline-offset:2px; }
 @media (max-width:420px) {
     #student-card-overlay input, #student-card-overlay textarea, #student-card-overlay select,

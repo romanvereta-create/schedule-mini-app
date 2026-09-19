@@ -60,8 +60,8 @@ const state = {
 };
 
 const MOVE_FINE_HOLD_MS = 700;
-const MOVE_TOUCH_HOLD_MS = 220;
-const MOVE_DRAG_THRESHOLD = 6;
+const MOVE_DRAG_THRESHOLD = 5;
+const MOVE_LONG_PRESS_MS = 420;
 const MOVE_FINE_TICK_HEIGHT = 23;
 const MOVE_FINE_SCALE_WIDTH = 74;
 let lessonDragSession = null;
@@ -831,8 +831,9 @@ function updateLessonDrag(clientX, clientY) {
     renderLessonDropPreview(target);
     const ghost = document.querySelector('.lesson-drag-ghost');
     if (ghost) {
-        ghost.style.left = `${Math.min(window.innerWidth - ghost.offsetWidth - 6, clientX + 10)}px`;
-        ghost.style.top = `${Math.min(window.innerHeight - ghost.offsetHeight - 6, clientY + 10)}px`;
+        ghost.style.left = `${Math.max(6, Math.min(window.innerWidth - ghost.offsetWidth - 6, clientX - ghost.offsetWidth / 2))}px`;
+        const above = clientY - ghost.offsetHeight - 20;
+        ghost.style.top = `${above >= 6 ? above : Math.min(window.innerHeight - ghost.offsetHeight - 6, clientY + 20)}px`;
     }
     const hint = document.getElementById('move-hint-text');
     hint.textContent = !target ? uiText('Перетащите в календарь')
@@ -846,8 +847,8 @@ function beginLessonDrag(session, clientX, clientY) {
     suppressLessonClickUntil = Date.now() + 800;
     const ghost = session.clone;
     ghost.classList.add('lesson-drag-ghost');
-    ghost.style.width = `${session.width}px`;
-    ghost.style.height = `${session.height}px`;
+    ghost.style.width = `${Math.min(110, Math.max(68, session.width))}px`;
+    ghost.style.height = `${Math.min(38, Math.max(30, session.height))}px`;
     document.body.appendChild(ghost);
     document.body.classList.add('calendar-dragging');
     if (!state.isMoving) {
@@ -890,40 +891,51 @@ function attachLessonDrag(card, date, lesson) {
         const bounds = card.getBoundingClientRect();
         const session = {pointerId:event.pointerId, pointerType:event.pointerType, date, lesson,
             startX:event.clientX, startY:event.clientY, clientX:event.clientX, clientY:event.clientY,
+            startedAt:Date.now(),
             width:bounds.width, height:bounds.height, clone:card.cloneNode(true), active:false,
             precise:false, precisionLock:null, scaleTop:null, scaleLeft:null,
-            cellKey:'', fineTimer:null, armTimer:null, target:null};
+            intent:'', cellKey:'', fineTimer:null, target:null};
         lessonDragSession = session;
-        if (event.pointerType === 'touch') {
-            session.armTimer = setTimeout(() => beginLessonDrag(session, session.clientX, session.clientY), MOVE_TOUCH_HOLD_MS);
-        }
         const move = pointerEvent => {
             if (lessonDragSession !== session || pointerEvent.pointerId !== session.pointerId) return;
             session.clientX = pointerEvent.clientX;
             session.clientY = pointerEvent.clientY;
-            const distance = Math.hypot(pointerEvent.clientX - session.startX, pointerEvent.clientY - session.startY);
-            if (!session.active && session.pointerType !== 'touch' && distance >= MOVE_DRAG_THRESHOLD) beginLessonDrag(session, pointerEvent.clientX, pointerEvent.clientY);
+            const dx = pointerEvent.clientX - session.startX;
+            const dy = pointerEvent.clientY - session.startY;
+            const absX = Math.abs(dx);
+            const absY = Math.abs(dy);
+            const distance = Math.hypot(dx, dy);
+            if (!session.active && session.pointerType === 'touch' && !session.intent) {
+                if (absY >= 10 && absY > absX * 1.7) {
+                    session.intent = 'scroll';
+                    suppressLessonClickUntil = Date.now() + 700;
+                } else if (absX >= MOVE_DRAG_THRESHOLD || (distance >= 7 && absY <= absX * 1.7)) {
+                    session.intent = 'drag';
+                    beginLessonDrag(session, pointerEvent.clientX, pointerEvent.clientY);
+                }
+            } else if (!session.active && session.pointerType !== 'touch' && distance >= MOVE_DRAG_THRESHOLD) {
+                session.intent = 'drag';
+                beginLessonDrag(session, pointerEvent.clientX, pointerEvent.clientY);
+            }
+            if (session.intent === 'scroll') return;
             if (session.active) {
                 pointerEvent.preventDefault();
                 updateLessonDrag(pointerEvent.clientX, pointerEvent.clientY);
-            } else if (session.pointerType === 'touch' && distance > MOVE_DRAG_THRESHOLD) {
-                clearTimeout(session.armTimer);
-                cleanup();
-                lessonDragSession = null;
             }
         };
         const end = pointerEvent => {
             if (lessonDragSession !== session || pointerEvent.pointerId !== session.pointerId) return;
-            clearTimeout(session.armTimer);
             cleanup();
             if (session.active) {
                 pointerEvent.preventDefault();
                 finishLessonDrag();
-            } else lessonDragSession = null;
+            } else {
+                if (session.intent === 'scroll' || Date.now() - session.startedAt >= MOVE_LONG_PRESS_MS) suppressLessonClickUntil = Date.now() + 700;
+                lessonDragSession = null;
+            }
         };
         const cancel = pointerEvent => {
             if (lessonDragSession !== session || pointerEvent.pointerId !== session.pointerId) return;
-            clearTimeout(session.armTimer);
             cleanup();
             if (session.active) {
                 clearLessonDragVisuals();
@@ -931,7 +943,10 @@ function attachLessonDrag(card, date, lesson) {
                 state.isMoving = false;
                 state.selectedLesson = null;
                 state.pendingMove = null;
-            } else lessonDragSession = null;
+            } else {
+                if (session.intent === 'scroll') suppressLessonClickUntil = Date.now() + 700;
+                lessonDragSession = null;
+            }
         };
         const cleanup = () => {
             document.removeEventListener('pointermove', move, true);

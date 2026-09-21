@@ -12,7 +12,17 @@ window.addEventListener('resize', updateModalViewport);
 window.visualViewport?.addEventListener('resize', updateModalViewport);
 window.visualViewport?.addEventListener('scroll', updateModalViewport);
 
-const API_URL = 'https://bot-1787954043-4984-solo1986.bothost.tech/api';
+const DEFAULT_API_ORIGIN = 'https://bot-1787954043-4984-solo1986.bothost.tech';
+const TEST_API_ORIGIN = 'https://bot-1789984567-3598-solo1986.bothost.tech';
+
+const requestedApiOrigin = new URLSearchParams(window.location.search).get('api_origin');
+const API_ORIGIN =
+    requestedApiOrigin === TEST_API_ORIGIN
+        ? TEST_API_ORIGIN
+        : DEFAULT_API_ORIGIN;
+
+const API_URL = `${API_ORIGIN}/api`;
+
 const START_HOUR = 0;
 const END_HOUR = 23;
 const MIN_HOUR_HEIGHT = 40;

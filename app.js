@@ -12,12 +12,13 @@ window.addEventListener('resize', updateModalViewport);
 window.visualViewport?.addEventListener('resize', updateModalViewport);
 window.visualViewport?.addEventListener('scroll', updateModalViewport);
 
-const DEFAULT_API_ORIGIN = 'https://bot-1789984567-3598-solo1986.bothost.tech';
+const DEFAULT_API_ORIGIN = 'https://bot-1787954043-4984-solo1986.bothost.tech';
 const TEST_API_ORIGIN = 'https://bot-1789984567-3598-solo1986.bothost.tech';
 
 const requestedApiOrigin = new URLSearchParams(window.location.search).get('api_origin');
 const API_ORIGIN = requestedApiOrigin === TEST_API_ORIGIN ? TEST_API_ORIGIN : DEFAULT_API_ORIGIN;
 const API_URL = `${API_ORIGIN}/api`;
+const SUPPORTS_BOOTSTRAP = API_ORIGIN === TEST_API_ORIGIN;
 const START_HOUR = 0;
 const END_HOUR = 23;
 const MIN_HOUR_HEIGHT = 40;
@@ -445,7 +446,13 @@ async function fetchData() {
     renderNetworkStatus(true);
     try {
         clearWeekScheduleCache();
-        await loadBootstrap();
+        if (SUPPORTS_BOOTSTRAP) {
+            await loadBootstrap();
+        } else {
+            const results = await Promise.allSettled([loadSchedule(), loadStudents(), loadSettings()]);
+            const failure = results.find(result => result.status === 'rejected');
+            if (failure) throw failure.reason;
+        }
         renderCalendar();
         scheduleWorkCenterRefresh();
         refreshPendingBindingBadge();
@@ -474,7 +481,11 @@ async function refreshScheduleOnly({ refreshHelper = true } = {}) {
 async function refreshScheduleAndStudents() {
     try {
         clearWeekScheduleCache();
-        await loadBootstrap({ applySettings: false });
+        if (SUPPORTS_BOOTSTRAP) {
+            await loadBootstrap({ applySettings: false });
+        } else {
+            await Promise.all([loadSchedule(), loadStudents()]);
+        }
         renderCalendar();
         scheduleWorkCenterRefresh();
     } catch (error) {

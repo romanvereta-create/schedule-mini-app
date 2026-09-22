@@ -12,7 +12,7 @@ window.addEventListener('resize', updateModalViewport);
 window.visualViewport?.addEventListener('resize', updateModalViewport);
 window.visualViewport?.addEventListener('scroll', updateModalViewport);
 
-const DEFAULT_API_ORIGIN = 'https://bot-1787954043-4984-solo1986.bothost.tech';
+const DEFAULT_API_ORIGIN = 'https://bot-1789984567-3598-solo1986.bothost.tech';
 const TEST_API_ORIGIN = 'https://bot-1789984567-3598-solo1986.bothost.tech';
 
 const requestedApiOrigin = new URLSearchParams(window.location.search).get('api_origin');

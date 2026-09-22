@@ -16,13 +16,8 @@ const DEFAULT_API_ORIGIN = 'https://bot-1787954043-4984-solo1986.bothost.tech';
 const TEST_API_ORIGIN = 'https://bot-1789984567-3598-solo1986.bothost.tech';
 
 const requestedApiOrigin = new URLSearchParams(window.location.search).get('api_origin');
-const API_ORIGIN =
-    requestedApiOrigin === TEST_API_ORIGIN
-        ? TEST_API_ORIGIN
-        : DEFAULT_API_ORIGIN;
-
+const API_ORIGIN = requestedApiOrigin === TEST_API_ORIGIN ? TEST_API_ORIGIN : DEFAULT_API_ORIGIN;
 const API_URL = `${API_ORIGIN}/api`;
-
 const START_HOUR = 0;
 const END_HOUR = 23;
 const MIN_HOUR_HEIGHT = 40;
@@ -268,7 +263,7 @@ async function apiFetch(path, options = {}) {
     const { quiet = false, ...fetchOptions } = options;
     const controller = new AbortController();
     const readOnly = (fetchOptions.method || 'GET').toUpperCase() === 'GET'
-        || /^\/get_/.test(path);
+        || /^\/get_/.test(path) || path === '/bootstrap';
     const timer = setTimeout(() => controller.abort(), readOnly ? 15000 : 45000);
     let status = 0;
     try {
@@ -390,18 +385,8 @@ async function fetchWeekSchedule(monday, { allowCached = false } = {}) {
 
 function scheduleAdjacentWeekPrefetch(monday) {
     window.clearTimeout(adjacentWeekPrefetchTimer);
-    if (!backgroundWeekPrefetchAllowed() || document.hidden) return;
-    const base = new Date(monday);
-    const generation = weekCacheGeneration;
-    adjacentWeekPrefetchTimer = window.setTimeout(async () => {
-        for (const days of [-7, 7]) {
-            if (generation !== weekCacheGeneration || document.hidden) return;
-            const target = new Date(base);
-            target.setDate(target.getDate() + days);
-            try { await fetchWeekSchedule(target, { allowCached: true }); }
-            catch (error) { console.warn('Фоновая загрузка недели пропущена:', error); }
-        }
-    }, 450);
+    // Cross-region storage is deliberately not prefetched: these reads used to
+    // occupy the backend lock just as the user opened or saved a lesson.
 }
 
 async function loadSchedule() {
@@ -460,10 +445,7 @@ async function fetchData() {
     renderNetworkStatus(true);
     try {
         clearWeekScheduleCache();
-        // Wait for every request to settle before allowing a retry, avoiding late stale replies.
-        const results = await Promise.allSettled([loadSchedule(), loadStudents(), loadSettings()]);
-        const failure = results.find(result => result.status === 'rejected');
-        if (failure) throw failure.reason;
+        await loadBootstrap();
         renderCalendar();
         scheduleWorkCenterRefresh();
         refreshPendingBindingBadge();
@@ -492,12 +474,35 @@ async function refreshScheduleOnly({ refreshHelper = true } = {}) {
 async function refreshScheduleAndStudents() {
     try {
         clearWeekScheduleCache();
-        await Promise.all([loadSchedule(), loadStudents()]);
+        await loadBootstrap({ applySettings: false });
         renderCalendar();
         scheduleWorkCenterRefresh();
     } catch (error) {
         console.error('Ошибка обновления данных:', error);
     }
+}
+
+async function loadBootstrap({ applySettings = true } = {}) {
+    const requestedWeek = dateKey(state.currentMonday);
+    const response = await apiFetch('/bootstrap', {
+        method: 'POST',
+        body: JSON.stringify({ week_start: requestedWeek })
+    });
+    const data = await response.json();
+    if (!response.ok || data.status !== 'ok') throw new Error(data.message || 'Ошибка загрузки данных');
+    state.schedule = data.schedule || {};
+    state.students = data.students || {};
+    storeWeekSchedule(requestedWeek, state.schedule);
+    fillStudentsDropdown();
+    if (applySettings) {
+        state.settings = data.settings || state.settings;
+        await window.TEMLI_I18N?.setLanguage(state.settings.language || 'ru');
+        window.TEMLI_I18N?.setCurrency(state.settings.currency || 'RUB');
+        state.onboardingNeeded = data.onboarding_needed === true;
+        updateVisibleHoursFromSettingsAndLessons();
+        if (!initialDataReady) autoFitWeekPending = true;
+    }
+    return true;
 }
 
 async function refreshStudentsOnly() {
@@ -1502,6 +1507,7 @@ function getContacts(containerId) {
 }
 
 let lessonInviteAvailabilityRequest = 0;
+let lessonInviteAvailabilityTimer = 0;
 
 function renderLessonStudentSetupLabels() {
     for (const id of ['lesson-parent-name', 'student-parent-name']) {
@@ -1729,9 +1735,15 @@ function openAddModal(date, time, type = 'student') {
     resetAddForm(type);
     document.getElementById('lesson-time').value = time;
     document.getElementById('lesson-duration').value = '60';
-    loadLessonInviteAvailability();
     document.getElementById('modal-overlay').classList.remove('hidden');
     document.querySelectorAll('#modal-overlay .modal-body, #modal-overlay .modal-content').forEach(el => { el.scrollTop = 0; });
+    // Invitation availability is secondary; let typing/selecting remain instant.
+    window.clearTimeout(lessonInviteAvailabilityTimer);
+    lessonInviteAvailabilityTimer = window.setTimeout(() => {
+        if (!document.getElementById('modal-overlay').classList.contains('hidden')) {
+            loadLessonInviteAvailability();
+        }
+    }, 4000);
 }
 
 function openEditModal(date, lesson) {
